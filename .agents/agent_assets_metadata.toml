@@ -65,3 +65,9 @@ id = "oNtFxt1BpBgJGTCqxUPGy"
 uri = "file://attached_assets/favicon_options/toolbelt_option3_hardhat_ai_v2.png"
 type = "image"
 title = "Hard Hat + AI — Larger"
+
+[[outputs]]
+id = "0vTCjnRiP1xWFj-MEi-3W"
+uri = "file://AIPM_IMPACT_METRICS_REPORT.md"
+type = "text"
+title = "AiPM Impact Metrics Report"
