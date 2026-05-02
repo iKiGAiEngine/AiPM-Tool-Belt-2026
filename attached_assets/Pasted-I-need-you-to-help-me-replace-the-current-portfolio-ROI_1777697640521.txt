@@ -1,0 +1,124 @@
+I need you to help me replace the current portfolio ROI/stat numbers with real, defensible numbers from the AiPM codebase and database.
+
+Goal:
+Create a clear "AiPM Impact Metrics" report that calculates actual or supportable numbers we can show in a portfolio / leadership discussion.
+
+Important:
+Do NOT invent numbers.
+Do NOT use generic assumptions unless clearly labeled as assumptions.
+Prioritize numbers that can be pulled from the live database, logs, timestamps, proposal log entries, estimating module records, BuildingConnected sync records, user activity, RFQ records, extracted specs, schedule conversions, quote parsing, or any other existing app data.
+If a number cannot be proven from existing data, tell me exactly what data is missing and how we should start tracking it going forward.
+
+Please inspect the codebase and database schema first, then produce a report.
+
+I want you to look for real metrics in these categories:
+
+1. Proposal Log Impact
+- Total proposal log entries
+- Total Swinerton / BuildingConnected synced opportunities
+- Number of entries created manually vs synced/imported if available
+- Number of duplicate/merged/prevented entries if tracked
+- Number of proposal changes or audit log events
+- Number of projects by status: Lead, Estimating, Submitted, Revising, Won, Awarded, Lost, No Bid, Undecided, Declined
+- Number of regions/offices supported
+- Any estimate due date or bid tracking metrics available
+
+2. Estimating Module Impact
+- Total estimates created
+- Total estimate line items created
+- Total estimate versions if tracked
+- Total proposals generated/exported if tracked
+- Total breakouts, scopes, or sections created
+- Number of estimates connected to proposal log entries
+- Average number of line items per estimate
+- Any timestamps that can show time from estimate creation to proposal/export/submission
+
+3. AI / Automation Usage
+- Total Spec Extractor jobs or extracted sections
+- Total Schedule Converter jobs or converted line items
+- Total quote parsing / vendor quote uploads if tracked
+- Total plan parser jobs if tracked
+- Total AI-assisted actions if audit logs or usage logs exist
+- Total files uploaded/processed if available
+- Any failed vs successful jobs
+
+4. RFQ / Vendor / Buyout Impact
+- Total vendors in the database
+- Total manufacturers in the database
+- Total manufacturer contacts
+- Total RFQs created/sent/logged if available
+- Total quote records received
+- Total line items with vendor backup/pricing attached
+- Any savings or buyout comparison data if available
+
+5. Security / Governance / Enterprise Readiness
+- Total users
+- Total active users if available
+- Roles/permission profiles
+- Audit log count
+- Number of approval-controlled actions if available
+- Any backup/snapshot/audit trail features in code
+- Any evidence of dev/prod separation, role-based access, or session handling
+
+6. Time Savings Model
+After pulling real counts, create a conservative time-savings model using the real activity counts.
+
+Use the following format:
+- Metric / Workflow
+- Real count from database
+- Conservative minutes saved per action
+- Formula
+- Annualized or total savings
+- Confidence level: High / Medium / Low
+- Evidence source: database table, code path, or log
+
+Suggested conservative assumptions, but only use them if the real workflow supports it:
+- BuildingConnected auto-log: 5-10 minutes saved per synced bid invite
+- Spec Extractor: 20-45 minutes saved per spec extraction
+- Schedule Converter: 10-30 minutes saved per schedule conversion
+- Proposal Log centralized tracking: 2-5 minutes saved per status/update/search action
+- Estimating module connected setup: 10-20 minutes saved per estimate setup
+- RFQ generation: 10-20 minutes saved per RFQ package
+- Quote parsing: 10-30 minutes saved per quote processed
+- Proposal generation/export: 15-30 minutes saved per proposal
+
+Use a blended labor rate of $75/hour by default, but make this editable as a constant.
+
+7. Output Needed
+Create a markdown report named:
+
+AIPM_IMPACT_METRICS_REPORT.md
+
+The report should include:
+- Executive summary
+- Real counts pulled from database/code
+- Defensible ROI / time savings table
+- Current confidence level for each number
+- Recommended portfolio stats to replace the current "$67K+ Annualized Savings Identified"
+- Which numbers are proven vs estimated
+- What tracking should be added next to make future ROI reporting stronger
+
+8. Recommended Portfolio Stats
+At the end, give me 5-8 clean stats I can use in the portfolio hero section, such as:
+- "___+ proposal records structured"
+- "___+ AI-assisted document workflows processed"
+- "___+ estimate line items managed"
+- "___+ vendors/manufacturers organized"
+- "$___+ conservative annualized labor savings modeled"
+- "___+ audit events tracked"
+- "___ active modules live"
+
+Each stat must include:
+- The number
+- Where it came from
+- Whether it is proven, modeled, or estimated
+- The safest wording to use publicly
+
+9. Code/DB Safety
+Do not modify production behavior.
+Do not delete anything.
+Do not change schemas yet.
+Do not run migrations.
+Only inspect files, query safe read-only database information, and create the markdown report.
+
+Before doing any code changes or creating new tracking features, stop and summarize what you found.
