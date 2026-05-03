@@ -71,3 +71,9 @@ id = "0vTCjnRiP1xWFj-MEi-3W"
 uri = "file://AIPM_IMPACT_METRICS_REPORT.md"
 type = "text"
 title = "AiPM Impact Metrics Report"
+
+[[outputs]]
+id = "z_42RmVND03p4q8HR05Hu"
+uri = "file://GONZALO_GENE_PRODUCTION_USAGE_REPORT.md"
+type = "text"
+title = "Gonzalo & Gene — Production Usage Report"
