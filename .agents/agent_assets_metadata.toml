@@ -89,3 +89,15 @@ id = "MmwNP4i3_7pUx8lmpjxhf"
 uri = "file://ESTIMATING_MODULE_DEMO_GUIDE.md"
 type = "text"
 title = "Estimating Module — Demo Cheat Sheet (Module-Only)"
+
+[[outputs]]
+id = "v37dgAAtyxvN9xDqsj7_Q"
+uri = "file://Manufacturer_Upload_Template.xlsx"
+type = "table"
+title = "Manufacturer Upload Template"
+
+[[outputs]]
+id = "msGKSRMpJODTfzmeeSDOS"
+uri = "file://Vendor_Upload_Template.xlsx"
+type = "table"
+title = "Vendor Upload Template (3 tabs)"
