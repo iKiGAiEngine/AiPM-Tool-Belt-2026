@@ -77,6 +77,7 @@ export default function ProjectLogPage() {
   const [showBcSync, setShowBcSync] = useState(false);
   const [editingDraft, setEditingDraft] = useState<ProposalLogEntry | null>(null);
   const [editForm, setEditForm] = useState({ projectName: "", region: "", dueDate: "", nbsEstimator: "", gcEstimateLead: "", owner: "", primaryMarket: "", notes: "", scopeList: "", projectAddress: "", squareFeet: "", anticipatedStart: "", anticipatedFinish: "" });
+  const [createVendorFolder, setCreateVendorFolder] = useState(true);
   const [rejectingDraftId, setRejectingDraftId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [approveResult, setApproveResult] = useState<{ projectId: string; downloadUrl: string; projectName: string } | null>(null);
@@ -172,7 +173,7 @@ export default function ProjectLogPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const canBcSync = isAdmin || hasFeature("bc-sync");
+    const canBcSync = isAdmin || hasFeature("bc-sync") || hasFeature("draft-review");
     if (params.get("openSync") === "1" && canBcSync && bcStatus?.connected) {
       setShowBcSync(true);
       params.delete("openSync");
@@ -491,6 +492,7 @@ export default function ProjectLogPage() {
   const openEditDraft = (entry: ProposalLogEntry) => {
     setEditingDraft(entry);
     setApproveResult(null);
+    setCreateVendorFolder(true);
     setEditForm({
       projectName: entry.projectName || "",
       region: normalizeRegionForDropdown(entry.region || ""),
@@ -687,7 +689,7 @@ export default function ProjectLogPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {isAdmin && bcStatus?.connected && (
+            {(isAdmin || hasFeature("bc-sync") || hasFeature("draft-review")) && bcStatus?.connected && (
               <Button
                 variant="outline"
                 size="sm"
@@ -1020,7 +1022,7 @@ export default function ProjectLogPage() {
                       >
                         <span className="flex items-center gap-1">Created <SortIcon field="createdAt" /></span>
                       </th>
-                      {viewTab === "drafts" && isAdmin && (
+                      {viewTab === "drafts" && (isAdmin || hasFeature("draft-review")) && (
                         <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }}>Actions</th>
                       )}
                       {viewTab !== "drafts" && (
@@ -1370,7 +1372,7 @@ export default function ProjectLogPage() {
                               </Button>
                             </td>
                           )}
-                          {viewTab === "drafts" && isAdmin && (
+                          {viewTab === "drafts" && (isAdmin || hasFeature("draft-review")) && (
                             <td className="py-3 px-3">
                               {isDraft && !isDeleted && (
                                 <div className="flex items-center gap-1">
@@ -1675,11 +1677,21 @@ export default function ProjectLogPage() {
                     >
                       Save Changes
                     </Button>
+                    <label className="flex items-center gap-2 text-xs select-none cursor-pointer mr-2" style={{ color: "var(--text-dim)" }} data-testid="label-create-vendor-folder">
+                      <input
+                        type="checkbox"
+                        checked={createVendorFolder}
+                        onChange={(e) => setCreateVendorFolder(e.target.checked)}
+                        className="h-3.5 w-3.5 cursor-pointer"
+                        data-testid="checkbox-create-vendor-folder"
+                      />
+                      Create vendor folder
+                    </label>
                     <Button
                       size="sm"
                       onClick={() => {
                         if (editingDraft) {
-                          approveAndCreateMutation.mutate({ id: editingDraft.id, data: editForm });
+                          approveAndCreateMutation.mutate({ id: editingDraft.id, data: { ...editForm, createVendorFolder: createVendorFolder as any } });
                         }
                       }}
                       disabled={approveAndCreateMutation.isPending || !editForm.projectName || !editForm.region}
@@ -1810,7 +1822,7 @@ export default function ProjectLogPage() {
                   style={{ background: "var(--bg-input)", color: "var(--text)" }}
                   onClick={() => {
                     if (!dupBlockedDraft || !dupSelectedMatchId || !dupBlockedData) return;
-                    mergeAsBidRoundMutation.mutate({ draftId: dupBlockedDraft.id, targetId: dupSelectedMatchId, data: dupBlockedData });
+                    mergeAsBidRoundMutation.mutate({ draftId: dupBlockedDraft.id, targetId: dupSelectedMatchId, data: { ...dupBlockedData, createVendorFolder: createVendorFolder as any } });
                   }}
                   disabled={!dupSelectedMatchId || mergeAsBidRoundMutation.isPending || forceApproveMutation.isPending}
                   data-testid="button-dup-add-bid-round"
@@ -1827,7 +1839,7 @@ export default function ProjectLogPage() {
                   style={{ background: "var(--bg-input)", color: "var(--text)" }}
                   onClick={() => {
                     if (!dupBlockedDraft || !dupBlockedData) return;
-                    forceApproveMutation.mutate({ id: dupBlockedDraft.id, data: dupBlockedData });
+                    forceApproveMutation.mutate({ id: dupBlockedDraft.id, data: { ...dupBlockedData, createVendorFolder: createVendorFolder as any } });
                   }}
                   disabled={forceApproveMutation.isPending || mergeAsBidRoundMutation.isPending}
                   data-testid="button-dup-force-create"

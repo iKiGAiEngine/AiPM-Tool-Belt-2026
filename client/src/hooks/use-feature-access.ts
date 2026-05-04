@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 
 export function useFeatureAccess() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   const { data: features = [], isLoading } = useQuery({
     queryKey: ["/api/user/features", user?.id ?? null],
@@ -19,5 +19,7 @@ export function useFeatureAccess() {
     return features.includes(feature);
   };
 
-  return { features, hasFeature, isLoading };
+  const canReviewDrafts: boolean = !!isAdmin || hasFeature("draft-review");
+
+  return { features, hasFeature, canReviewDrafts, isLoading };
 }

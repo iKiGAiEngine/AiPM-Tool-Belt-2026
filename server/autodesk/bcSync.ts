@@ -726,6 +726,14 @@ function isAdmin(user: { role: string } | null | undefined): boolean {
   return user?.role === "admin";
 }
 
+async function isAdminOrDraftReviewer(user: { id: number; role: string } | null | undefined): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  const { storage } = await import("../storage");
+  const features = await storage.getUserFeatureAccess(user.id);
+  return features.includes("draft-review" as any);
+}
+
 async function detectFieldChanges(existing: typeof proposalLogEntries.$inferSelect, opp: BcOpportunity): Promise<string[]> {
   const changes: string[] = [];
   const mapped = await mapOpportunityToEntry(opp);
@@ -777,7 +785,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
 
       const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (!isAdmin(user)) return res.status(403).json({ message: "Admin access required" });
+      if (!(await isAdminOrDraftReviewer(user))) return res.status(403).json({ message: "Admin or Draft Review access required" });
 
       const accessToken = await getValidToken(userId);
       if (!accessToken) {
@@ -960,7 +968,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
 
       const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (!isAdmin(user)) return res.status(403).json({ message: "Admin access required" });
+      if (!(await isAdminOrDraftReviewer(user))) return res.status(403).json({ message: "Admin or Draft Review access required" });
 
       const { opportunityIds, sinceDateUsed } = req.body as { opportunityIds?: string[]; sinceDateUsed?: string };
       if (!opportunityIds?.length) {
@@ -1243,7 +1251,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
 
       const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (!isAdmin(user)) return res.status(403).json({ message: "Admin access required" });
+      if (!(await isAdminOrDraftReviewer(user))) return res.status(403).json({ message: "Admin or Draft Review access required" });
 
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
@@ -1327,7 +1335,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
 
       const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (!isAdmin(user)) return res.status(403).json({ message: "Admin access required" });
+      if (!(await isAdminOrDraftReviewer(user))) return res.status(403).json({ message: "Admin or Draft Review access required" });
 
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
@@ -1337,7 +1345,8 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
       if (entry.deletedAt) return res.status(400).json({ message: "Entry has been deleted" });
 
-      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish, force, mergeIntoId } = req.body || {};
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish, force, mergeIntoId, createVendorFolder } = req.body || {};
+      const includeVendorFolder = createVendorFolder !== false;
 
       const approverNameAC = user!.displayName || user!.email;
 
@@ -1479,7 +1488,7 @@ export function registerBcSyncRoutes(app: Express) {
       const requiredSubfolders = [
         "Estimate Folder/Bid Documents/Plans",
         "Estimate Folder/Bid Documents/Specs",
-        "Estimate Folder/Vendors",
+        ...(includeVendorFolder ? ["Estimate Folder/Vendors"] : []),
         "Estimate Folder/Estimate",
       ];
       for (const sub of requiredSubfolders) {
@@ -1622,7 +1631,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
 
       const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (!isAdmin(user)) return res.status(403).json({ message: "Admin access required" });
+      if (!(await isAdminOrDraftReviewer(user))) return res.status(403).json({ message: "Admin or Draft Review access required" });
 
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
@@ -1665,7 +1674,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
 
       const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (!isAdmin(user)) return res.status(403).json({ message: "Admin access required" });
+      if (!(await isAdminOrDraftReviewer(user))) return res.status(403).json({ message: "Admin or Draft Review access required" });
 
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
