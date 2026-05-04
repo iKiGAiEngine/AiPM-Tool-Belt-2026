@@ -83,3 +83,9 @@ id = "irtAGVtTEDUbwh3GMW_CB"
 uri = "file://GONZALO_GENE_MONTHLY_USAGE_REPORT.md"
 type = "text"
 title = "Gonzalo & Gene — Monthly Usage Report (Feb / Mar / Apr)"
+
+[[outputs]]
+id = "MmwNP4i3_7pUx8lmpjxhf"
+uri = "file://ESTIMATING_MODULE_DEMO_GUIDE.md"
+type = "text"
+title = "Estimating Module — Demo Cheat Sheet"
