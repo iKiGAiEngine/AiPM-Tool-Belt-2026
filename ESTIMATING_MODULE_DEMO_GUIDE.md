@@ -1,152 +1,186 @@
 # Estimating Module — Demo Cheat Sheet
 **Walk-through reference · May 2, 2026**
+**Scope:** Inside an individual estimate at `/estimates/:id` — the 4-stage builder
 
 ---
 
-## The Workflow (in order)
+## The 4-Stage Workflow
 
 ```
-Proposal Log → Project Start → Spec Extractor → Estimate Builder → Quote Parser → RFQ → Output
+  Stage 1            Stage 2           Stage 3            Stage 4
+  INTAKE     →     LINE ITEMS    →   CALCULATIONS    →    OUTPUT
+(Project Info)    (The Builder)       (Markups)         (Proposal)
 ```
 
----
-
-## 1. Proposal Log — Where It All Starts
-
-**Point out:** Every bid flows through a single system of record instead of a spreadsheet or email chain.
-
-| What to show | What to say |
-|---|---|
-| Active bid list | "Every open opportunity — 22 live bids across 14 regions — tracked in one place" |
-| Status column | "Estimating → Submitted → Won/Lost — we can see the full pipeline at a glance" |
-| BuildingConnected sync badge | "When a GC invites us on BuildingConnected, it auto-creates the entry here — no manual data entry" |
-| Region / estimator assignment | "We assign bids by region and estimator — Gonzalo or Gene gets pinged, they own it from here" |
-
-**Live numbers:** 30 proposals tracked · 13 auto-synced from BuildingConnected · 14 regions covered
+Every estimate runs through the same 4 tabs. Time is tracked at each stage.
 
 ---
 
-## 2. Project Start — AI Kicks Off the Bid
+## STAGE 1 — INTAKE (Project Info)
 
-**Point out:** One click starts the entire bid workflow — no setup, no folder hunting.
+**Purpose:** Pull project metadata, set assumptions, lock the bid context.
 
-| What to show | What to say |
+| What to point out | What to say |
 |---|---|
-| "Start Project" button | "This auto-generates the project ID, sets up the folder structure, and queues the spec + plan extraction" |
-| Auto-generated estimate number | "Estimate numbers follow our NBS format automatically — no manual numbering" |
-| Spec + Plan auto-queued | "The moment a project starts, the AI begins reading the spec book in the background" |
+| Auto-populated project info | "Pulls from the Proposal Log — no re-keying project name, region, due date, GC contact" |
+| Approved manufacturers list | "Spec Extractor results show up here — we already know which manufacturers the spec calls for" |
+| Scope checklist | "Pick the Division 10 scopes that apply — this drives every category tab in Stage 2" |
+| Assumptions / risks panel | "Free text for bid clarifications — saved with the version, never lost" |
+| Stage time tracker | "The system tracks how long we spend in intake — currently averaging 6.5 min per bid" |
 
-**Live numbers:** 17 project starts logged (Gonzalo + Gene alone) · saves ~15 min of setup per bid
+**Live numbers:** **39 minutes** of intake time tracked across 6 bids = avg **~6.5 min per bid**
 
 ---
 
-## 3. Spec Extractor — AI Reads the Spec Book
+## STAGE 2 — LINE ITEMS (The Builder)
 
-**This is the biggest ROI feature in the module. Spend time here.**
+**This is the workhorse. Spend the most time here.**
 
-**Point out:** The AI reads the entire project manual and pulls every Division 10 section — automatically.
+**Purpose:** Quantity takeoff, product selection, vendor pricing — all structured.
 
-| What to show | What to say |
+### 2A. Scope-Based Architecture (CSI Codes)
+
+| What to point out | What to say |
 |---|---|
-| Upload spec PDF | "Drop in the project manual — we've processed spec books up to 2,491 pages" |
-| Auto-identified sections | "The AI finds every Div 10 section: Toilet Accessories, Partitions, Wall Protection, Signage, FEC, Lockers" |
-| Section # + page range | "We get the exact section number, title, and page range — ready to pull specs without digging" |
-| AI review notes | "It flags ambiguous or non-standard sections for human review" |
+| Category tabs by CSI code | "Each scope is its own tab — 10 28 00 Toilet Accessories, 10 21 00 Partitions, 10 26 00 Wall Protection, etc." |
+| Tab roll-up totals | "Each tab totals independently and rolls into the grand total" |
 
-**Live numbers:**
-- **49 completed sessions** · **52,447 total spec pages processed by AI**
-- **334 Division 10 sections extracted** — avg 7.3 per project
-- **Saves ~30 min per bid** vs. manual spec review = **$37.50/bid at $75/hr**
-- Gene processed 4,478 pages across 4 projects on his **first day** using the tool
+### 2B. Product & Manufacturer Lookup
+
+| What to point out | What to say |
+|---|---|
+| Manufacturer ComboBox | "Approved manufacturers from the spec show first — no guessing what's allowed" |
+| Auto-product lookup | "Type a model number — the system finds it in our product database and auto-fills cost, description, manufacturer" |
+
+### 2C. Vendor Quote Handling — **MAJOR ROI**
+
+| What to point out | What to say |
+|---|---|
+| **AI Quote Parser** (PDF/image) | "Drop a vendor PDF here — AI reads the header, line items, prices, freight terms automatically" |
+| **Paste-to-Parse** | "Paste raw text from an email — same AI categorization, no PDF needed" |
+| Quote-to-line-item linking | "Link a parsed quote to a line item — locks the unit cost and shows 'Quote Backup ✓' on the line" |
+| Lump Sum vs. Per-Item modes | "Handle both how vendors quote — we don't force them into our format" |
+| Quote Backup status | "Every line shows whether it has vendor backup — instantly see what still needs a quote" |
+
+**Live numbers:** **12 vendor quotes parsed** across estimates · saves ~20 min per quote
+
+### 2D. Cost Breakouts (Building / Phase / Floor / Area)
+
+| What to point out | What to say |
+|---|---|
+| Breakout Manager | "Define cost buckets — Building A vs Building B, Phase 1 vs Phase 2, Floor 3 vs Floor 4" |
+| Allocation engine | "Split a single line item across multiple breakouts — quantity, dollars, or percentages" |
+| Per-breakout markups | "Apply different OH/Fee/Escalation per breakout when needed" |
+
+### 2E. RFQ Generator (Built Into the Estimate)
+
+| What to point out | What to say |
+|---|---|
+| Consolidated RFQ button | "Pick a scope and the system pulls every approved manufacturer's vendor list automatically" |
+| Auto-generated `.eml` file | "Generates an Outlook-ready email with project info, scope, and due date pre-filled" |
+| RFQ Log tied to estimate | "Every RFQ is logged — we always know who we asked, when, and whether they responded" |
+| Response tracking | "When a vendor quote comes back, link it to the original RFQ — closes the loop automatically" |
+
+**Live numbers:** **33 RFQs sent** from inside estimates · 32 emailed via Outlook · saves ~15 min per RFQ
+
+### 2F. Stage Time Tracking
+
+**Live numbers:** **132 minutes** of line-item time tracked = the **single biggest time investment** in the workflow → which is exactly where the AI Quote Parser and product lookup save the most
 
 ---
 
-## 4. Estimate Builder — Line Items + Versioning
+## STAGE 3 — CALCULATIONS (Markups & Financial Engine)
 
-**Point out:** Structured estimating with full version history — no more "estimate_v7_FINAL_use_this_one.xlsx."
+**Purpose:** Apply OH, Fee, Escalation, Tax, Bond — globally or per-category.
 
-| What to show | What to say |
+| What to point out | What to say |
 |---|---|
-| Line item entry | "Each scope gets its own line items — material, labor, markup, all structured" |
-| Version snapshot | "Every time we save a revision, the system creates a version — we have 70 saved versions across 15 estimates" |
-| Version history panel | "We can go back to any point in time and see exactly what the number was and why it changed" |
-| Grand total auto-calc | "Totals roll up automatically — no formula errors" |
-| Stage timer | "The system tracks active time in each stage — we know exactly how long estimating actually takes" |
+| Global markup controls | "Set escalation, OH, and fee at the estimate level — applies to everything" |
+| Per-category overrides | "Need a different fee on accessories vs partitions? Override at the category level" |
+| **Net-based fee math** | "Fees are calculated on the *final selling price*, not on cost — Selling = Cost ÷ (1 − Fee%) — no more 'I added 15% but the margin is only 13%'" |
+| Tax engine | "Tax calculates on **material only** — freight and labor are excluded automatically per Washington/CA rules" |
+| Bond rate | "Apply bond as a % of total — separate input, separate line on the proposal" |
+| **Approval workflow for overrides** | "If someone overrides OH or Fee outside the standard range, it logs and requires executive sign-off" |
 
-**Live numbers:**
-- **15 estimates** · **99 line items** · **70 saved versions**
-- Avg **4.7 versions per estimate** · one estimate has **20 versions** (shows active revision history)
-- Max estimate value on record: **$148,686** · avg: **$40,115**
-- **193 minutes of active estimating time** tracked across 6 bids
+**Live numbers:** **6 minutes** of calculations time tracked = the math is fast because the engine handles it
 
 ---
 
-## 5. Quote Parser — AI Reads Vendor Quotes
+## STAGE 4 — OUTPUT (Proposal)
 
-**Point out:** Vendor PDFs go in, structured line items come out — no copy-paste.
+**Purpose:** Generate the client-ready bid document.
 
-| What to show | What to say |
+| What to point out | What to say |
 |---|---|
-| Upload vendor quote PDF | "Drop in a vendor's quote — the AI reads it and extracts item, quantity, and price" |
-| Parsed line items | "It maps their line items to our estimate structure automatically" |
-| Compare quotes side by side | "We can stack multiple vendor quotes and see who's competitive on each scope" |
+| **High-fidelity Proposal Letter** | "Print-ready HTML proposal with NBS branding, itemized scopes, terms — no Word, no copy-paste" |
+| Optional unit pricing | "Toggle between lump sum and unit pricing without rebuilding the document" |
+| **Excel export** | "Full estimate exports to `.xlsx` — for internal review or GC requests for backup" |
+| **Two-way Proposal Log sync** | "Total, status, and selected scopes sync back to the Proposal Log automatically — no double entry" |
 
-**Live numbers:** **12 vendor quotes parsed** · saves ~20 min per quote · **$25/quote at $75/hr**
+**Live numbers:** **16 minutes** of output stage time = the proposal is essentially generated, not authored
 
 ---
 
-## 6. RFQ Generator — Vendor Outreach in Seconds
+## Cross-Cutting Features (Mention as You Go)
 
-**Point out:** Goes from estimate to vendor email without touching Outlook or a quote template.
+### Version Control — **MAJOR ROI**
 
-| What to show | What to say |
+| What to point out | What to say |
 |---|---|
-| Select scope + manufacturers | "Pick the scope — Toilet Accessories, Wall Protection, etc. — and the system pulls the right vendor list" |
-| Auto-generated RFQ email | "It writes the RFQ with project info, scope details, and due date pre-filled" |
-| Send from inside the platform | "One click sends to the vendor — logged automatically, no tracking spreadsheet needed" |
-| RFQ log | "Every RFQ is timestamped and tied to the estimate — full vendor outreach history" |
+| Version snapshot on save | "Every save creates a complete snapshot — items, quotes, markups, totals" |
+| **Visual diffing** | "Compare any two versions side by side — 'Accessories went from $10K to $12K, +5 items, -1 item'" |
+| **Session grouping** | "Rapid saves get grouped into work sessions — clean timeline instead of 200 entries" |
+| Restore any version | "We can roll back to any point — never lose a number we showed a client" |
 
-**Live numbers:** **33 RFQs sent** · 32 via email · saves ~15 min per RFQ · **$18.75/RFQ**
+**Live numbers:** **70 versions saved** across 15 estimates · **avg 4.7 versions per estimate** · one estimate has **20 versions** showing active revision history
 
----
+### Automated Checklist
 
-## 7. Estimate Output — Proposal Ready
-
-**Point out:** The estimate produces a client-ready proposal document directly from the structured data.
-
-| What to show | What to say |
+| What to point out | What to say |
 |---|---|
-| Proposal preview | "The output pulls from the estimate — no reformatting, no copy-paste into Word" |
-| Scope breakdowns | "Each Division 10 scope listed separately with pricing" |
-| Revision timestamp | "Every proposal is tied to a version — we always know which number we submitted" |
+| Real-time completion status | "Auto-tracks: 'All items priced ✓', 'All backup attached ✓', 'Markups applied ✓' — no manual checklist" |
+| Submission readiness | "We don't submit until the checklist is green" |
+
+### Stage Activity Timer
+
+| What to point out | What to say |
+|---|---|
+| Per-stage time tracking | "We know exactly how long each estimate takes — by stage. First time we've ever had this data" |
+
+**Live distribution:** Intake 39 min · Line Items 132 min · Calculations 6 min · Output 16 min = **193 min total tracked**
 
 ---
 
 ## The Numbers to Have Ready
 
-If your boss asks "what's the ROI?" — use these:
+If your boss asks "what's the ROI on this module?":
 
 | Claim | Number | Source |
 |---|---|---|
-| Spec pages reviewed by AI | **52,447 pages** | Live DB — `spec_extractor_sessions` |
-| Div 10 sections extracted | **334 sections** | Live DB — `spec_extractor_sections` |
-| RFQs generated | **33 RFQs** | Live DB — `rfq_log` |
-| Vendor quotes parsed | **12 quotes** | Live DB — `estimate_quotes` |
-| Estimate versions saved | **70 versions** | Live DB — `estimate_versions` |
-| Largest estimate on record | **$148,686** | Live DB — `estimate_versions` |
-| Gonzalo + Gene savings (to date) | **$1,031** | Modeled from actual usage |
-| Annualized (2 users, current pace) | **~$5,200/yr** | Extrapolated from 10.5 weeks |
+| Estimates built in module | **15** | `estimates` table |
+| Line items structured | **99** | `estimate_line_items` |
+| Vendor quotes AI-parsed inside estimates | **12** | `estimate_quotes` |
+| RFQs sent from inside estimates | **33** | `rfq_log` |
+| Versions saved (audit trail) | **70** | `estimate_versions` |
+| Largest estimate value | **$148,686** | `estimate_versions.grand_total` |
+| Average estimate value | **$40,115** | `estimate_versions.grand_total` |
+| Active estimating time tracked | **193 min** | `estimate_activity_events` |
+| Modeled time savings (this module's features) | **~$1,000+** | Quote Parser + RFQ + Versioning combined |
 
 ---
 
 ## One-Sentence Summary Per Feature
 
-- **Spec Extractor:** "The AI reads the entire spec book so the estimator doesn't have to."
-- **Quote Parser:** "Vendor PDFs become structured line items without any copy-paste."
-- **RFQ Generator:** "Vendor outreach goes from 20 minutes to 30 seconds."
-- **Version Control:** "Every revision is saved — we always know what we submitted and when."
-- **BC Sync:** "BuildingConnected invites auto-create the bid entry — zero manual logging."
-- **Stage Timer:** "We now know exactly how long estimating takes — and can prove it."
+- **AI Quote Parser:** "Vendor PDF in, structured line items out — no copy-paste."
+- **Approved Manufacturer ComboBox:** "Spec compliance is enforced at the dropdown level."
+- **Cost Breakouts:** "Allocate any line item across buildings, phases, or floors without rebuilding the estimate."
+- **RFQ Generator:** "Vendor outreach goes from 20 minutes to 30 seconds and stays tied to the estimate."
+- **Net-Based Fee Math:** "Fees calculated on selling price — the margin you set is the margin you get."
+- **Tax Engine:** "Material only, freight and labor excluded — no manual tax math."
+- **Version Control + Diffing:** "Every save is a snapshot. We can show exactly what changed between any two versions."
+- **Approval Workflow:** "Overrides outside the standard range require executive sign-off — built into the workflow, not a separate process."
+- **Two-Way Proposal Log Sync:** "Total, status, and scopes sync back automatically — zero double entry."
+- **Stage Timer:** "First time we've ever measured how long an estimate actually takes."
 
 ---
 
