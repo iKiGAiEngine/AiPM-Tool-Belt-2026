@@ -77,3 +77,9 @@ id = "z_42RmVND03p4q8HR05Hu"
 uri = "file://GONZALO_GENE_PRODUCTION_USAGE_REPORT.md"
 type = "text"
 title = "Gonzalo & Gene — Production Usage Report"
+
+[[outputs]]
+id = "irtAGVtTEDUbwh3GMW_CB"
+uri = "file://GONZALO_GENE_MONTHLY_USAGE_REPORT.md"
+type = "text"
+title = "Gonzalo & Gene — Monthly Usage Report (Feb / Mar / Apr)"
