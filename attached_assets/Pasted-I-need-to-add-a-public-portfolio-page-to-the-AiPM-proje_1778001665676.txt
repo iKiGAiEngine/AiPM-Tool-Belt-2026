@@ -1,0 +1,46 @@
+I need to add a public portfolio page to the AiPM project that lives at aipmapp.com/portfolio. This page is separate from the AiPM application — it should be publicly accessible, require no login, and bypass any authentication, session, or middleware that protects the rest of the app.
+The file:
+I have an HTML file called haley-kruse-portfolio-v59.html that I'll upload. It is fully self-contained — all CSS and JavaScript are inline, fonts come from Google Fonts CDN, and there is no backend dependency. It is a static page.
+What I need you to do:
+
+Place the file in the right location for static serving. Look at the project's framework first (Express, Next.js, Vite, React Router, FastAPI, Flask, etc.) and tell me which one it is before making changes. Do not assume — check package.json, pyproject.toml, or the project's main entry file.
+Create a route at /portfolio that serves this file. Depending on the framework:
+
+If it's Express/Node: add a route handler like app.get('/portfolio', (req, res) => res.sendFile(...)) placed before any auth middleware
+If it's Next.js (Pages Router): drop the file into public/portfolio.html and confirm aipmapp.com/portfolio.html works, OR create a static route at pages/portfolio.tsx
+If it's Next.js (App Router): create app/portfolio/page.tsx and add /portfolio to any middleware.ts matcher exclusion list
+If it's Flask/FastAPI: add a route that returns the file with send_from_directory or FileResponse, registered before auth dependencies
+If it's Vite/static: drop the file into the public/ directory and confirm the URL works
+
+
+Bypass authentication. This is critical. The rest of AiPM requires login. The portfolio page must NOT.
+
+If there's a middleware.ts, auth.ts, protect.ts, or similar file: explicitly exclude /portfolio from its matcher
+If there's a session-check middleware applied globally: add /portfolio to the public/whitelisted paths
+If there's a route guard component wrapping protected pages: do not wrap this route
+Test that visiting aipmapp.com/portfolio in an incognito browser returns the page with no redirect to login
+
+
+Confirm the route returns proper headers:
+
+Content-Type: text/html; charset=utf-8
+200 OK status (not a redirect)
+Cache-Control: public, max-age=3600 (cache for 1 hour so updates can roll out reasonably fast)
+
+
+Do not modify the HTML file's contents. It is final. Just serve it as-is.
+Do not change anything else in the AiPM project. No new dependencies, no refactoring, no config edits beyond what's strictly required to add this one route.
+
+Before you make any changes, please tell me:
+
+What framework AiPM uses
+Where the auth middleware lives
+Where you plan to put the file
+Exactly which files you will edit
+
+Then wait for my confirmation before writing code.
+After you make the changes, verify:
+
+aipmapp.com/portfolio loads the page in an incognito browser tab without prompting for login
+The rest of AiPM still requires login as normal (don't break the existing auth)
+The page renders with all styles and animations working (it pulls fonts from fonts.googleapis.com so confirm CSP headers, if any, allow that domain)
