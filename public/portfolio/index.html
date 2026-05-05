@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#FAF8F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#FAF8F4" media="(prefers-color-scheme: dark)">
+<meta name="supported-color-schemes" content="light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Haley Kruse — Work History & Portfolio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  color-scheme: light only;
+  background: #FAF8F4;
+  forced-color-adjust: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+:root {
+  color-scheme: light only;
+  --ink:    #FAF8F4;
+  --ink-2:  #F2EDE4;
+  --ink-3:  #EAE4D8;
+  --gold:        #96700A;
+  --gold-light:  #7A5A08;
+  --gold-dim:    rgba(150,112,10,0.08);
+  --gold-border: rgba(150,112,10,0.2);
+  --cream:  #1A1814;
+  --text:   #2C2A24;
+  --muted:  #6B6558;
+  --dim:    #A09880;
+}
+
+html { scroll-behavior: smooth; background: #FAF8F4; }
+body {
+  background: #FAF8F4;
+  background: var(--ink);
+  background-color: #FAF8F4 !important;
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.75;
+  overflow-x: hidden;
+  forced-color-adjust: none;
+}
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-thumb { background: var(--gold-border); }
+
+/* ─── NAV ─── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  padding: 1.25rem 6vw;
+  display: flex; justify-content: space-between; align-items: center;
+  background: rgba(250,248,244,0.96);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--gold-border);
+  box-shadow: 0 1px 12px rgba(0,0,0,0.06);
+}
+.nav-brand { display: flex; flex-direction: column; line-height: 1; }
+.nav-name { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 700; color: var(--cream); letter-spacing: -0.01em; }
+.nav-sub  { font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); margin-top: 0.4rem; font-weight: 500; }
+.nav-links { display: flex; gap: 0.55rem; list-style: none; align-items: center; }
+.nav-links a {
+  position: relative;
+  font-family: 'DM Mono', monospace; font-size: 0.7rem;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  font-weight: 500;
+  color: var(--gold);
+  text-decoration: none;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--gold-border);
+  background: transparent;
+  white-space: nowrap;
+  transition: color 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+}
+.nav-links a:hover {
+  color: var(--gold-light);
+  border-color: var(--gold);
+  background: var(--gold-dim);
+}
+.nav-links a.nav-cta {
+  color: var(--gold);
+  background: transparent;
+  border-color: var(--gold-border);
+}
+.nav-links a.nav-cta:hover {
+  color: var(--gold-light);
+  background: var(--gold-dim);
+  border-color: var(--gold);
+}
+
+/* ─── INTRO ─── */
+.intro {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--gold-border);
+}
+
+.intro-left {
+  padding: 10rem 6vw 5rem;
+  display: flex; flex-direction: column; justify-content: center;
+  border-right: 1px solid var(--gold-border);
+}
+
+.intro-right {
+  padding: 10rem 5vw 5rem;
+  display: flex; flex-direction: column; justify-content: center;
+  background: var(--ink-2);
+}
+
+.eyebrow {
+  font-family: 'DM Mono', monospace; font-size: 0.7rem;
+  letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold);
+  margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;
+  animation: up 0.7s ease both;
+}
+.eyebrow::before { content: ''; width: 28px; height: 1px; background: var(--gold); }
+
+h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(2.8rem, 4.5vw, 5rem);
+  font-weight: 700; line-height: 1.05; color: var(--cream);
+  margin-bottom: 1.75rem;
+}
+h1 em { font-style: italic; color: var(--gold); font-weight: 300; position: relative; display: inline-block; }
+h1 em::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 0.05em;
+  height: 1.5px;
+  background: var(--gold);
+  width: 0;
+  animation: drawUnder 0.9s cubic-bezier(0.22, 1, 0.36, 1) 1.5s forwards;
+}
+@keyframes drawUnder { to { width: 100%; } }
+h1 .h1-line {
+  display: block;
+  opacity: 0;
+  transform: translateY(28px);
+  animation: h1Rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+h1 .h1-line:nth-child(1) { animation-delay: 0.15s; }
+h1 .h1-line:nth-child(2) { animation-delay: 0.32s; }
+h1 .h1-line:nth-child(3) { animation-delay: 0.5s; }
+
+@keyframes h1Rise {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.intro-bio {
+  font-size: 1.05rem; color: var(--muted); line-height: 1.85;
+  max-width: 440px; margin-bottom: 2.25rem;
+  animation: up 0.7s ease 0.2s both;
+}
+.intro-bio strong { color: var(--text); font-weight: 600; }
+
+/* Stats */
+.stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  background: var(--gold-border); border: 1px solid var(--gold-border);
+}
+.stat {
+  background: var(--ink-2); padding: 1.6rem 1.4rem 1.4rem;
+  position: relative;
+  transition: background 0.25s ease;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: tileRise 1.0s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.stat:nth-child(1) { animation-delay: 0.5s; }
+.stat:nth-child(2) { animation-delay: 0.7s; }
+.stat:nth-child(3) { animation-delay: 0.9s; }
+.stat:nth-child(4) { animation-delay: 1.1s; }
+@keyframes tileRise {
+  to { opacity: 1; transform: translateY(0); }
+}
+.stat::before {
+  content: ''; position: absolute; top: 0; left: 1.4rem;
+  width: 28px; height: 2px; background: var(--gold);
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.stat:hover { background: var(--ink-3); }
+.stat:hover::before { width: 56px; }
+.stat-kicker {
+  font-family: 'DM Mono', monospace; font-size: 0.6rem;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--gold); margin-bottom: 0.7rem; display: block;
+  font-weight: 600;
+}
+.stat-val {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 2.4rem; color: var(--gold-light); font-weight: 700;
+  line-height: 1; display: block;
+  letter-spacing: -0.01em;
+}
+.stat-lbl {
+  font-family: 'DM Mono', monospace; font-size: 0.62rem;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); margin-top: 0.55rem; display: block;
+  line-height: 1.45;
+}
+.stat-sub {
+  font-family: 'Outfit', sans-serif; font-size: 0.78rem;
+  color: var(--dim); margin-top: 0.45rem; display: block;
+  font-style: italic; line-height: 1.4;
+}
+
+/* Right side chips */
+.intro-chips {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+  margin-bottom: 2.5rem;
+}
+.chip {
+  font-family: 'DM Mono', monospace; font-size: 0.66rem; letter-spacing: 0.12em;
+  text-transform: uppercase; padding: 0.2rem 0 0.2rem 0.7rem;
+  color: var(--muted); font-weight: 400;
+  border-left: 1px solid var(--gold-border);
+  background: transparent;
+  opacity: 0.35;
+  animation: chipPulse 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.chip:nth-child(1) { animation-delay: 0.6s; }
+.chip:nth-child(2) { animation-delay: 0.9s; }
+.chip:nth-child(3) { animation-delay: 1.2s; }
+.chip:nth-child(4) { animation-delay: 1.5s; }
+.chip:nth-child(5) { animation-delay: 1.8s; }
+.chip:nth-child(6) { animation-delay: 2.1s; }
+@keyframes chipPulse {
+  0%   { opacity: 0.35; transform: scale(1); border-left-color: var(--gold-border); color: var(--muted); }
+  40%  { opacity: 1;    transform: scale(1.04); border-left-color: var(--gold); color: var(--text); }
+  100% { opacity: 1;    transform: scale(1); border-left-color: var(--gold-border); color: var(--muted); }
+}
+
+.intro-note {
+  font-size: 0.97rem; color: var(--muted); line-height: 1.8;
+  border-left: 2px solid var(--gold-border); padding-left: 1.25rem;
+  animation: up 0.7s ease 0.4s both;
+}
+.intro-note strong { color: var(--text); font-weight: 500; }
+
+/* ─── SECTION SHELL ─── */
+.section { padding: 6rem 6vw; border-bottom: 1px solid var(--gold-border); }
+.section-alt { background: var(--ink-2); }
+
+.s-label {
+  font-family: 'DM Mono', monospace; font-size: 0.7rem;
+  letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold);
+  margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.6rem;
+}
+.s-label::after { content: ''; display: inline-block; width: 36px; height: 1px; background: var(--gold-border); }
+
+.s-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(1.7rem, 2.5vw, 2.5rem);
+  font-weight: 700; color: var(--cream); line-height: 1.15;
+  margin-bottom: 3rem;
+}
+.s-title em { font-style: italic; color: var(--gold); font-weight: 300; }
+
+/* ─── TIMELINE ─── */
+.timeline { position: relative; padding-left: 2rem; }
+
+/* Dim baseline track — the rail */
+.timeline::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 1px;
+  background: linear-gradient(to bottom, transparent, var(--gold-border) 8%, var(--gold-border) 92%, transparent);
+}
+
+/* Bright progress fill — grows as the user scrolls */
+.timeline::after {
+  content: ''; position: absolute; left: 0; top: 0; width: 1px;
+  height: var(--timeline-progress, 0%);
+  background: linear-gradient(to bottom,
+    transparent 0%,
+    var(--gold) 6%,
+    var(--gold) calc(100% - 24px),
+    rgba(200, 164, 78, 0.5) 100%);
+  transition: height 0.2s linear;
+  z-index: 1;
+  box-shadow: 0 0 6px rgba(200, 164, 78, 0.45);
+}
+
+.tl-item {
+  position: relative; margin-bottom: 2.75rem; padding-bottom: 2.75rem;
+  border-bottom: 1px solid rgba(196,154,60,0.07);
+}
+.tl-item:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+
+/* Outer ring — the "node" body, always visible, sits centered on the line */
+.tl-item::before {
+  content: ''; position: absolute;
+  /* Center: ring is 12px wide, line is 1px. Item starts at padding-left: 2rem from .timeline.
+     So the line is at -2rem from the item. Ring left edge needs to be at line center minus 6px.
+     Line center = -2rem + 0.5px ≈ -2rem. Ring center should sit there.
+     left: calc(-2rem - 6px + 0.5px) puts ring center on the line. */
+  left: calc(-2rem - 5.5px);
+  top: 0.55rem;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 1.5px solid var(--gold-border);
+  z-index: 3;
+  transition: border-color 0.5s ease, transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.5s ease;
+}
+
+/* Inner dot — sits inside the ring, becomes the lit indicator */
+.tl-item::after {
+  content: ''; position: absolute;
+  left: calc(-2rem - 1.5px);
+  top: calc(0.55rem + 4px);
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--gold-border);
+  z-index: 4;
+  transition: background 0.5s ease, box-shadow 0.5s ease, transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Hover — soft preview of the lit state */
+.tl-item:hover::before { border-color: var(--gold); }
+.tl-item:hover::after { background: var(--gold); }
+
+/* PASSED — the satisfying event: ring brightens, inner dot ignites with a glow,
+   and a brief bloom plays once when the class is added */
+.tl-item.passed::before {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(200, 164, 78, 0.12);
+}
+.tl-item.passed::after {
+  background: var(--gold);
+  box-shadow: 0 0 12px rgba(200, 164, 78, 0.7), 0 0 4px rgba(200, 164, 78, 0.9);
+  animation: dotBloom 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes dotBloom {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(2.2); box-shadow: 0 0 18px rgba(200, 164, 78, 0.9), 0 0 6px rgba(200, 164, 78, 1); }
+  100% { transform: scale(1); }
+}
+
+.tl-meta {
+  display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.5rem; flex-wrap: wrap;
+}
+.tl-date {
+  font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--gold); white-space: nowrap;
+}
+.tl-company {
+  font-family: 'Cormorant Garamond', serif; font-size: 1.25rem;
+  font-weight: 600; color: var(--cream);
+}
+.tl-role {
+  font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 0.75rem;
+}
+.tl-desc {
+  font-size: 0.97rem; color: var(--muted); line-height: 1.85; max-width: 680px;
+}
+.tl-desc strong { color: var(--text); font-weight: 600; }
+.tl-desc em { color: var(--gold); font-style: normal; }
+
+.tl-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 1rem; }
+.tl-tag {
+  font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em;
+  padding: 0.3rem 0.7rem; border: 1px solid var(--gold-border);
+  color: var(--gold); background: var(--gold-dim); font-weight: 500;
+}
+
+/* AI marker */
+.tl-divider {
+  display: flex; align-items: center; gap: 1rem;
+  margin: 1rem 0 2.75rem -2rem;
+}
+.tl-divider-line {
+  flex: 1; height: 1px;
+  background: var(--gold-border);
+  transition: background 0.6s ease, box-shadow 0.6s ease;
+}
+.tl-divider-badge {
+  font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.16em;
+  text-transform: uppercase; padding: 0.45rem 1.1rem;
+  border: 1px solid var(--gold); color: var(--gold); background: var(--gold-dim);
+  white-space: nowrap;
+  transition: color 0.6s ease, border-color 0.6s ease, background 0.6s ease, box-shadow 0.6s ease, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+}
+
+/* When the progress line arrives at the AI divider, it ignites */
+.tl-divider.passed .tl-divider-line {
+  background: var(--gold);
+  box-shadow: 0 0 8px rgba(200, 164, 78, 0.5);
+}
+.tl-divider.passed .tl-divider-badge {
+  color: var(--cream);
+  border-color: var(--gold-light);
+  background: rgba(200, 164, 78, 0.18);
+  box-shadow: 0 0 0 4px rgba(200, 164, 78, 0.08), 0 0 20px rgba(200, 164, 78, 0.35);
+  transform: translateY(-1px);
+  animation: badgeIgnite 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes badgeIgnite {
+  0% {
+    box-shadow: 0 0 0 0 rgba(200, 164, 78, 0.6), 0 0 0 rgba(200, 164, 78, 0);
+    transform: translateY(0) scale(1);
+  }
+  40% {
+    box-shadow: 0 0 0 8px rgba(200, 164, 78, 0.18), 0 0 30px rgba(200, 164, 78, 0.5);
+    transform: translateY(-2px) scale(1.015);
+  }
+  100% {
+    box-shadow: 0 0 0 4px rgba(200, 164, 78, 0.08), 0 0 20px rgba(200, 164, 78, 0.35);
+    transform: translateY(-1px) scale(1);
+  }
+}
+
+/* ─── AIPM CARD GRID (unified Front End + Back End) ─── */
+.aipm-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.aipm-card {
+  background: var(--ink);
+  padding: 1rem 1.15rem 1rem;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid var(--gold-border);
+  display: flex; flex-direction: column;
+  min-height: 110px;
+  /* Cascade offset — set per-card by JS to stagger entries */
+  --cascade-delay: 0ms;
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.7s ease,
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Scroll-reveal initial state — blueprint phase: outline only, no fill, lifted below */
+  opacity: 0;
+  transform: translateY(20px);
+  background: transparent;
+  border-color: rgba(200, 164, 78, 0);
+}
+.aipm-card.frontend-card { background: transparent; }
+
+/* Card content starts hidden — fades in after the card body materializes */
+.aipm-card .aipm-card-head,
+.aipm-card .aipm-card-title,
+.aipm-card .aipm-card-summary {
+  opacity: 0;
+}
+
+/* When the card enters view: cascade lifts up + outline glows in,
+   then the cream background fills, then the content fades in */
+.aipm-card.in {
+  opacity: 1;
+  transform: translateY(0);
+  background: var(--ink);
+  border-color: var(--gold-border);
+  /* Per-property timing — all offset by the cascade delay JS sets */
+  transition:
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1) var(--cascade-delay),
+    opacity 0.5s ease var(--cascade-delay),
+    border-color 0.5s ease calc(var(--cascade-delay) + 0.1s),
+    background 0.4s ease calc(var(--cascade-delay) + 0.25s),
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0s;
+}
+.aipm-card.in.frontend-card { background: var(--ink-2); }
+
+/* Text content fades in last — staggered after the card body materializes,
+   each line offset by the same cascade delay so the order across cards stays correct */
+.aipm-card.in .aipm-card-head {
+  opacity: 1;
+  transition: opacity 0.35s ease calc(var(--cascade-delay) + 0.4s);
+}
+.aipm-card.in .aipm-card-title {
+  opacity: 1;
+  transition: opacity 0.4s ease calc(var(--cascade-delay) + 0.45s);
+}
+.aipm-card.in .aipm-card-summary {
+  opacity: 1;
+  transition: opacity 0.4s ease calc(var(--cascade-delay) + 0.5s);
+}
+
+/* After reveal, hover should snap quicker than the entrance — with no cascade delay */
+.aipm-card.in:hover {
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* HOVER: lift + halo glow combined */
+.aipm-card:hover {
+  background: var(--ink-3);
+  border-color: var(--gold);
+  transform: translateY(-4px);
+  box-shadow:
+    0 0 0 3px rgba(200, 164, 78, 0.10),
+    0 0 24px rgba(200, 164, 78, 0.18),
+    0 12px 28px -10px rgba(150, 112, 10, 0.28);
+}
+.aipm-card.open {
+  background: var(--ink-3);
+  border-color: var(--gold);
+  transform: translateY(0);
+  box-shadow:
+    0 0 0 3px rgba(200, 164, 78, 0.08),
+    0 0 20px rgba(200, 164, 78, 0.12),
+    0 6px 18px -10px rgba(150, 112, 10, 0.18);
+}
+
+.aipm-card::before {
+  content: ''; position: absolute; top: -1px; left: 1.15rem;
+  width: 22px; height: 2px; background: var(--gold);
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease;
+}
+.aipm-card:hover::before,
+.aipm-card.open::before {
+  width: 52px;
+  box-shadow: 0 0 6px rgba(200, 164, 78, 0.5);
+}
+
+.aipm-card-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 0.6rem; margin-bottom: 0.35rem;
+}
+.aipm-card-label {
+  font-family: 'DM Mono', monospace; font-size: 0.56rem;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--gold); display: block;
+}
+.aipm-card-plus {
+  font-family: 'DM Mono', monospace; font-size: 0.95rem;
+  color: var(--gold-border); line-height: 1;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), color 0.3s;
+  flex-shrink: 0;
+}
+.aipm-card:hover .aipm-card-plus { color: var(--gold); }
+.aipm-card.open .aipm-card-plus { transform: rotate(45deg); color: var(--gold); }
+
+.aipm-card-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.08rem; font-weight: 600; color: var(--cream);
+  line-height: 1.25; margin-bottom: 0.3rem;
+  min-height: 2.7em;
+  display: flex; align-items: flex-start;
+}
+.aipm-card-summary {
+  font-size: 0.82rem; color: var(--muted); line-height: 1.55;
+  min-height: 3.1em;
+}
+
+/* Expanding detail panel within the card */
+.aipm-card-detail {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  margin-top: 0;
+}
+.aipm-card.open .aipm-card-detail {
+  grid-template-rows: 1fr;
+  margin-top: 0.85rem;
+}
+.aipm-card-detail-inner {
+  overflow: hidden;
+}
+.aipm-card-detail-content {
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--gold-border);
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.45s ease 0.1s, transform 0.45s ease 0.1s;
+}
+.aipm-card.open .aipm-card-detail-content {
+  opacity: 1;
+  transform: translateY(0);
+}
+.aipm-card-detail-text {
+  font-size: 0.82rem; color: var(--muted); line-height: 1.65;
+  margin-bottom: 0.75rem;
+}
+.aipm-card-detail-text strong { color: var(--text); font-weight: 600; }
+.aipm-card-detail-tags {
+  display: flex; flex-wrap: wrap; gap: 0.3rem;
+}
+.aipm-card-detail-tag {
+  font-family: 'DM Mono', monospace; font-size: 0.6rem;
+  letter-spacing: 0.05em; padding: 0.18rem 0.5rem;
+  border: 1px solid var(--gold-border);
+  color: var(--gold); background: var(--gold-dim); font-weight: 500;
+}
+
+/* Tier divider headers (Front End / Back End) */
+.tier-header {
+  display: flex; align-items: center; gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+.tier-header.tier-frontend { margin-top: 0.5rem; }
+.tier-header.tier-backend  { margin-top: 5rem; }
+
+.tier-header-line { flex: 1; height: 1px; background: var(--gold-border); }
+
+.tier-header-label {
+  font-family: 'DM Mono', monospace; font-size: 0.68rem;
+  letter-spacing: 0.22em; text-transform: uppercase;
+  padding: 0.5rem 1.1rem;
+  white-space: nowrap;
+  border: 1px solid var(--gold);
+  color: #FAF8F4;
+  background: var(--gold);
+  font-weight: 600;
+}
+
+@media (max-width: 1100px) and (min-width: 901px) {
+  .aipm-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.closing-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: start;
+}
+.closing-grid-single {
+  grid-template-columns: 1fr;
+  max-width: 760px;
+}
+.closing-text p { font-size: 1.05rem; color: var(--muted); line-height: 1.85; margin-bottom: 1.25rem; }
+.closing-text p:last-child { margin-bottom: 0; font-size: 1.15rem; }
+.closing-text strong { color: var(--text); font-weight: 600; }
+.closing-text em { color: var(--gold); font-style: normal; }
+
+.closing-points { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--gold-border); }
+.cp {
+  display: grid; grid-template-columns: 28px 1fr; gap: 1rem;
+  padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(196,154,60,0.08);
+  transition: background 0.18s;
+}
+.cp:last-child { border-bottom: none; }
+.cp:hover { background: var(--ink-3); }
+.cp-n { font-family: 'Cormorant Garamond', serif; font-size: 1.2rem; color: var(--dim); font-weight: 700; line-height: 1; padding-top: 0.1rem; }
+.cp h4 { font-size: 0.97rem; font-weight: 600; color: var(--cream); margin-bottom: 0.3rem; }
+.cp p  { font-size: 0.86rem; color: var(--muted); line-height: 1.65; }
+
+/* ─── CTA ─── */
+.cta {
+  padding: 6rem 6vw; text-align: center;
+  background: var(--ink-2);
+  position: relative; overflow: hidden;
+  border-top: 1px solid var(--gold-border);
+}
+.cta::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 80% at 50% 110%, rgba(196,154,60,0.07) 0%, transparent 60%);
+}
+.cta-inner { position: relative; }
+.cta-label { font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); margin-bottom: 1.25rem; }
+.cta h2 { font-family: 'Cormorant Garamond', serif; font-size: clamp(2rem, 3.5vw, 3.5rem); font-weight: 700; color: var(--cream); line-height: 1.1; margin-bottom: 1.5rem; }
+.cta h2 em { font-style: italic; color: var(--gold); font-weight: 300; }
+.cta-copy { max-width: 560px; margin: 0 auto 2.5rem; }
+.cta-copy p {
+  font-size: 1rem; color: var(--muted); line-height: 1.85;
+  margin-bottom: 0.85rem;
+}
+.cta-copy p:last-child { margin-bottom: 0; }
+.cta-copy .cta-close {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic; font-size: 1.2rem;
+  color: var(--gold); line-height: 1.5;
+  margin-top: 1.4rem;
+  display: block;
+}
+.cta-btns { display: flex; justify-content: center; gap: 0.9rem; flex-wrap: wrap; }
+.btn { display: inline-block; padding: 0.85rem 2rem; font-family: 'DM Mono', monospace; font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; transition: all 0.2s; }
+.btn-gold { background: var(--gold); color: #FAF8F4; font-weight: 600; }
+.btn-gold:hover { background: var(--gold-light); }
+.btn-ghost { background: transparent; color: var(--gold); border: 1px solid var(--gold-border); }
+.btn-ghost:hover { background: var(--gold-dim); border-color: var(--gold); }
+
+footer {
+  padding: 1.5rem 6vw; border-top: 1px solid var(--gold-border);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.f-txt { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.1em; color: var(--dim); }
+
+/* ─── ANIMATIONS ─── */
+@keyframes up { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+.reveal { opacity:0; transform:translateY(16px); transition:opacity 0.65s ease, transform 0.65s ease; }
+.reveal.in { opacity:1; transform:translateY(0); }
+.d1 { transition-delay:.1s; } .d2 { transition-delay:.18s; } .d3 { transition-delay:.26s; }
+
+/* Slow, graceful reveal for the work history timeline — gives the eye time to follow */
+.reveal-slow { opacity:0; transform:translateY(36px); transition:opacity 1.8s cubic-bezier(0.22, 1, 0.36, 1), transform 1.8s cubic-bezier(0.22, 1, 0.36, 1); }
+.reveal-slow.in { opacity:1; transform:translateY(0); }
+.reveal-slow.d1 { transition-delay:.35s; }
+.reveal-slow.d2 { transition-delay:.6s; }
+.reveal-slow.d3 { transition-delay:.85s; }
+
+/* Reduced motion preference - respect user's system settings */
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal-slow {
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  h1, .eyebrow, .stats, .intro-bio, .intro-chips, .intro-note, h1 .h1-line, .stat, .chip {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  h1 em::after { animation: none !important; width: 100% !important; }
+  .aipm-card,
+  .aipm-card.in,
+  .aipm-card:hover {
+    transition: background 0.2s ease, border-color 0.2s ease !important;
+    opacity: 1 !important;
+    transform: none !important;
+    box-shadow: none !important;
+    transition-delay: 0ms !important;
+    background: var(--ink) !important;
+    border-color: var(--gold-border) !important;
+  }
+  .aipm-card.frontend-card,
+  .aipm-card.in.frontend-card { background: var(--ink-2) !important; }
+  .aipm-card .aipm-card-head,
+  .aipm-card .aipm-card-title,
+  .aipm-card .aipm-card-summary {
+    opacity: 1 !important;
+    transition: none !important;
+  }
+}
+
+/* ─── RESPONSIVE ─── */
+/* ─── MOBILE & TABLET RESPONSIVE ─── */
+
+/* Tablet adjustments (600-900px) */
+@media (max-width: 900px) {
+
+  /* Layout */
+  .intro { min-height: auto; grid-template-columns: 1fr; }
+  .closing-grid { grid-template-columns: 1fr; }
+  .intro-left { padding: 7rem 6vw 4rem; border-right: none; }
+  .intro-right { padding: 4rem 6vw 5rem; }
+  .stats { grid-template-columns: 1fr 1fr; }
+
+  /* Section padding tightened */
+  .section { padding: 4.5rem 6vw 5rem; }
+
+  /* Navigation */
+  nav { padding: 0.85rem 5vw; }
+  .nav-name { font-size: 1.65rem; }
+  .nav-sub { font-size: 0.65rem; }
+  .nav-links { gap: 0.4rem; }
+  .nav-links a { padding: 0.45rem 0.75rem; font-size: 0.6rem; letter-spacing: 0.1em; }
+
+  /* Footer */
+  footer { flex-direction: column; gap: 0.5rem; text-align: center; }
+
+  /* AiPM grid stacks to single column */
+  .aipm-grid { grid-template-columns: 1fr; gap: 0.6rem; }
+  .tier-header.tier-backend { margin-top: 3.5rem; }
+}
+
+/* Phone-specific (max 600px) */
+@media (max-width: 600px) {
+
+  /* Section padding even tighter */
+  .section { padding: 3.5rem 5vw 4rem; }
+
+  /* ─── Intro section ─── */
+  .intro-left { padding: 6rem 5vw 3rem; }
+  .intro-right { padding: 3rem 5vw 4rem; }
+  .eyebrow { font-size: 0.65rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 2.5rem; line-height: 1.05; margin-bottom: 1.5rem; }
+  .intro-bio { font-size: 0.95rem; line-height: 1.7; margin-bottom: 1.75rem; }
+  .intro-chips { gap: 0.4rem; margin-bottom: 1.75rem; }
+  .chip { font-size: 0.6rem; padding: 0.18rem 0 0.18rem 0.6rem; letter-spacing: 0.1em; }
+  .intro-note { font-size: 0.88rem; line-height: 1.7; padding-left: 1rem; }
+
+  /* ─── Stats grid ─── */
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stat { padding: 1.1rem 0.9rem 1rem; }
+  .stat::before { left: 0.9rem; }
+  .stat-val { font-size: 1.85rem; }
+  .stat-kicker { font-size: 0.55rem; margin-bottom: 0.5rem; }
+  .stat-lbl { font-size: 0.55rem; margin-top: 0.4rem; }
+  .stat-sub { font-size: 0.7rem; margin-top: 0.35rem; }
+
+  /* ─── Navigation ─── */
+  nav { padding: 0.7rem 4vw; }
+  .nav-name { font-size: 1.4rem; letter-spacing: 0; }
+  .nav-sub { display: none; }
+  .nav-links { gap: 0.3rem; }
+  .nav-links a {
+    padding: 0.5rem 0.65rem;
+    font-size: 0.55rem;
+    letter-spacing: 0.08em;
+  }
+
+  /* ─── Section labels and titles ─── */
+  .s-label { font-size: 0.65rem; margin-bottom: 1rem; }
+  .s-title { font-size: 1.85rem; line-height: 1.15; margin-bottom: 2rem; }
+
+  /* ─── Work history timeline ─── */
+  .timeline { padding-left: 1.65rem; }
+  .tl-item { padding-bottom: 2rem; margin-bottom: 2rem; }
+  /* Mobile: 10px ring centered on 1px line at -1.65rem */
+  .tl-item::before {
+    left: calc(-1.65rem - 4.5px);
+    top: 0.4rem;
+    width: 10px; height: 10px;
+  }
+  .tl-item::after {
+    left: calc(-1.65rem - 1.5px);
+    top: calc(0.4rem + 3px);
+    width: 4px; height: 4px;
+  }
+  .tl-meta { gap: 0.65rem; margin-bottom: 0.4rem; }
+  .tl-date { font-size: 0.62rem; letter-spacing: 0.1em; }
+  .tl-company { font-size: 0.62rem; }
+  .tl-role { font-size: 0.95rem; line-height: 1.3; margin-bottom: 0.7rem; }
+  .tl-desc { font-size: 0.92rem; line-height: 1.7; margin-bottom: 0.9rem; }
+  .tl-tags { gap: 0.35rem; }
+  .tl-tag { font-size: 0.6rem; padding: 0.22rem 0.55rem; }
+  .tl-divider-badge { font-size: 0.55rem; padding: 0.3rem 0.7rem; }
+
+  /* ─── AiPM section: tier headers ─── */
+  .tier-header { gap: 0.75rem; margin-bottom: 1.5rem; }
+  .tier-header.tier-frontend { margin-top: 0.25rem; }
+  .tier-header.tier-backend { margin-top: 3rem; }
+  .tier-header-label { font-size: 0.6rem; padding: 0.4rem 0.85rem; letter-spacing: 0.16em; }
+
+  /* ─── AiPM cards ─── */
+  .aipm-card { padding: 0.9rem 1rem 0.9rem; min-height: auto; }
+  .aipm-card::before { left: 1rem; }
+  .aipm-card-label { font-size: 0.52rem; }
+  .aipm-card-title { font-size: 1.02rem; margin-bottom: 0.25rem; min-height: 0; display: block; }
+  .aipm-card-summary { font-size: 0.8rem; line-height: 1.5; min-height: 0; }
+  .aipm-card-detail-text { font-size: 0.8rem; line-height: 1.65; }
+  .aipm-card-detail-tag { font-size: 0.58rem; padding: 0.18rem 0.45rem; }
+
+  /* ─── Closing / Background and Alignment ─── */
+  .closing-text p { font-size: 0.95rem; line-height: 1.75; margin-bottom: 1rem; }
+  .closing-text p:last-child { font-size: 1.05rem; }
+
+  /* ─── CTA ─── */
+  .cta { padding: 4rem 5vw; }
+  .cta-label { font-size: 0.62rem; margin-bottom: 1rem; }
+  .cta h2 { font-size: 1.85rem; margin-bottom: 1.25rem; }
+  .cta-copy p { font-size: 0.92rem; line-height: 1.7; }
+  .cta-copy { margin-bottom: 2rem; }
+  .cta-btns { flex-direction: column; gap: 0.6rem; align-items: stretch; }
+  .btn { padding: 0.95rem 1.5rem; font-size: 0.7rem; text-align: center; }
+
+  /* ─── Footer ─── */
+  footer { padding: 2rem 5vw; font-size: 0.7rem; }
+}
+
+/* Very small phones (max 380px) */
+@media (max-width: 380px) {
+  h1 { font-size: 2.2rem; }
+  .s-title { font-size: 1.65rem; }
+  .stat-val { font-size: 1.6rem; }
+  .nav-name { font-size: 1.2rem; }
+  .nav-sub { display: none; }
+  .nav-links { gap: 0.25rem; }
+  .nav-links a {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.5rem;
+    letter-spacing: 0.06em;
+  }
+  .stats { grid-template-columns: 1fr; }
+  .intro-left { padding: 5.5rem 5vw 2.5rem; }
+  .intro-right { padding: 2.5rem 5vw 3.5rem; }
+  .intro-note { font-size: 0.85rem; }
+}
+</style>
+</head>
+<body>
+<a id="top"></a>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">
+    <div class="nav-name">Haley Kruse</div>
+    <div class="nav-sub">Work History &amp; Portfolio</div>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#history">Work History</a></li>
+    <li><a href="#aipm">AiPM</a></li>
+    <li><a href="#connect" class="nav-cta">The Connection</a></li>
+  </ul>
+</nav>
+
+<!-- INTRO -->
+<section class="intro">
+  <div class="intro-left">
+    <div class="eyebrow">Haley Kruse · 2026</div>
+    <h1><span class="h1-line">Six years of</span><span class="h1-line">building it</span><span class="h1-line"><em>by hand.</em></span></h1>
+    <p class="intro-bio">
+      Senior Project Engineer at NBS with a background in construction operations, ERP implementation, workflow design, and AI-powered platform development. <strong>Everything here was built from experience — not observation.</strong>
+    </p>
+    <div class="stats reveal">
+      <div class="stat"><span class="stat-kicker">Built Experience</span><span class="stat-val">6+</span><span class="stat-lbl">Years</span><span class="stat-sub">Construction systems, ERP, estimating &amp; operations workflows</span></div>
+      <div class="stat"><span class="stat-kicker">Built Value</span><span class="stat-val">$67K+</span><span class="stat-lbl">Annualized Savings</span><span class="stat-sub">Identified through workflow analysis</span></div>
+      <div class="stat"><span class="stat-kicker">Built Adoption</span><span class="stat-val">8+</span><span class="stat-lbl">Live Modules</span><span class="stat-sub">Live tools supporting active NBS workflows</span></div>
+      <div class="stat"><span class="stat-kicker">Built Capability</span><span class="stat-val">$250K+</span><span class="stat-lbl">Equiv. Dev Value</span><span class="stat-sub">Estimated outside development value created without a dev team</span></div>
+    </div>
+  </div>
+  <div class="intro-right">
+    <div class="intro-chips reveal">
+      <span class="chip">Identify Workflow Friction</span>
+      <span class="chip">Structure the Data</span>
+      <span class="chip">Build the Tool</span>
+      <span class="chip">Govern the Rollout</span>
+      <span class="chip">Measure Adoption</span>
+      <span class="chip">Keep Improving</span>
+    </div>
+    <div class="intro-note reveal d1">
+      <strong>The pattern is consistent:</strong> every system built here started with understanding how the work actually happens, then building the infrastructure around it. The larger opportunity is the repeatable model behind that work: identify workflow friction, structure the data, build the tool, govern the rollout, measure adoption, and keep improving.
+    </div>
+  </div>
+</section>
+
+<!-- WORK HISTORY -->
+<section class="section" id="history">
+  <div class="s-label reveal reveal-slow">01 — Work History</div>
+  <h2 class="s-title reveal reveal-slow">Where it started — <em>and how it evolved.</em></h2>
+
+  <div class="timeline">
+
+    <div class="tl-item reveal reveal-slow">
+      <div class="tl-meta">
+        <span class="tl-date">2019 – 2021</span>
+        <span class="tl-company">EM Hundley</span>
+      </div>
+      <div class="tl-role">ERP Implementation Lead → Project Engineer</div>
+      <p class="tl-desc">
+        Took <strong>Epicor ERP from an empty shell to a fully live system</strong> — designing the quote-to-cash workflow, working with the consultant to build it, and integrating with CMiC for financial reporting. Covered every department: warehouse, estimating, PM, accounting, and leadership. Documented the full process, built and delivered training programs across all offices, and became the company's go-to resource post-launch. <em>Hands-on lead on enterprise change management — design, build, train, support.</em> After go-live, moved into a PE role and built the first Division 10 estimate sheet and bid log from scratch.
+      </p>
+      <div class="tl-tags">
+        <span class="tl-tag">Epicor ERP</span>
+        <span class="tl-tag">CMiC Integration</span>
+        <span class="tl-tag">Quote-to-Cash</span>
+        <span class="tl-tag">Change Management</span>
+        <span class="tl-tag">Training Programs</span>
+        <span class="tl-tag">Division 10 PE</span>
+      </div>
+    </div>
+
+    <div class="tl-item reveal reveal-slow d1">
+      <div class="tl-meta">
+        <span class="tl-date">2022 – 2023</span>
+        <span class="tl-company">Swinerton Self Perform Specialties</span>
+      </div>
+      <div class="tl-role">Project Engineer · SoCal</div>
+      <p class="tl-desc">
+        Bid and managed Division 10 projects across Southern California. Inherited the existing Excel estimate template and proposal log — and began the first round of targeted improvements to both. <em>This is where the pattern of inheriting a system and making it better became a consistent habit.</em>
+      </p>
+      <div class="tl-tags">
+        <span class="tl-tag">Division 10 PM</span>
+        <span class="tl-tag">SoCal Portfolio</span>
+        <span class="tl-tag">Tool Improvements</span>
+      </div>
+    </div>
+
+    <div class="tl-item reveal reveal-slow d1">
+      <div class="tl-meta">
+        <span class="tl-date">2023 – 2025</span>
+        <span class="tl-company">NBS — National Building Specialties</span>
+      </div>
+      <div class="tl-role">Senior Project Engineer · National</div>
+      <p class="tl-desc">
+        As NBS expanded nationally, volume and complexity grew faster than the tools could handle. Built the most technically advanced version of the estimate template — a fully engineered operational tool in Excel with auto-generated RFQ emails, macro-driven proposal generation, version control, integrated price books, and data governance checkpoints. A single source of truth for the entire estimate, proposal, and RFQ process — all in one workbook. Documented a Best Practices Library and created workflows for estimators, PMs, and leadership. Eventually hit the ceiling of what a spreadsheet could do. That's when AiPM started.
+      </p>
+      <div class="tl-tags">
+        <span class="tl-tag">Advanced Excel Macros</span>
+        <span class="tl-tag">Outlook Automation</span>
+        <span class="tl-tag">Proposal Generation</span>
+        <span class="tl-tag">Version Control</span>
+        <span class="tl-tag">Price Book Integration</span>
+        <span class="tl-tag">Data Governance</span>
+        <span class="tl-tag">Best Practices Library</span>
+      </div>
+    </div>
+
+    <div class="tl-divider reveal reveal-slow">
+      <div class="tl-divider-line"></div>
+      <div class="tl-divider-badge">AI enters the picture · August 2025</div>
+      <div class="tl-divider-line"></div>
+    </div>
+
+    <div class="tl-item reveal reveal-slow">
+      <div class="tl-meta">
+        <span class="tl-date">Aug 2025</span>
+        <span class="tl-company">AiPM v1 — First Demo</span>
+      </div>
+      <div class="tl-role">Internal Demo · NBS Leadership</div>
+      <p class="tl-desc">
+        Presented a working award-to-cash operating system to NBS President — including a live CMiC contract and forecasting module replica with real-time data to match the real CMiC. Leadership approved rollout, starting with the estimating department.
+      </p>
+      <div class="tl-tags">
+        <span class="tl-tag">Award-to-Cash Demo</span>
+        <span class="tl-tag">CMiC Replica</span>
+        <span class="tl-tag">Leadership Sign-Off</span>
+      </div>
+    </div>
+
+    <div class="tl-item reveal reveal-slow d1">
+      <div class="tl-meta">
+        <span class="tl-date">Early 2026</span>
+        <span class="tl-company">AiPM v2 — Tool Belt Rollout</span>
+      </div>
+      <div class="tl-role">Estimating Team · Adoption-First Deployment</div>
+      <p class="tl-desc">
+        Released AI automation agents targeting the highest-friction daily tasks first — immediate wins to drive adoption before asking for behavior change. Followed with the Proposal Log: a PostgreSQL database with API connections, human-in-the-loop approvals, and built-in data tracking. The same change management approach from the Epicor rollout, now embedded in the platform itself. Layered in supporting infrastructure — BuildingConnected sync, vendor and manufacturer databases, admin controls, and usage analytics — plus the Estimating Head-Up Display, a personalized view that surfaces each estimator's pipeline without noise from the rest of the system.
+      </p>
+      <div class="tl-tags">
+        <span class="tl-tag">AI Automation Agents</span>
+        <span class="tl-tag">BuildingConnected API</span>
+        <span class="tl-tag">Human-in-the-Loop</span>
+        <span class="tl-tag">Usage Analytics</span>
+        <span class="tl-tag">Vendor & Mfr Database</span>
+        <span class="tl-tag">Estimating HUD</span>
+        <span class="tl-tag">Change Management</span>
+      </div>
+    </div>
+
+    <div class="tl-item reveal reveal-slow d1">
+      <div class="tl-meta">
+        <span class="tl-date">2026</span>
+        <span class="tl-company">AiPM v3 — Full Platform</span>
+      </div>
+      <div class="tl-role">8+ Modules Live · In Active Use</div>
+      <p class="tl-desc">
+        Built around one core principle: <em>if it already exists digitally, use it — never type anything twice.</em> Proposal Log data carries directly into the estimating module with little to no setup. The Spec Extractor and Schedule Converter — previously standalone tools — are now wired directly into the estimating workflow. <em>If AI is already reading the document, it should do all of the work in one pass.</em> What used to be two separate steps with a manual handoff between them is now one continuous flow. The full estimating workflow was rebuilt inside the platform end-to-end, all the way through proposal generation — replacing Excel entirely. <strong>By centralizing everything in structured digital form, the platform now creates the foundation for expanded data analytics, deeper automation, and future AI integration opportunities that weren't possible when the work lived in spreadsheets.</strong>
+      </p>
+      <div class="tl-tags">
+        <span class="tl-tag">Zero Redundant Entry</span>
+        <span class="tl-tag">End-to-End Data Flow</span>
+        <span class="tl-tag">Integrated Tooling</span>
+        <span class="tl-tag">Proposal Generation</span>
+        <span class="tl-tag">Structured Data Foundation</span>
+        <span class="tl-tag">Procurement OS Pending</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- AIPM MODULES -->
+<section class="section section-alt" id="aipm">
+  <div class="s-label reveal">02 — AiPM Tool Belt</div>
+  <h2 class="s-title reveal">A construction workflow operating system. <em>Front to back.</em></h2>
+
+  <!-- TIER: FRONT END -->
+  <div class="tier-header tier-frontend reveal">
+    <span class="tier-header-label">Front End · The Tool Belt</span>
+    <span class="tier-header-line"></span>
+  </div>
+
+  <div class="aipm-grid">
+
+    <div class="aipm-card card-reveal frontend-card" onclick="toggleAipmCard(this)">
+      <div class="aipm-card-head">
+        <span class="aipm-card-label">01 · Front End</span>
+        <span class="aipm-card-plus">+</span>
+      </div>
+      <h4 class="aipm-card-title">Proposal Log</h4>
+      <p class="aipm-card-summary">Excel replacement, every bid auditable.</p>
+      <div class="aipm-card-detail"><div class="aipm-card-detail-inner"><div class="aipm-card-detail-content">
+        <p class="aipm-card-detail-text">PostgreSQL database with full audit history, deletion approvals, and nightly backups. Replaced a spreadsheet that had no validation, no audit trail, and no way to trust the data.</p>
+        <div class="aipm-card-detail-tags"><span class="aipm-card-detail-tag">PostgreSQL</span><span class="aipm-card-detail-tag">Audit Log</span><span class="aipm-card-detail-tag">Nightly Backups</span></div>
+      </div></div></div>
+    </div>
+
+    <div class="aipm-card card-reveal frontend-card" onclick="toggleAipmCard(this)">
+      <div class="aipm-card-head">
+        <span class="aipm-card-label">02 · Front End</span>
+        <span class="aipm-card-plus">+</span>
+      </div>
+      <h4 class="aipm-card-title">BuildingConnected Sync</h4>
+      <p class="aipm-card-summary">Autodesk API · zero manual entry.</p>
+      <div class="aipm-card-detail"><div class="aipm-card-detail-inner"><div class="aipm-card-detail-content">
+        <p class="aipm-card-detail-text">Swinerton-only allowlist, fuzzy duplicate detection, and draft approval workflow. Bids that used to be re-typed by hand now flow in automatically.</p>
+        <div class="aipm-card-detail-tags"><span class="aipm-card-detail-tag">Autodesk APS</span><span class="aipm-card-detail-tag">Auto-Sync</span><span class="aipm-card-detail-tag">Allowlist</span></div>
+      </div></div></div>
+    </div>
+
+    <div class="aipm-card card-reveal frontend-card" onclick="toggleAipmCard(this)">
+      <div class="aipm-card-head">
+        <span class="aipm-card-label">03 · Front End</span>
+        <span class="aipm-card-plus">+</span>
+      </div>
+      <h4 class="aipm-card-title">Estimating Module</h4>
+      <p class="aipm-card-summary">End-to-end flow, replaces Excel.</p>
+      <div class="aipm-card-detail"><div class="aipm-card-detail-inner"><div class="aipm-card-detail-content">
+        <p class="aipm-card-detail-text">The full estimating workflow rebuilt inside the platform — intake, line items, vendor pricing, review, and proposal generation, all in one connected flow. Replaces Excel entirely. Other AiPM modules feed directly into it: Proposal Log data populates project setup, Spec Extractor delivers the scoped sections, Schedule Converter fills the line items. Built on the principle that anything already captured digitally never gets re-typed.</p>
+        <div class="aipm-card-detail-tags"><span class="aipm-card-detail-tag">Zero Redundant Entry</span><span class="aipm-card-detail-tag">End-to-End Flow</span><span class="aipm-card-detail-tag">Proposal Generation</span><span class="aipm-card-detail-tag">CSI Codes</span></div>
+      </div></div></div>
+    </div>
+
+    <div class="aipm-card card-reveal frontend-card" onclick="toggleAipmCard(this)">
+      <div class="aipm-card-head">
+        <span class="aipm-card-label">04 · Front End</span>
+        <span class="aipm-card-plus">+</span>
+      </div>
+      <h4 class="aipm-card-title">AI Document Parsing</h4>
+      <p class="aipm-card-summary">Spec books and schedules, parsed instantly.</p>
+      <div class="aipm-card-detail"><div class="aipm-card-detail-inner"><div class="aipm-card-detail-content">
+        <p class="aipm-card-detail-text">Two parsing engines built into the same workflow. The <strong>Spec Extractor</strong> scans a full project spec book, identifies every Division 10 section, and exports each one as a labeled PDF organized by scope, CSI number, and project. The <strong>Schedule Extractor</strong> takes any schedule — screenshot, pasted text, or PDF — and outputs structured line items ready to use. Both run inside the estimating module: spec sections get filed automatically, schedule data populates material line items in their corresponding scope sections. Work that previously required a project engineer to prep before estimating could begin — now done by the estimator directly, in minutes. Used multiple times daily.</p>
+        <div class="aipm-card-detail-tags"><span class="aipm-card-detail-tag">AI Parsing</span><span class="aipm-card-detail-tag">PDF + Text</span><span class="aipm-card-detail-tag">CSI Codes</span><span class="aipm-card-detail-tag">1,023+ Terms</span><span class="aipm-card-detail-tag">Estimating Integration</span></div>
+      </div></div></div>
+    </div>
+
+    <div class="aipm-card card-reveal frontend-card" onclick="toggleAipmCard(this)">
+      <div class="aipm-card-head">
+        <span class="aipm-card-label">05 · Front End</span>
+        <span class="aipm-card-plus">+</span>
+      </div>
+      <h4 class="aipm-card-title">RFQ &amp; Vendor Tracking</h4>
+      <p class="aipm-card-summary">RFQs sent, quotes priced and tracked.</p>
+      <div class="aipm-card-detail"><div class="aipm-card-detail-inner"><div class="aipm-card-detail-content">
+        <p class="aipm-card-detail-text">Prepares a ready-to-send RFQ email template with all necessary project and scope information populated. Logs when RFQs were sent and to which vendors. When a quote comes back, it can be recorded and applied to the corresponding material line items — flagged as backup received to confirm full pricing coverage across the estimate.</p>
+        <div class="aipm-card-detail-tags"><span class="aipm-card-detail-tag">RFQ Templates</span><span class="aipm-card-detail-tag">Quote Log</span><span class="aipm-card-detail-tag">Backup Tracking</span></div>
+      </div></div></div>
+    </div>
+
+    <div class="aipm-card card-reveal frontend-card" onclick="toggleAipmCard(this)">
+      <div class="aipm-card-head">
+        <span class="aipm-card-label">06 · Front End</span>
+        <span class="aipm-card-plus">+</span>
+      </div>
+      <h4 class="aipm-card-title">Analytics &amp; Reporting</h4>
+      <p class="aipm-card-summary">Real-time WIP, not month-end.</p>
+      <div class="aipm-card-detail"><div class="aipm-card-detail-inner"><div class="aipm-card-detail-content">
+        <p class="aipm-card-detail-text">Real-time projections at $75/hr blended rate. Usage analytics that quantify platform value to leadership. Visibility that used to only exist at month-end close.</p>
+        <div class="aipm-card-detail-tags"><span class="aipm-card-detail-tag">Live Projections</span><span class="aipm-card-detail-tag">ROI Tracking</span><span class="aipm-card-detail-tag">$75/hr Rate</span></div>
+      </div></div></div>
+    </div>
+
+  </div>
+
+  <!-- TIER: BACK END -->
+  <div class="tier-header tier-backend reveal">
+    <span class="tier-header-label">Back End · The Framework</span>
+    <span class="tier-header-line"></span>
+  </div>
+
+  <div class="aipm-grid">
+
+    <div class="aipm-card card-reveal" onclick="toggleAipmCard(this)">
+      <div class="aipm-card-head">
+        <span class="aipm-card-label">01 · Back End</span>
+        <span class="aipm-card-plus">+</span>
+      </div>
+      <h4 class="aipm-card-title">Dev &amp; Production Database Separation</h4>
+      <p class="aipm-card-summary">Dev and prod, never crossed.</p>
+      <div class="aipm-card-detail"><div class="aipm-card-detail-inner"><div class="aipm-card-detail-content">
+        <p class="aipm-card-detail-text">One database for development and testing, one for production. Test projects, demo data, and breaking changes never cross into the live environment. Multiple checkpoints on deployment confirm separation. The development database doubles as a test sandbox where any user can click around without consequence.</p>
+        <div class="aipm-card-detail-tags"><span class="aipm-card-detail-tag">PostgreSQL</span><span class="aipm-card-detail-tag">Drizzle ORM</span><span class="aipm-card-detail-tag">26-Table Schema</span></div>
+      </div></div></div>
+    </div>
+
+    <div class="aipm-card card-reveal" onclick="toggleAipmCard(this)">
+      <div class="aipm-card-head">
+        <span class="aipm-card-label">02 · Back End</span>
+        <span class="aipm-card-plus">+</span>
+      </div>
+      <h4 class="aipm-card-title">Layered Backup &amp; Recovery</h4>
+      <p class="aipm-card-summary">Four overlapping safety nets.</p>
+      <div class="aipm-card-detail"><div class="aipm-card-detail-inner"><div class="aipm-card-detail-content">
+        <p class="aipm-card-detail-text">Nightly database backups run automatically. GitHub commits capture every deploy. Manual pre-deploy snapshots are taken before any major change. A Google Sheet mirror of live data — covering vendors, manufacturers, the proposal log, and user profiles — runs nightly as a final fallback. The whole stack gets audited on a routine schedule to confirm the safety net is intact.</p>
+        <div class="aipm-card-detail-tags"><span class="aipm-card-detail-tag">Nightly DB</span><span class="aipm-card-detail-tag">GitHub</span><span class="aipm-card-detail-tag">Pre-Deploy Snapshot</span><span class="aipm-card-detail-tag">Mirror Sheet</span></div>
+      </div></div></div>
+    </div>
+
+    <div class="aipm-card card-reveal" onclick="toggleAipmCard(this)">
+      <div class="aipm-card-head">
+        <span class="aipm-card-label">03 · Back End</span>
+        <span class="aipm-card-plus">+</span>
+      </div>
+      <h4 class="aipm-card-title">Full Rollback Capability</h4>
+      <p class="aipm-card-summary">Every change reversible, root cause traceable.</p>
+      <div class="aipm-card-detail"><div class="aipm-card-detail-inner"><div class="aipm-card-detail-content">
+        <p class="aipm-card-detail-text">If a deploy goes sideways, the platform can be restored to any prior state without losing live data. The audit log captures who changed what — so root cause is always traceable. Versioning runs separately from GitHub for the database itself, with manual checkpoints before any larger update where the outcome isn't fully predictable.</p>
+        <div class="aipm-card-detail-tags"><span class="aipm-card-detail-tag">GitHub</span><span class="aipm-card-detail-tag">Audit Log</span><span class="aipm-card-detail-tag">Point-in-Time Recovery</span></div>
+      </div></div></div>
+    </div>
+
+    <div class="aipm-card card-reveal" onclick="toggleAipmCard(this)">
+      <div class="aipm-card-head">
+        <span class="aipm-card-label">04 · Back End</span>
+        <span class="aipm-card-plus">+</span>
+      </div>
+      <h4 class="aipm-card-title">Role-Based Access &amp; Approvals</h4>
+      <p class="aipm-card-summary">Scoped permissions, approvals, audit trail.</p>
+      <div class="aipm-card-detail"><div class="aipm-card-detail-inner"><div class="aipm-card-detail-content">
+        <p class="aipm-card-detail-text">Estimators, PMs, procurement, and admin each see only what they need. Deletions require approval before they execute. Session expiry is handled. Cost-driving actions are logged for usage analytics and accountability.</p>
+        <div class="aipm-card-detail-tags"><span class="aipm-card-detail-tag">RBAC</span><span class="aipm-card-detail-tag">Deletion Approvals</span><span class="aipm-card-detail-tag">Session Control</span><span class="aipm-card-detail-tag">Usage Logging</span></div>
+      </div></div></div>
+    </div>
+
+    <div class="aipm-card card-reveal" onclick="toggleAipmCard(this)">
+      <div class="aipm-card-head">
+        <span class="aipm-card-label">05 · Back End</span>
+        <span class="aipm-card-plus">+</span>
+      </div>
+      <h4 class="aipm-card-title">Migration to Production-Grade Stack</h4>
+      <p class="aipm-card-summary">AI-assisted prototype → VS Code + GitHub.</p>
+      <div class="aipm-card-detail"><div class="aipm-card-detail-inner"><div class="aipm-card-detail-content">
+        <p class="aipm-card-detail-text">Early development used an AI-assisted, browser-based environment that got the platform off the ground quickly and into the hands of users. The procurement module is the first to be built directly in <strong>VS Code + GitHub</strong>, transitioning the development environment to a stack that scales with the platform — and is set up to support a real engineering workflow if and when the team grows.</p>
+        <div class="aipm-card-detail-tags"><span class="aipm-card-detail-tag">AI-Assisted → VS Code</span><span class="aipm-card-detail-tag">GitHub</span><span class="aipm-card-detail-tag">Long-Term Stack</span></div>
+      </div></div></div>
+    </div>
+
+    <div class="aipm-card card-reveal" onclick="toggleAipmCard(this)">
+      <div class="aipm-card-head">
+        <span class="aipm-card-label">06 · Back End</span>
+        <span class="aipm-card-plus">+</span>
+      </div>
+      <h4 class="aipm-card-title">Tested Against Real Projects</h4>
+      <p class="aipm-card-summary">Real project data before every release.</p>
+      <div class="aipm-card-detail"><div class="aipm-card-detail-inner"><div class="aipm-card-detail-content">
+        <p class="aipm-card-detail-text">Industry knowledge defines the expected output, and beta testing validates the back end against analytics. Cross-referencing across multiple AI tools helps catch hallucinations and miscalculations before users see them. The same auditor mindset I applied to hotel income reporting now applies to every release: do not rely on the first output generated; confirm the data is accurate before using it.</p>
+        <div class="aipm-card-detail-tags"><span class="aipm-card-detail-tag">Real-Data Testing</span><span class="aipm-card-detail-tag">Cross-AI Validation</span><span class="aipm-card-detail-tag">Analytics Audit</span></div>
+      </div></div></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- CLOSING -->
+<section class="section" id="connect">
+  <div class="s-label reveal">03 — Background &amp; Alignment</div>
+  <h2 class="s-title reveal">The background — <em>and where this is headed.</em></h2>
+
+  <div class="closing-grid closing-grid-single">
+    <div class="closing-text reveal">
+      <p>
+        The work in this portfolio spans ERP implementation, operational system design, change management, and AI-powered platform development — all built without an engineering team or outside development budget.
+      </p>
+      <p>
+        What made this possible was the combination of construction experience, workflow knowledge, and hands-on system building. That combination is what <strong>practical AI adoption in construction</strong> requires: someone close enough to the work to define what good output looks like, then build, test, document, govern, and roll it out in a way people will actually use.
+      </p>
+      <p>
+        The opportunity now is to align this work with a structured, data-driven, and scalable approach for practical AI adoption across the organization.
+      </p>
+      <p>
+        <em>With your leadership setting the direction, this could become a repeatable model for helping teams move faster, reduce duplicate work, improve reporting quality, and capture better data from everyday project activity — an approach I would welcome the opportunity to help build, govern, and scale with you.</em>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<div class="cta">
+  <div class="cta-inner reveal">
+    <div class="cta-label">The Opportunity Ahead</div>
+    <h2>Imagine what this could become.</h2>
+    <div class="cta-copy">
+      <p>If this work connects with where you are headed, I would welcome the opportunity to continue the conversation.</p>
+    </div>
+    <div class="cta-btns">
+      <a href="mailto:Haley.Kruse@nationalbuildingspecialties.com" class="btn btn-gold">Let's Keep Building</a>
+      <a href="#top" class="btn btn-ghost">Back to Top</a>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span class="f-txt">© 2026 Haley Kruse · All Rights Reserved</span>
+  <span class="f-txt">NBS · Swinerton · AiPM</span>
+</footer>
+
+<script>
+  function toggleAipmCard(card) {
+    card.classList.toggle('open');
+  }
+
+  // Standard reveal observer (for non-card elements)
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.07 });
+  document.querySelectorAll('.reveal:not(.reveal-slow)').forEach(el => io.observe(el));
+
+  // Slow reveal observer — higher threshold means items have to be more visible before fading in
+  const ioSlow = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('in');
+        ioSlow.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.18 });
+  document.querySelectorAll('.reveal-slow').forEach(el => ioSlow.observe(el));
+
+  // Timeline progress bar — fills as the user scrolls through the work history
+  const timeline = document.querySelector('.timeline');
+  const tlItems = timeline ? timeline.querySelectorAll('.tl-item') : [];
+  const tlDividers = timeline ? timeline.querySelectorAll('.tl-divider') : [];
+  function updateTimelineProgress() {
+    if (!timeline) return;
+    const rect = timeline.getBoundingClientRect();
+    const viewportH = window.innerHeight;
+    // Anchor point is 60% down the viewport — progress fills as the section passes that line
+    const anchor = viewportH * 0.6;
+    const start = rect.top;
+    const end = rect.bottom;
+    const total = end - start;
+    let progress = (anchor - start) / total;
+    progress = Math.max(0, Math.min(1, progress));
+    timeline.style.setProperty('--timeline-progress', (progress * 100) + '%');
+
+    // Light up each dot once the progress line has reached it (and keep it lit)
+    tlItems.forEach(item => {
+      if (item.classList.contains('passed')) return;
+      const itemRect = item.getBoundingClientRect();
+      // Use the dot's actual top position (~0.55rem inside the item)
+      const dotTop = itemRect.top + 14;
+      if (dotTop < anchor) {
+        item.classList.add('passed');
+      }
+    });
+
+    // Light up the AI divider (and any other dividers) when the beam reaches it
+    tlDividers.forEach(divider => {
+      if (divider.classList.contains('passed')) return;
+      const divRect = divider.getBoundingClientRect();
+      // Trigger when the divider's vertical center crosses the anchor — feels right because
+      // the badge sits in the middle of the divider row
+      const divCenter = divRect.top + (divRect.height / 2);
+      if (divCenter < anchor) {
+        divider.classList.add('passed');
+      }
+    });
+  }
+  // Throttle scroll updates with requestAnimationFrame
+  let ticking = false;
+  function onScroll() {
+    if (!ticking) {
+      requestAnimationFrame(() => {
+        updateTimelineProgress();
+        ticking = false;
+      });
+      ticking = true;
+    }
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  updateTimelineProgress(); // initial call
+
+  // Card grid stagger — when any card in a grid enters view, cascade-reveal the whole grid
+  const cardGridObserver = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const grid = e.target;
+        const cards = grid.querySelectorAll('.card-reveal');
+        cards.forEach((card, i) => {
+          // Stagger: 60ms per card, capped so later cards don't lag too long.
+          // Sets a CSS variable so per-property delays inside the card stay intact.
+          card.style.setProperty('--cascade-delay', `${Math.min(i * 60, 360)}ms`);
+          card.classList.add('in');
+        });
+        cardGridObserver.unobserve(grid);
+      }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.aipm-grid').forEach(grid => cardGridObserver.observe(grid));
+</script>
+</body>
+</html>

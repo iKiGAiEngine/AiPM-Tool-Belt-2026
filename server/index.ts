@@ -130,6 +130,15 @@ app.use((req, res, next) => {
     }
   }));
 
+  app.get("/portfolio", (_req, res) => {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.sendFile(path.join(process.cwd(), "public", "portfolio", "index.html"));
+  });
+  app.get("/portfolio/index.html", (_req, res) => {
+    res.redirect(301, "/portfolio");
+  });
+
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
