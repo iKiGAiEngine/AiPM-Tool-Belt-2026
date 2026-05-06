@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
-import { users, auditLogs, FEATURES, DEFAULT_ROLE_FEATURES, Feature, permissionProfiles, userFeatureAccess } from "@shared/schema";
+import { users, auditLogs, FEATURES, DEFAULT_ROLE_FEATURES, Feature, permissionProfiles, userFeatureAccess, portfolioVisits } from "@shared/schema";
 import { eq, desc, and, gte, lte, like, or, sql, inArray } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { requireAdmin, isAllowedDomain } from "./authRoutes";
@@ -15,6 +15,21 @@ function hashToken(raw: string): string {
 }
 
 export function registerAdminRoutes(app: Express) {
+  app.get("/api/admin/portfolio-visits", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const visits = await db.select().from(portfolioVisits).orderBy(desc(portfolioVisits.visitedAt)).limit(500);
+      const total = await db.select({ count: sql<number>`count(*)::int` }).from(portfolioVisits);
+      const uniqueIps = await db.select({ count: sql<number>`count(distinct ip)::int` }).from(portfolioVisits);
+      res.json({
+        total: total[0]?.count ?? 0,
+        uniqueIps: uniqueIps[0]?.count ?? 0,
+        visits,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err?.message || "Failed to load visits" });
+    }
+  });
+
   app.get("/api/admin/users", requireAdmin, async (req: Request, res: Response) => {
     try {
       const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));

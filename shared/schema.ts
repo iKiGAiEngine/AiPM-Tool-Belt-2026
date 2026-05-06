@@ -1662,3 +1662,14 @@ export const systemErrors = pgTable("system_errors", {
 export const insertSystemErrorSchema = createInsertSchema(systemErrors).omit({ id: true, firstSeenAt: true, lastSeenAt: true, occurrenceCount: true });
 export type InsertSystemError = z.infer<typeof insertSystemErrorSchema>;
 export type SystemError = typeof systemErrors.$inferSelect;
+
+export const portfolioVisits = pgTable("portfolio_visits", {
+  id: serial("id").primaryKey(),
+  visitedAt: timestamp("visited_at").notNull().defaultNow(),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+  referer: text("referer"),
+  acceptLanguage: text("accept_language"),
+  path: text("path"),
+});
+export type PortfolioVisit = typeof portfolioVisits.$inferSelect;

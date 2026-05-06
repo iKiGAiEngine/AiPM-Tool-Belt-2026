@@ -130,9 +130,28 @@ app.use((req, res, next) => {
     }
   }));
 
-  app.get("/portfolio", (_req, res) => {
+  const logPortfolioVisit = async (req: Request) => {
+    try {
+      const { db } = await import("./db");
+      const { portfolioVisits } = await import("@shared/schema");
+      const ipHeader = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "";
+      const ip = ipHeader.split(",")[0].trim();
+      await db.insert(portfolioVisits).values({
+        ip: ip || null,
+        userAgent: (req.headers["user-agent"] as string) || null,
+        referer: (req.headers["referer"] as string) || (req.headers["referrer"] as string) || null,
+        acceptLanguage: (req.headers["accept-language"] as string) || null,
+        path: req.path,
+      });
+    } catch (err) {
+      // Silent failure — never break the page render for tracking
+    }
+  };
+
+  app.get("/portfolio", (req, res) => {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=3600");
+    void logPortfolioVisit(req);
     res.sendFile(path.join(process.cwd(), "public", "portfolio", "index.html"));
   });
   app.get("/portfolio/index.html", (_req, res) => {
