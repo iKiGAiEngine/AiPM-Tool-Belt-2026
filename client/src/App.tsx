@@ -34,6 +34,7 @@ import ChangelogPage from "@/pages/ChangelogPage";
 import ProposalChangeLogPage from "@/pages/ProposalChangeLogPage";
 import EstimatingModulePage from "@/pages/EstimatingModulePage";
 import AdminEstimatorAnalyticsPage from "@/pages/AdminEstimatorAnalyticsPage";
+import AdminPortfolioVisitsPage from "@/pages/AdminPortfolioVisitsPage";
 import HelpCenterPage from "@/pages/HelpCenterPage";
 import NotFound from "@/pages/not-found";
 
@@ -96,6 +97,7 @@ function Router() {
       <Route path="/admin/proposal-change-log">{() => <AdminRoute component={ProposalChangeLogPage} />}</Route>
       <Route path="/admin/estimator-analytics">{() => <AdminRoute component={AdminEstimatorAnalyticsPage} />}</Route>
       <Route path="/admin/backup">{() => <AdminRoute component={AdminBackupPage} />}</Route>
+      <Route path="/admin/portfolio-visits">{() => <AdminRoute component={AdminPortfolioVisitsPage} />}</Route>
       <Route path="/admin/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
       <Route path="/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
       <Route path="/submittal-builder" component={SubmittalBuilderPage} />
