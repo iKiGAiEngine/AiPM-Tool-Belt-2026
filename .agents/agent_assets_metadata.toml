@@ -101,3 +101,9 @@ id = "msGKSRMpJODTfzmeeSDOS"
 uri = "file://Vendor_Upload_Template.xlsx"
 type = "table"
 title = "Vendor Upload Template (updated)"
+
+[[outputs]]
+id = "8mgYG08sDVjQPm7ic3hfB"
+uri = "file://attached_assets/Estimating_Module_Disclaimer_Text_Review.md"
+type = "text"
+title = "Estimating Module — Disclaimer Text Review"
