@@ -2440,14 +2440,6 @@ export function registerProjectRoutes(app: Express) {
         return res.send(entry.data);
       }
 
-      // 3. Fallback: legacy filesystem path (dev box only, ephemeral in prod)
-      if (entry.legacyPath && !entry.legacyPath.startsWith("db:") && fs.existsSync(entry.legacyPath)) {
-        const ext = path.extname(entry.legacyPath).toLowerCase();
-        const mimeMap: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
-        res.setHeader("Content-Type", mimeMap[ext] || "image/png");
-        return res.sendFile(entry.legacyPath);
-      }
-
       return res.status(404).json({ message: "Screenshot not available" });
     } catch (error) {
       console.error("Failed to serve screenshot:", error);
