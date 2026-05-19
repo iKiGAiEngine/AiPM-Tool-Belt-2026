@@ -2455,64 +2455,6 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  // One-time admin migration endpoint: reads legacy filesystem screenshots and
-  // writes them into proposal_log_entries.screenshot_data. Safe to re-run
-  // (skips rows that already have screenshot_data populated).
-  // TODO: remove this endpoint in a follow-up commit after successful backfill.
-  app.post("/api/admin/backfill-screenshots", requireAdmin, async (_req: Request, res: Response) => {
-    const result = { backfilled: 0, skipped: 0, alreadyMigrated: 0, errors: 0, details: [] as string[] };
-    try {
-      const rows = await db.select({
-          id: proposalLogEntries.id,
-          estimateNumber: proposalLogEntries.estimateNumber,
-          screenshotPath: proposalLogEntries.screenshotPath,
-          screenshotData: proposalLogEntries.screenshotData,
-        })
-        .from(proposalLogEntries);
-
-      for (const row of rows) {
-        const id = row.estimateNumber || `#${row.id}`;
-        if (!row.screenshotPath) continue;
-        if (row.screenshotData) {
-          result.alreadyMigrated++;
-          continue;
-        }
-        if (row.screenshotPath.startsWith("db:")) {
-          result.alreadyMigrated++;
-          continue;
-        }
-        try {
-          if (!fs.existsSync(row.screenshotPath)) {
-            console.log(`[ScreenshotBackfill] Skipped ${id} (file not found on disk: ${row.screenshotPath})`);
-            result.skipped++;
-            result.details.push(`Skipped ${id}: not on disk`);
-            continue;
-          }
-          const buf = fs.readFileSync(row.screenshotPath);
-          const ext = path.extname(row.screenshotPath).toLowerCase();
-          const mimeMap: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
-          const mime = mimeMap[ext] || "image/png";
-          await db.update(proposalLogEntries)
-            .set({ screenshotData: buf, screenshotMimeType: mime })
-            .where(eq(proposalLogEntries.id, row.id));
-          console.log(`[ScreenshotBackfill] Backfilled ${id} (${Math.round(buf.length / 1024)} KB)`);
-          result.backfilled++;
-          result.details.push(`Backfilled ${id} (${Math.round(buf.length / 1024)} KB)`);
-        } catch (err: any) {
-          console.error(`[ScreenshotBackfill] Error on ${id}:`, err?.message || err);
-          result.errors++;
-          result.details.push(`Error on ${id}: ${err?.message || err}`);
-        }
-      }
-
-      console.log(`[ScreenshotBackfill] Done. backfilled=${result.backfilled} skipped=${result.skipped} alreadyMigrated=${result.alreadyMigrated} errors=${result.errors}`);
-      res.json(result);
-    } catch (error: any) {
-      console.error("[ScreenshotBackfill] Fatal error:", error);
-      res.status(500).json({ message: "Backfill failed", error: error?.message, partial: result });
-    }
-  });
-
   app.get("/api/proposal-log/sheet-url", async (req: Request, res: Response) => {
     try {
       const url = getSheetUrl();
