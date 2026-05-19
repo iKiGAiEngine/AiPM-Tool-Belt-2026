@@ -768,18 +768,14 @@ export function registerProjectRoutes(app: Express) {
           })();
         }
 
-        let screenshotSavePath = "";
+        // Screenshot is stored as bytea in proposal_log_entries.screenshot_data
+        // (matches the feedbackScreenshots pattern for production resilience —
+        // local filesystem is ephemeral on redeploy).
+        // screenshotPath keeps a "db:<projectId>" marker so existing UI gates
+        // that check entry.screenshotPath truthiness continue to work.
+        const screenshotSavePath = screenshotFile ? `db:${projectIdStr}` : "";
         if (screenshotFile) {
-          try {
-            ensureDir(SCREENSHOTS_DIR);
-            const ext = screenshotFile.mimetype.includes("png") ? ".png" : screenshotFile.mimetype.includes("webp") ? ".webp" : ".jpg";
-            const screenshotFilename = `${projectIdStr}${ext}`;
-            screenshotSavePath = path.join(SCREENSHOTS_DIR, screenshotFilename);
-            fs.writeFileSync(screenshotSavePath, screenshotFile.buffer);
-            console.log(`[ProjectCreate] Screenshot saved: ${screenshotSavePath}`);
-          } catch (err) {
-            console.error("[ProjectCreate] Failed to save screenshot:", err);
-          }
+          console.log(`[ProjectCreate] Screenshot stored in DB (${Math.round(screenshotFile.buffer.length / 1024)} KB, ${screenshotFile.mimetype})`);
         }
 
         try {
@@ -849,6 +845,8 @@ export function registerProjectRoutes(app: Express) {
               owner: ownerName,
               filePath: projectDir,
               screenshotPath: screenshotSavePath,
+              screenshotData: screenshotFile?.buffer || null,
+              screenshotMimeType: screenshotFile?.mimetype || null,
               projectDbId: project.id,
               isTest: isTest === "true",
               inviteDate: frontendInviteDate || undefined,
@@ -2422,25 +2420,96 @@ export function registerProjectRoutes(app: Express) {
   app.get("/api/proposal-log/screenshot/:projectId", async (req: Request, res: Response) => {
     try {
       const projectId = req.params.projectId;
-      const screenshotsDir = path.join(process.cwd(), "project_screenshots");
-      if (!fs.existsSync(screenshotsDir)) {
-        return res.status(404).json({ message: "No screenshots directory" });
+
+      // 1. Exact match on estimate_number (fixes legacy startsWith prefix-collision bug, e.g. 26-002 vs 26-0020)
+      const [entry] = await db.select({
+          data: proposalLogEntries.screenshotData,
+          mime: proposalLogEntries.screenshotMimeType,
+          legacyPath: proposalLogEntries.screenshotPath,
+        })
+        .from(proposalLogEntries)
+        .where(eq(proposalLogEntries.estimateNumber, projectId))
+        .limit(1);
+
+      if (!entry) return res.status(404).json({ message: "Screenshot not found" });
+
+      // 2. Primary path: serve from DB (resilient across redeploys)
+      if (entry.data) {
+        res.setHeader("Content-Type", entry.mime || "image/png");
+        res.setHeader("Cache-Control", "private, max-age=300");
+        return res.send(entry.data);
       }
 
-      const files = fs.readdirSync(screenshotsDir);
-      const match = files.find(f => f.startsWith(projectId + "."));
-      if (!match) {
-        return res.status(404).json({ message: "Screenshot not found" });
+      // 3. Fallback: legacy filesystem path (dev box only, ephemeral in prod)
+      if (entry.legacyPath && !entry.legacyPath.startsWith("db:") && fs.existsSync(entry.legacyPath)) {
+        const ext = path.extname(entry.legacyPath).toLowerCase();
+        const mimeMap: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
+        res.setHeader("Content-Type", mimeMap[ext] || "image/png");
+        return res.sendFile(entry.legacyPath);
       }
 
-      const filePath = path.join(screenshotsDir, match);
-      const ext = path.extname(match).toLowerCase();
-      const mimeMap: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
-      res.setHeader("Content-Type", mimeMap[ext] || "image/png");
-      res.sendFile(filePath);
+      return res.status(404).json({ message: "Screenshot not available" });
     } catch (error) {
       console.error("Failed to serve screenshot:", error);
       res.status(500).json({ message: "Failed to serve screenshot" });
+    }
+  });
+
+  // One-time admin migration endpoint: reads legacy filesystem screenshots and
+  // writes them into proposal_log_entries.screenshot_data. Safe to re-run
+  // (skips rows that already have screenshot_data populated).
+  // TODO: remove this endpoint in a follow-up commit after successful backfill.
+  app.post("/api/admin/backfill-screenshots", requireAdmin, async (_req: Request, res: Response) => {
+    const result = { backfilled: 0, skipped: 0, alreadyMigrated: 0, errors: 0, details: [] as string[] };
+    try {
+      const rows = await db.select({
+          id: proposalLogEntries.id,
+          estimateNumber: proposalLogEntries.estimateNumber,
+          screenshotPath: proposalLogEntries.screenshotPath,
+          screenshotData: proposalLogEntries.screenshotData,
+        })
+        .from(proposalLogEntries);
+
+      for (const row of rows) {
+        const id = row.estimateNumber || `#${row.id}`;
+        if (!row.screenshotPath) continue;
+        if (row.screenshotData) {
+          result.alreadyMigrated++;
+          continue;
+        }
+        if (row.screenshotPath.startsWith("db:")) {
+          result.alreadyMigrated++;
+          continue;
+        }
+        try {
+          if (!fs.existsSync(row.screenshotPath)) {
+            console.log(`[ScreenshotBackfill] Skipped ${id} (file not found on disk: ${row.screenshotPath})`);
+            result.skipped++;
+            result.details.push(`Skipped ${id}: not on disk`);
+            continue;
+          }
+          const buf = fs.readFileSync(row.screenshotPath);
+          const ext = path.extname(row.screenshotPath).toLowerCase();
+          const mimeMap: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
+          const mime = mimeMap[ext] || "image/png";
+          await db.update(proposalLogEntries)
+            .set({ screenshotData: buf, screenshotMimeType: mime })
+            .where(eq(proposalLogEntries.id, row.id));
+          console.log(`[ScreenshotBackfill] Backfilled ${id} (${Math.round(buf.length / 1024)} KB)`);
+          result.backfilled++;
+          result.details.push(`Backfilled ${id} (${Math.round(buf.length / 1024)} KB)`);
+        } catch (err: any) {
+          console.error(`[ScreenshotBackfill] Error on ${id}:`, err?.message || err);
+          result.errors++;
+          result.details.push(`Error on ${id}: ${err?.message || err}`);
+        }
+      }
+
+      console.log(`[ScreenshotBackfill] Done. backfilled=${result.backfilled} skipped=${result.skipped} alreadyMigrated=${result.alreadyMigrated} errors=${result.errors}`);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[ScreenshotBackfill] Fatal error:", error);
+      res.status(500).json({ message: "Backfill failed", error: error?.message, partial: result });
     }
   });
 

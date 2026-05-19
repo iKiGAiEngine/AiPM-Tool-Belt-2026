@@ -1,7 +1,11 @@
 import { db } from "./db";
 import { proposalLogEntries, proposalAcknowledgements, regions } from "@shared/schema";
-import { eq, inArray, isNull, and, sql } from "drizzle-orm";
+import { eq, inArray, isNull, and, sql, getTableColumns } from "drizzle-orm";
 import { triggerSheetSync, isGoogleSheetConfigured } from "./googleSheetSync";
+
+// Column whitelist for list queries — excludes binary screenshot blob to keep
+// list responses small. Single-row reads can still hit the full table.
+const { screenshotData: _omitScreenshotData, screenshotMimeType: _omitScreenshotMimeType, ...PROPOSAL_LOG_LIST_COLUMNS } = getTableColumns(proposalLogEntries);
 
 async function lookupSpEstimatorFromRegion(region: string): Promise<string> {
   if (!region) return "";
@@ -65,6 +69,8 @@ export async function createProposalLogEntry(data: {
   owner: string;
   filePath: string;
   screenshotPath: string;
+  screenshotData?: Buffer | null;
+  screenshotMimeType?: string | null;
   projectDbId: number;
   isTest?: boolean;
   inviteDate?: string;
@@ -96,6 +102,8 @@ export async function createProposalLogEntry(data: {
     owner: data.owner,
     filePath: data.filePath,
     screenshotPath: data.screenshotPath,
+    screenshotData: data.screenshotData ?? null,
+    screenshotMimeType: data.screenshotMimeType ?? null,
     projectDbId: data.projectDbId,
     anticipatedStart: data.anticipatedStart || null,
     anticipatedFinish: data.anticipatedFinish || null,
@@ -123,6 +131,8 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
   owner?: string;
   filePath?: string;
   screenshotPath?: string;
+  screenshotData?: Buffer | null;
+  screenshotMimeType?: string | null;
   isTest?: boolean;
   inviteDate?: string;
   estimateStatus?: string;
@@ -188,6 +198,8 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
       owner: data.owner || "",
       filePath: data.filePath || "",
       screenshotPath: data.screenshotPath || "",
+      screenshotData: data.screenshotData ?? null,
+      screenshotMimeType: data.screenshotMimeType ?? null,
       projectDbId: 0,
       anticipatedStart: data.anticipatedStart || null,
       anticipatedFinish: data.anticipatedFinish || null,
@@ -213,7 +225,7 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
 }
 
 export async function getUnsyncedEntries() {
-  return db.select().from(proposalLogEntries).where(eq(proposalLogEntries.syncedToLocal, false));
+  return db.select(PROPOSAL_LOG_LIST_COLUMNS).from(proposalLogEntries).where(eq(proposalLogEntries.syncedToLocal, false));
 }
 
 export async function markEntriesSynced(ids: number[]) {
@@ -223,13 +235,13 @@ export async function markEntriesSynced(ids: number[]) {
 }
 
 export async function getActiveProposalLogEntries() {
-  return db.select().from(proposalLogEntries)
+  return db.select(PROPOSAL_LOG_LIST_COLUMNS).from(proposalLogEntries)
     .where(isNull(proposalLogEntries.deletedAt))
     .orderBy(proposalLogEntries.createdAt);
 }
 
 export async function getAllProposalLogEntries() {
-  return db.select().from(proposalLogEntries).orderBy(proposalLogEntries.createdAt);
+  return db.select(PROPOSAL_LOG_LIST_COLUMNS).from(proposalLogEntries).orderBy(proposalLogEntries.createdAt);
 }
 
 export async function updateProposalLogEntryById(id: number, updates: Partial<{
@@ -255,6 +267,8 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   primaryMarket: string;
   filePath: string;
   screenshotPath: string;
+  screenshotData: Buffer | null;
+  screenshotMimeType: string | null;
   sourceType: string;
   sourceEmail: string;
   sourceEmailSubject: string;
@@ -283,6 +297,8 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   if (updates.primaryMarket !== undefined) cleanUpdates.primaryMarket = updates.primaryMarket;
   if (updates.filePath !== undefined) cleanUpdates.filePath = updates.filePath;
   if (updates.screenshotPath !== undefined) cleanUpdates.screenshotPath = updates.screenshotPath;
+  if (updates.screenshotData !== undefined) cleanUpdates.screenshotData = updates.screenshotData;
+  if (updates.screenshotMimeType !== undefined) cleanUpdates.screenshotMimeType = updates.screenshotMimeType;
   if (updates.sourceType !== undefined) cleanUpdates.sourceType = updates.sourceType;
   if (updates.sourceEmail !== undefined) cleanUpdates.sourceEmail = updates.sourceEmail;
   if (updates.sourceEmailSubject !== undefined) cleanUpdates.sourceEmailSubject = updates.sourceEmailSubject;

@@ -898,6 +898,11 @@ export const insertToolUsageEventSchema = createInsertSchema(toolUsageEvents).om
 export type InsertToolUsageEvent = z.infer<typeof insertToolUsageEventSchema>;
 export type ToolUsageEvent = typeof toolUsageEvents.$inferSelect;
 
+// Bytea custom type for binary file storage (matches existing template/quote pattern)
+const screenshotBytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() { return "bytea"; },
+});
+
 export const emailTemplateConfig = pgTable("email_template_config", {
   id: serial("id").primaryKey(),
   templateKey: varchar("template_key", { length: 100 }).notNull().unique(),
@@ -933,6 +938,8 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   owner: varchar("owner", { length: 200 }),
   filePath: varchar("file_path", { length: 1000 }),
   screenshotPath: varchar("screenshot_path", { length: 1000 }),
+  screenshotData: screenshotBytea("screenshot_data"),
+  screenshotMimeType: varchar("screenshot_mime_type", { length: 50 }),
   projectDbId: integer("project_db_id"),
   anticipatedStart: varchar("anticipated_start", { length: 20 }),
   anticipatedFinish: varchar("anticipated_finish", { length: 20 }),
@@ -1583,11 +1590,6 @@ export const estimateActivityEvents = pgTable("estimate_activity_events", {
 export const insertEstimateActivityEventSchema = createInsertSchema(estimateActivityEvents).omit({ id: true, createdAt: true });
 export type InsertEstimateActivityEvent = z.infer<typeof insertEstimateActivityEventSchema>;
 export type EstimateActivityEvent = typeof estimateActivityEvents.$inferSelect;
-
-// Bytea custom type for binary file storage (matches existing template/quote pattern)
-const screenshotBytea = customType<{ data: Buffer; driverData: Buffer }>({
-  dataType() { return "bytea"; },
-});
 
 // === Admin Dashboard / Support Chatbot tables ===
 // New tables use UUID primary keys (varchar with gen_random_uuid default).
