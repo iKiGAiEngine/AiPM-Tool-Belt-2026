@@ -1,13 +1,28 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 
-export function ReadOnlyBanner() {
+let _globalMounted = false;
+
+export function ReadOnlyBanner({ global: isGlobal = false }: { global?: boolean }) {
   const { isViewer } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const [pos, setPos] = useState({ x: 12, y: 12 });
+  const [pos, setPos] = useState({ x: 12, y: 60 });
   const dragging = useRef(false);
   const offset = useRef({ x: 0, y: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const [shouldRender, setShouldRender] = useState(false);
+
+  useEffect(() => {
+    if (isGlobal) {
+      _globalMounted = true;
+      setShouldRender(true);
+      return () => { _globalMounted = false; };
+    } else {
+      if (!_globalMounted) {
+        setShouldRender(true);
+      }
+    }
+  }, [isGlobal]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -23,7 +38,7 @@ export function ReadOnlyBanner() {
     };
   }, []);
 
-  if (!isViewer) return null;
+  if (!isViewer || !shouldRender) return null;
 
   const onMouseDown = (e: React.MouseEvent) => {
     dragging.current = true;

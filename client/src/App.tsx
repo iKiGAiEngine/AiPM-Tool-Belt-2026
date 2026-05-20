@@ -9,6 +9,7 @@ import { TestModeProvider } from "@/lib/testMode";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { Header } from "@/components/Header";
+import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
 import { Loader2 } from "lucide-react";
 import HomePage from "@/pages/HomePage";
 import PlanParserPage from "@/pages/PlanParserPage";
@@ -145,6 +146,7 @@ function AuthGate() {
     <TestModeProvider>
       <div className="min-h-screen bg-background">
         <Header />
+        <ReadOnlyBanner global />
         <Router />
       </div>
     </TestModeProvider>

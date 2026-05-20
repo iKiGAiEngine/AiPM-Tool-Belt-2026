@@ -160,8 +160,8 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
 
 export function Header() {
   const [location, navigate] = useLocation();
-  const { isTestMode, toggleTestMode } = useTestMode();
-  const { user, isAdmin, canAccessAdminDashboard, isLoading: authLoading, logout } = useAuth();
+  const { isTestMode, toggleTestMode, isLockedOn } = useTestMode();
+  const { user, isAdmin, isViewer, canAccessAdminDashboard, isLoading: authLoading, logout } = useAuth();
   const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
   const canSettingsRegions = hasFeature("settings-regions");
   const canSettingsFull = hasFeature("central-settings");
@@ -243,15 +243,21 @@ export function Header() {
               <span>{processingProjects.length} processing</span>
             </button>
           )}
-          {isAdmin && (
-            <label className="flex items-center gap-2 cursor-pointer" data-testid="toggle-test-mode">
+          {(isAdmin || isViewer) && (
+            <label
+              className="flex items-center gap-2"
+              data-testid="toggle-test-mode"
+              style={{ cursor: isLockedOn ? "not-allowed" : "pointer" }}
+              title={isLockedOn ? "Test mode is locked on for read-only accounts" : undefined}
+            >
               <FlaskConical className={cn("h-4 w-4")} style={{ color: isTestMode ? "var(--gold)" : "var(--text-dim)" }} />
               <span className="text-xs font-medium select-none font-heading" style={{ color: isTestMode ? "var(--gold)" : "var(--text-dim)" }}>
                 Test
               </span>
               <Switch
                 checked={isTestMode}
-                onCheckedChange={toggleTestMode}
+                onCheckedChange={isLockedOn ? undefined : toggleTestMode}
+                disabled={isLockedOn}
                 className="data-[state=checked]:bg-primary"
               />
             </label>
