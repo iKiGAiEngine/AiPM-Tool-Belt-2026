@@ -759,9 +759,9 @@ function ScreenshotPlaceholder({ caption }: { caption: string }) {
       }}
       data-testid="screenshot-placeholder"
     >
-      <Camera style={{ width: 18, height: 18, color: "#C8A44E", flexShrink: 0 }} />
-      <div className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
-        <span style={{ color: "#C8A44E", fontWeight: 600 }}>Screenshot:</span> {caption}
+      <Camera style={{ width: 18, height: 18, color: "var(--gold)", flexShrink: 0 }} />
+      <div className="text-sm" style={{ color: "var(--text-dim)" }}>
+        <span style={{ color: "var(--gold)", fontWeight: 600 }}>Screenshot:</span> {caption}
       </div>
     </div>
   );
@@ -784,7 +784,7 @@ function ScreenshotImage({ src, caption }: { src: string; caption: string }) {
         className="text-xs px-3 py-2"
         style={{
           background: "rgba(200, 164, 78, 0.08)",
-          color: "rgba(255,255,255,0.6)",
+          color: "var(--text-secondary)",
         }}
       >
         {caption}
@@ -797,16 +797,16 @@ function SopHub() {
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
       <div className="flex items-center gap-3 mb-2">
-        <LifeBuoy style={{ width: 28, height: 28, color: "#C8A44E" }} />
+        <LifeBuoy style={{ width: 28, height: 28, color: "var(--gold)" }} />
         <h1
           className="text-3xl font-semibold tracking-tight"
-          style={{ fontFamily: "Rajdhani, sans-serif", color: "#fff" }}
+          style={{ fontFamily: "Rajdhani, sans-serif", color: "var(--text)" }}
           data-testid="text-helpcenter-title"
         >
           Help Center
         </h1>
       </div>
-      <p className="text-base mb-8" style={{ color: "rgba(255,255,255,0.65)" }}>
+      <p className="text-base mb-8" style={{ color: "var(--text-secondary)" }}>
         Step-by-step SOPs for the team. Pick a topic to get started.
       </p>
 
@@ -821,7 +821,7 @@ function SopHub() {
               className="block rounded-lg border p-5 transition-colors group"
               style={{
                 borderColor: "rgba(200, 164, 78, 0.25)",
-                background: "rgba(255,255,255,0.02)",
+                background: "var(--bg-card)",
               }}
             >
               <div className="flex items-start gap-4">
@@ -829,29 +829,29 @@ function SopHub() {
                   className="rounded-md p-2 flex-shrink-0"
                   style={{ background: "rgba(200, 164, 78, 0.12)" }}
                 >
-                  <Icon style={{ width: 22, height: 22, color: "#C8A44E" }} />
+                  <Icon style={{ width: 22, height: 22, color: "var(--gold)" }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-3">
                     <h2
                       className="text-lg font-semibold mb-1"
-                      style={{ fontFamily: "Rajdhani, sans-serif", color: "#fff" }}
+                      style={{ fontFamily: "Rajdhani, sans-serif", color: "var(--text)" }}
                     >
                       {sop.title}
                     </h2>
                     <span
                       className="text-xs whitespace-nowrap"
-                      style={{ color: "rgba(255,255,255,0.5)" }}
+                      style={{ color: "var(--text-muted)" }}
                     >
                       {sop.estimatedReadMin} min
                     </span>
                   </div>
-                  <p className="text-sm" style={{ color: "rgba(255,255,255,0.65)" }}>
+                  <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
                     {sop.description}
                   </p>
                 </div>
                 <ChevronRight
-                  style={{ width: 18, height: 18, color: "rgba(255,255,255,0.35)" }}
+                  style={{ width: 18, height: 18, color: "var(--text-muted)" }}
                   className="flex-shrink-0 mt-1 group-hover:translate-x-1 transition-transform"
                 />
               </div>
@@ -871,23 +871,23 @@ function SopDetail({ sop }: { sop: Sop }) {
         href="/help-center"
         data-testid="link-back-to-helpcenter"
         className="inline-flex items-center gap-1.5 text-sm mb-6 hover:opacity-80"
-        style={{ color: "#C8A44E" }}
+        style={{ color: "var(--gold)" }}
       >
         <ArrowLeft style={{ width: 14, height: 14 }} />
         Back to Help Center
       </Link>
 
       <div className="flex items-center gap-3 mb-1">
-        <Icon style={{ width: 26, height: 26, color: "#C8A44E" }} />
+        <Icon style={{ width: 26, height: 26, color: "var(--gold)" }} />
         <h1
           className="text-3xl font-semibold tracking-tight"
-          style={{ fontFamily: "Rajdhani, sans-serif", color: "#fff" }}
+          style={{ fontFamily: "Rajdhani, sans-serif", color: "var(--text)" }}
           data-testid={`text-sop-title-${sop.slug}`}
         >
           {sop.title}
         </h1>
       </div>
-      <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.5)" }}>
+      <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
         Estimated read: {sop.estimatedReadMin} min
       </p>
 
@@ -898,11 +898,11 @@ function SopDetail({ sop }: { sop: Sop }) {
           background: "rgba(200, 164, 78, 0.05)",
         }}
       >
-        <p className="text-base mb-3" style={{ color: "rgba(255,255,255,0.85)" }}>
+        <p className="text-base mb-3" style={{ color: "var(--text)" }}>
           {sop.intro}
         </p>
-        <p className="text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>
-          <span style={{ color: "#C8A44E", fontWeight: 600 }}>Who this is for:</span>{" "}
+        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+          <span style={{ color: "var(--gold)", fontWeight: 600 }}>Who this is for:</span>{" "}
           {sop.whoFor}
         </p>
       </div>
@@ -913,7 +913,7 @@ function SopDetail({ sop }: { sop: Sop }) {
             className="text-xl font-semibold mb-4 pb-2 border-b"
             style={{
               fontFamily: "Rajdhani, sans-serif",
-              color: "#fff",
+              color: "var(--text)",
               borderColor: "rgba(200, 164, 78, 0.25)",
             }}
           >
@@ -926,7 +926,7 @@ function SopDetail({ sop }: { sop: Sop }) {
                   className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm font-semibold"
                   style={{
                     background: "rgba(200, 164, 78, 0.15)",
-                    color: "#C8A44E",
+                    color: "var(--gold)",
                   }}
                 >
                   {stIdx + 1}
@@ -934,7 +934,7 @@ function SopDetail({ sop }: { sop: Sop }) {
                 <div className="flex-1 min-w-0">
                   <h3
                     className="text-base font-semibold mb-1.5"
-                    style={{ color: "#fff" }}
+                    style={{ color: "var(--text)" }}
                   >
                     {step.title}
                   </h3>
@@ -944,7 +944,7 @@ function SopDetail({ sop }: { sop: Sop }) {
                         <p
                           key={i}
                           className="text-sm leading-relaxed"
-                          style={{ color: "rgba(255,255,255,0.75)" }}
+                          style={{ color: "var(--text-dim)" }}
                         >
                           {line}
                         </p>
@@ -953,7 +953,7 @@ function SopDetail({ sop }: { sop: Sop }) {
                   ) : (
                     <p
                       className="text-sm leading-relaxed"
-                      style={{ color: "rgba(255,255,255,0.75)" }}
+                      style={{ color: "var(--text-dim)" }}
                     >
                       {step.body}
                     </p>
@@ -968,11 +968,11 @@ function SopDetail({ sop }: { sop: Sop }) {
                       className="mt-2 rounded-md px-3 py-2 text-sm"
                       style={{
                         background: "rgba(200, 164, 78, 0.08)",
-                        borderLeft: "3px solid #C8A44E",
-                        color: "rgba(255,255,255,0.8)",
+                        borderLeft: "3px solid var(--gold)",
+                        color: "var(--text)",
                       }}
                     >
-                      <span style={{ color: "#C8A44E", fontWeight: 600 }}>Tip:</span>{" "}
+                      <span style={{ color: "var(--gold)", fontWeight: 600 }}>Tip:</span>{" "}
                       {step.tip}
                     </div>
                   )}
@@ -986,9 +986,9 @@ function SopDetail({ sop }: { sop: Sop }) {
       <div
         className="rounded-md border p-4 text-sm"
         style={{
-          borderColor: "rgba(255,255,255,0.1)",
-          background: "rgba(255,255,255,0.02)",
-          color: "rgba(255,255,255,0.55)",
+          borderColor: "var(--border-ds)",
+          background: "var(--bg-card)",
+          color: "var(--text-muted)",
         }}
       >
         Found something out of date or unclear? Send a note to your admin so this SOP can
@@ -1007,13 +1007,13 @@ export default function HelpCenterPage() {
   if (slug && !sop) {
     return (
       <div className="max-w-3xl mx-auto px-6 py-16 text-center">
-        <h1 className="text-2xl mb-4" style={{ color: "#fff" }}>
+        <h1 className="text-2xl mb-4" style={{ color: "var(--text)" }}>
           SOP not found
         </h1>
         <Link
           href="/help-center"
           className="inline-flex items-center gap-1.5 text-sm"
-          style={{ color: "#C8A44E" }}
+          style={{ color: "var(--gold)" }}
         >
           <ArrowLeft style={{ width: 14, height: 14 }} />
           Back to Help Center
@@ -1023,7 +1023,7 @@ export default function HelpCenterPage() {
   }
 
   return (
-    <div style={{ background: "#1a1a1a", minHeight: "calc(100vh - 64px)" }}>
+    <div style={{ background: "var(--bg-page)", minHeight: "calc(100vh - 64px)" }}>
       {sop ? <SopDetail sop={sop} /> : <SopHub />}
     </div>
   );

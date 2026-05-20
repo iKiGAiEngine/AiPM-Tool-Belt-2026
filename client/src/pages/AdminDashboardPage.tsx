@@ -86,7 +86,7 @@ function AdminToolButton({
       onClick={() => setLocation(href)}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold-light)]"
       style={{
-        color: "#e6d8a8",
+        color: "var(--gold-light)",
         border: "1px solid transparent",
         background: "transparent",
         fontFamily: RAJDHANI,
@@ -100,7 +100,7 @@ function AdminToolButton({
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = "transparent";
         e.currentTarget.style.background = "transparent";
-        e.currentTarget.style.color = "#e6d8a8";
+        e.currentTarget.style.color = "var(--gold-light)";
       }}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -114,8 +114,8 @@ export default function AdminDashboardPage() {
     <div
       className="min-h-screen w-full"
       style={{
-        background: "#000",
-        color: "#f5f5f5",
+        background: "var(--bg-page)",
+        color: "var(--text)",
         fontFamily: RAJDHANI,
       }}
       data-testid="page-admin-dashboard"
@@ -137,7 +137,7 @@ export default function AdminDashboardPage() {
         </header>
         <p
           className="text-sm mb-8"
-          style={{ color: "rgba(245,245,245,0.6)", fontFamily: RAJDHANI }}
+          style={{ color: "var(--text-secondary)", fontFamily: RAJDHANI }}
           data-testid="text-admin-dashboard-subtitle"
         >
           Executive command center — monitor system health, support requests, and project activity.
@@ -171,7 +171,7 @@ export default function AdminDashboardPage() {
               key={id}
               className="rounded-md p-6"
               style={{
-                background: "linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0))",
+                background: "var(--bg-card)",
                 border: "1px solid var(--border-gold)",
                 boxShadow: "var(--shadow-gold)",
               }}
@@ -197,7 +197,7 @@ export default function AdminDashboardPage() {
               </div>
               <p
                 className="text-sm leading-relaxed"
-                style={{ color: "rgba(245,245,245,0.55)", fontFamily: RAJDHANI }}
+                style={{ color: "var(--text-muted)", fontFamily: RAJDHANI }}
                 data-testid={`placeholder-${id}`}
               >
                 {blurb}
