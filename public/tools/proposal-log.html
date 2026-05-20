@@ -2121,31 +2121,9 @@ async function importFromSheet(){
 }
 
 // ─── DASHBOARD SCOPE HELPERS ─────────────────────────────────────────────────
-// Determines if a single project record is visible to the current user on
-// the dashboard, based solely on dashboardScope — NOT role.
+// Dashboard is admin-only — always show all records (no user scoping).
 function projectMatchesDashboardScope(p, user) {
-  const scope = user?.dashboardScope || '';
-
-  if (scope === 'company_wide') {
-    return true;
-  }
-
-  if (scope === 'my_projects') {
-    const myInitials = user?.initials || '';
-    return !!myInitials && p.nbsEstimator === myInitials;
-  }
-
-  if (scope === 'my_region') {
-    const assignedRegion = user?.assignedRegion || '';
-    return !!assignedRegion && p.region === assignedRegion;
-  }
-
-  // No dashboardScope set — safe fallback by initials only (never all records)
-  const myInitials = user?.initials || '';
-  if (myInitials) {
-    return p.nbsEstimator === myInitials;
-  }
-  return false;
+  return true;
 }
 
 // Returns the filtered dataset for the dashboard, applying both page filters
@@ -3559,7 +3537,7 @@ function applyRoleUI() {
   // has a dashboardLayout set (dashboardLayout is separate from role/permissions).
   const hasDashboardLayout = !!(currentUser.dashboardLayout);
   const dashTabEl = document.getElementById('tab-dash');
-  if (dashTabEl) dashTabEl.style.display = (caps.dashboard || hasDashboardLayout) ? '' : 'none';
+  if (dashTabEl) dashTabEl.style.display = caps.dashboard ? '' : 'none';
 
   const btnAdd    = document.getElementById('btn-add');
   const btnImport = document.getElementById('btn-import');
@@ -3594,10 +3572,8 @@ function applyModeRestrictions() {
   if (syncBtn && !isAdmin) syncBtn.style.display = 'none';
 
   const dashTab = document.getElementById('tab-dash');
-  const hasDashboardLayout2 = !!(currentUser?.dashboardLayout);
-  const dashVisible = caps.dashboard || hasDashboardLayout2;
-  if (dashTab) dashTab.style.display = dashVisible ? '' : 'none';
-  if (!dashVisible && tab === 'dash') setTab('log');
+  if (dashTab) dashTab.style.display = caps.dashboard ? '' : 'none';
+  if (!caps.dashboard && tab === 'dash') setTab('log');
 
   const importBtn = document.getElementById('btn-import');
   if (importBtn) importBtn.style.display = caps.importExcel ? '' : 'none';
