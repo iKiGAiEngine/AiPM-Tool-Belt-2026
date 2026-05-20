@@ -337,7 +337,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     req.session.destroy(() => {});
     return res.status(401).json({ message: "Account is deactivated" });
   }
-  if (user.role !== "admin") {
+  if (user.role !== "admin" && !user.isAdmin) {
     return res.status(403).json({ message: "Admin access required" });
   }
   next();
