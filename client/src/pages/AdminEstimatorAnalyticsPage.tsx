@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Loader2, ArrowLeft, Download, ExternalLink } from "lucide-react";
+import { Loader2, Download, ExternalLink } from "lucide-react";
+import { BackNav } from "@/components/BackNav";
 
 const STAGE_LABELS: Record<string, string> = {
   intake: "Project Info",
@@ -134,11 +135,7 @@ export default function AdminEstimatorAnalyticsPage() {
     <div className="container mx-auto px-4 py-6 max-w-7xl" data-testid="page-estimator-analytics">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <Link href="/admin">
-            <Button variant="ghost" size="sm" data-testid="link-back-admin">
-              <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Admin
-            </Button>
-          </Link>
+          <BackNav href="/admin" label="Admin Dashboard" testId="link-back-admin" />
           <h1 className="font-heading text-2xl">Estimator Analytics</h1>
         </div>
       </div>

@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon, X, Download, ExternalLink, ImageIcon, Camera, GitMerge, AlertTriangle } from "lucide-react";
+import { Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon, X, Download, ExternalLink, ImageIcon, Camera, GitMerge, AlertTriangle } from "lucide-react";
+import { BackNav } from "@/components/BackNav";
 import { format } from "date-fns";
 import { useTestMode } from "@/lib/testMode";
 import { useToolUsage } from "@/lib/useToolUsage";
@@ -622,11 +623,7 @@ export default function ProjectStartPage() {
     return (
       <div className="container max-w-2xl mx-auto py-8 px-4 animate-page-enter">
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/">
-            <Button variant="ghost" size="icon" data-testid="button-back" disabled={isProcessing}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
+          <BackNav href="/" label="Home" testId="button-back" disabled={isProcessing} />
           <div>
             <h1 className="text-2xl font-heading font-semibold text-foreground">Project Start</h1>
             <p className="text-muted-foreground">
@@ -804,11 +801,7 @@ export default function ProjectStartPage() {
     <div className="container max-w-3xl mx-auto py-8 px-4 animate-page-enter">
       <ReadOnlyBanner />
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/">
-          <Button variant="ghost" size="icon" data-testid="button-back">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-        </Link>
+        <BackNav href="/" label="Home" testId="button-back" />
         <div>
           <h1 className="text-2xl font-heading font-semibold text-foreground">Project Start</h1>
           <p className="text-muted-foreground">Create a new project folder, optionally with plans and specs</p>

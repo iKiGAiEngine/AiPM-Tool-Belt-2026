@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star, FileSearch, Save, History, RotateCcw, Tag, CheckCircle, ClipboardList, FileUp, AlertTriangle, Mail } from "lucide-react";
+import { Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star, FileSearch, Save, History, RotateCcw, Tag, CheckCircle, ClipboardList, FileUp, AlertTriangle, Mail } from "lucide-react";
+import { BackNav } from "@/components/BackNav";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,11 +42,7 @@ export default function CentralSettingsPage() {
   return (
     <div className="container max-w-6xl mx-auto py-8 px-4 animate-page-enter">
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/">
-          <Button variant="ghost" size="icon" data-testid="button-back">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-        </Link>
+        <BackNav href="/" label="Home" testId="button-back" />
         <div className="flex-1">
           <h1 className="text-2xl font-semibold text-foreground font-heading">{regionsOnly ? "Settings — Regions" : "Settings"}</h1>
           <p className="text-muted-foreground">{regionsOnly ? "You have access to the Regions tab. Other tabs are visible but restricted to admins." : "Manage vendors, products, scope dictionaries, regions, templates, spec extraction, and email notifications"}</p>

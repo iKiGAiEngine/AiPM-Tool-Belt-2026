@@ -21,12 +21,12 @@ import {
   Copy,
   CheckCircle2,
   AlertTriangle,
-  ArrowLeft,
   Check,
   RotateCcw,
   Download,
   ShieldCheck,
   Type,
+
   X,
   Plus,
   ClipboardPaste,
@@ -36,6 +36,7 @@ import { useAuth } from "@/lib/auth";
 import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
 import { guardViewer } from "@/lib/viewerGuard";
 import { Link } from "wouter";
+import { BackNav } from "@/components/BackNav";
 import * as XLSX from "xlsx";
 import { copyTsvWithFormatting } from "@/lib/clipboardUtils";
 
@@ -394,11 +395,7 @@ export default function ScheduleConverterPage() {
         <div className="mb-8">
           <div className="flex items-center justify-between gap-4 flex-wrap mb-2">
             <div className="flex items-center gap-3">
-              <Link href="/">
-                <Button variant="ghost" size="icon" data-testid="button-back-home">
-                  <ArrowLeft className="w-4 h-4" />
-                </Button>
-              </Link>
+              <BackNav href="/" label="Home" testId="button-back-home" />
               <h1 className="text-2xl font-semibold text-foreground font-heading">
                 Schedule Converter
               </h1>

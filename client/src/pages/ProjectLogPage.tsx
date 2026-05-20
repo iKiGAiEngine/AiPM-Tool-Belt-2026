@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, FolderPlus, Loader2, MessageSquare, ListChecks, History, Calculator, Camera } from "lucide-react";
+import { Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, FolderPlus, Loader2, MessageSquare, ListChecks, History, Calculator, Camera } from "lucide-react";
+import { BackNav } from "@/components/BackNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -681,11 +682,7 @@ export default function ProjectLogPage() {
       <div className="container max-w-7xl mx-auto py-8 px-4">
         <ReadOnlyBanner />
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/">
-            <Button variant="ghost" size="icon" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
+          <BackNav href="/" label="Home" testId="button-back" />
           <div className="flex-1">
             <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>BC Sync Table</h1>
             <p className="text-sm" style={{ color: "var(--text-dim)" }}>

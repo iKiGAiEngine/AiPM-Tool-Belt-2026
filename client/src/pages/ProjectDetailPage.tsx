@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "wouter";
+import { BackNav } from "@/components/BackNav";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
-  ArrowLeft, Loader2, CheckCircle, AlertCircle, Clock,
+  Loader2, CheckCircle, AlertCircle, Clock,
   FileText, ScanSearch, FolderOpen, ToggleLeft, ToggleRight,
   Play, Factory, Hash, Layers, ChevronDown, ChevronRight, Download,
   BookOpen, FileDown, TrendingUp, TrendingDown, Minus, RefreshCw, ExternalLink
@@ -208,9 +209,7 @@ export default function ProjectDetailPage() {
     return (
       <div className="container max-w-3xl mx-auto py-8 px-4 text-center">
         <p className="text-muted-foreground">Project not found</p>
-        <Link href="/">
-          <Button variant="outline" className="mt-4">Back to Home</Button>
-        </Link>
+        <div className="mt-4"><BackNav href="/" label="Home" /></div>
       </div>
     );
   }
@@ -305,11 +304,7 @@ export default function ProjectDetailPage() {
     <div className="container max-w-4xl mx-auto py-8 px-4">
       <ReadOnlyBanner />
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/">
-          <Button variant="ghost" size="icon" data-testid="button-back">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-        </Link>
+        <BackNav href="/" label="Home" testId="button-back" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-heading font-semibold text-foreground" data-testid="text-project-name">

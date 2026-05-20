@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 import { Link, useRoute } from "wouter";
 import {
-  LifeBuoy, ArrowLeft, Link2, FolderPlus, FileBarChart,
+  LifeBuoy, Link2, FolderPlus, FileBarChart,
   ClipboardList, TableProperties, Calculator, Camera,
   ChevronRight,
 } from "lucide-react";
+import { BackNav } from "@/components/BackNav";
 
 import shotHomePage from "@assets/sop-screenshots/01-home-page.png";
 import shotProposalLog from "@assets/sop-screenshots/10-proposal-log-dashboard.png";
@@ -867,15 +868,9 @@ function SopDetail({ sop }: { sop: Sop }) {
   const Icon = sop.icon;
   return (
     <div className="max-w-3xl mx-auto px-6 py-10">
-      <Link
-        href="/help-center"
-        data-testid="link-back-to-helpcenter"
-        className="inline-flex items-center gap-1.5 text-sm mb-6 hover:opacity-80"
-        style={{ color: "var(--gold)" }}
-      >
-        <ArrowLeft style={{ width: 14, height: 14 }} />
-        Back to Help Center
-      </Link>
+      <div className="mb-6">
+        <BackNav href="/help-center" label="Help Center" testId="link-back-to-helpcenter" />
+      </div>
 
       <div className="flex items-center gap-3 mb-1">
         <Icon style={{ width: 26, height: 26, color: "var(--gold)" }} />
@@ -1010,14 +1005,7 @@ export default function HelpCenterPage() {
         <h1 className="text-2xl mb-4" style={{ color: "var(--text)" }}>
           SOP not found
         </h1>
-        <Link
-          href="/help-center"
-          className="inline-flex items-center gap-1.5 text-sm"
-          style={{ color: "var(--gold)" }}
-        >
-          <ArrowLeft style={{ width: 14, height: 14 }} />
-          Back to Help Center
-        </Link>
+        <BackNav href="/help-center" label="Help Center" />
       </div>
     );
   }

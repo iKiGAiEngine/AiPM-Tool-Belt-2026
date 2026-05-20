@@ -20,8 +20,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, ScrollText, Search, Loader2, Filter } from "lucide-react";
+import { ScrollText, Search, Loader2, Filter } from "lucide-react";
 import { Link } from "wouter";
+import { BackNav } from "@/components/BackNav";
 import type { AuditLog } from "@shared/schema";
 
 export default function AuditLogPage() {
@@ -90,11 +91,7 @@ export default function AuditLogPage() {
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <Link href="/admin">
-              <Button variant="ghost" size="icon" data-testid="button-back-admin">
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-            </Link>
+            <BackNav href="/admin" label="Admin Dashboard" testId="button-back-admin" />
             <ScrollText className="w-5 h-5" style={{ color: "var(--gold)" }} />
             <h1 className="text-2xl font-heading font-semibold text-foreground">Audit Log</h1>
           </div>

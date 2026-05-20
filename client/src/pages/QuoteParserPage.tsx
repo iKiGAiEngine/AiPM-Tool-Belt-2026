@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { BackNav } from "@/components/BackNav";
 
 interface ParsedRow {
   planCallout: string;
@@ -217,11 +218,7 @@ export default function QuoteParserPage() {
             <h1 className="text-2xl font-heading font-semibold text-foreground">
               Quote Parser
             </h1>
-            <Link href="/">
-              <Button variant="ghost" size="sm" data-testid="button-back-home">
-                Back to Home
-              </Button>
-            </Link>
+            <BackNav href="/" label="Home" testId="button-back-home" />
           </div>
           <p className="text-muted-foreground">
             Parse vendor quotes into a summary row with manufacturer, quote number, material total, and freight.

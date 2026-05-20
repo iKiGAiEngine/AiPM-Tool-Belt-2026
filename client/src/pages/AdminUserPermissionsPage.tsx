@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RotateCcw, Shield, ShieldCheck, ArrowLeft, Info } from "lucide-react";
+import { Loader2, RotateCcw, Shield, ShieldCheck, Info } from "lucide-react";
+import { BackNav } from "@/components/BackNav";
 import { ROLE_LABELS } from "@shared/schema";
 import { Link } from "wouter";
 
@@ -110,11 +111,7 @@ export function AdminUserPermissionsPage() {
     <div className="space-y-6 p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <Link href="/admin">
-          <Button variant="ghost" size="icon" data-testid="button-back-admin">
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-        </Link>
+        <BackNav href="/admin" label="Admin Dashboard" testId="button-back-admin" />
         <div>
           <h1 className="text-2xl font-heading font-semibold text-foreground">User Feature Access</h1>
           <p className="text-muted-foreground mt-1 text-sm">

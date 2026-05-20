@@ -1,7 +1,8 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ArrowLeft, History, Search, X, Download, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { History, Search, X, Download, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { BackNav } from "@/components/BackNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -169,12 +170,7 @@ export default function ProposalChangeLogPage() {
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
-          <Link href="/admin" data-testid="link-back-admin">
-            <Button variant="ghost" size="sm" className="gap-1.5">
-              <ArrowLeft className="w-4 h-4" />
-              Admin
-            </Button>
-          </Link>
+          <BackNav href="/admin" label="Admin Dashboard" testId="link-back-admin" />
           <div className="w-px h-5 bg-border" />
           <History className="w-5 h-5" style={{ color: "var(--gold)" }} />
           <div>

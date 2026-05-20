@@ -1,6 +1,7 @@
 import { Link } from "wouter";
-import { ArrowLeft, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BackNav } from "@/components/BackNav";
 import { AdminUsersSection } from "@/pages/AdminPage";
 
 export default function AdminUsersPage() {
@@ -9,11 +10,7 @@ export default function AdminUsersPage() {
       <div className="max-w-5xl mx-auto px-6 py-8">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <Link href="/admin">
-              <Button variant="ghost" size="icon" data-testid="button-back-admin">
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-            </Link>
+            <BackNav href="/admin" label="Admin Dashboard" testId="button-back-admin" />
             <Users className="w-5 h-5" style={{ color: "var(--gold)" }} />
             <h1 className="text-2xl font-heading font-semibold text-foreground" data-testid="text-admin-users-title">
               User Management
