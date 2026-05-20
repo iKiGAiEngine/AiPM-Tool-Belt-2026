@@ -1,0 +1,211 @@
+Here is the complete, implementation-ready specification. Copy and paste this entire document as the prompt in your other AiPM project:
+
+COMPLETE IMPLEMENTATION SPEC: Viewer Role Read-Only Enforcement
+GOAL
+Add a viewer role to the application that can log in and browse all pages/data but cannot perform any write operations. Every write action must be blocked at both the backend (HTTP 403) and the frontend (disabled buttons, guarded handler functions, visible "read-only" banner).
+
+PART 1 — DATABASE
+The users table must have a role column. Ensure this SQL is run against the production/main database:
+
+-- Add role column if it doesn't exist
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'user';
+-- Create the viewer account (adjust email/password hash as needed)
+-- Use your existing OTP or password system to create this user,
+-- then set its role:
+UPDATE users SET role = 'viewer' WHERE email = 'viewer@yourdomain.local';
+If you use a role enum instead of free-text, add 'viewer' to the enum first.
+
+PART 2 — BACKEND MIDDLEWARE
+2A. Create requireWriteAccess middleware
+In your server middleware file (wherever requireAuth or session checks live), add:
+
+export function requireWriteAccess(req: Request, res: Response, next: NextFunction) {
+  const user = (req.session as any)?.user;
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  if (user.role === "viewer") {
+    return res.status(403).json({ error: "READ_ONLY", message: "Viewer accounts cannot make changes." });
+  }
+  next();
+}
+2B. Apply middleware to ALL write routes
+In your server/routes.ts (or equivalent), add requireWriteAccess as middleware to every POST, PUT, PATCH, and DELETE route. Examples:
+
+// Before:
+app.post("/api/proposal-log", requireAuth, async (req, res) => { ... });
+// After:
+app.post("/api/proposal-log", requireAuth, requireWriteAccess, async (req, res) => { ... });
+Apply this to every single write route in the application — proposal log, spec extractor, plan parser, quote parser, project start, settings, templates, admin endpoints, notifications, backups, everything.
+
+PART 3 — AUTH CONTEXT (FRONTEND)
+3A. Locate your useAuth hook
+Find the file that exports useAuth (typically client/src/lib/auth.ts or client/src/hooks/useAuth.ts).
+
+3B. Add isViewer to the returned object
+The hook currently returns something like { user, isAdmin, ... }. Add:
+
+const isViewer = user?.role === "viewer";
+// Return it alongside the existing fields:
+return { user, isAdmin, isViewer, /* ...other existing fields */ };
+This single change propagates everywhere useAuth() is called.
+
+PART 4 — FRONTEND CHANGES (FILE BY FILE)
+For every file below, follow this pattern:
+
+Handler guard pattern:
+
+const myHandler = useCallback(async () => {
+  if (isViewer) {
+    toast({ title: "Read-only access", description: "Changes cannot be saved.", variant: "destructive" });
+    return;
+  }
+  // ... rest of handler
+}, [isViewer, /* other deps */]);
+Button disable pattern:
+
+// Single condition:
+<Button disabled={isViewer} onClick={handleSomething}>Save</Button>
+// Combined with existing condition:
+<Button disabled={isViewer || mutation.isPending} onClick={handleSomething}>Save</Button>
+FILE: client/src/pages/ProposalLogPage.tsx (or your equivalent Proposal Log page)
+Add isViewer to destructure:
+const { user, isAdmin, isViewer } = useAuth();
+Add read-only banner at the top of the page JSX (inside the page's outermost div, before any content):
+{isViewer && (
+  <div className="bg-amber-900/30 border border-amber-600/40 text-amber-300 text-sm px-4 py-2 rounded mb-4">
+    You are in read-only mode. Contact an admin to make changes.
+  </div>
+)}
+Disable the status Select dropdown (wherever users can change proposal status):
+<Select disabled={isViewer} value={...} onValueChange={...}>
+Guard commitScopes handler (or equivalent scope-saving function):
+const commitScopes = useCallback(async (...) => {
+  if (isViewer) {
+    toast({ title: "Read-only access", description: "Changes cannot be saved.", variant: "destructive" });
+    return;
+  }
+  // ... existing logic
+}, [isViewer, ...]);
+Guard saveNotes handler (or equivalent notes-saving function):
+Same pattern as above.
+Guard handleStatusChange handler:
+Same pattern as above.
+FILE: client/src/pages/HomePage.tsx (or your main dashboard/home page)
+Add isViewer to destructure:
+const { user, isAdmin, isViewer } = useAuth();
+Find any "acknowledge" or "dismiss" mutation calls that fire automatically or on user click, and guard them:
+// If there's an auto-fetch or auto-trigger that calls a write endpoint:
+useEffect(() => {
+  if (isViewer) return; // skip for viewers
+  // ... existing fetch logic
+}, [isViewer, ...]);
+// If there's a button:
+<Button disabled={isViewer} onClick={handleAcknowledge}>Acknowledge</Button>
+FILE: client/src/pages/EstimatingModulePage.tsx
+Add isViewer to destructure:
+const { user, isAdmin, isViewer } = useAuth();
+Guard addLineItem function — add at the very top of the function body:
+const addLineItem = useCallback(async () => {
+  if (isViewer) { toast({ title: "Read-only access", description: "Changes cannot be saved.", variant: "destructive" }); return; }
+  // ... existing logic
+}, [isViewer, ...]);
+Guard deleteLineItem function:
+const deleteLineItem = useCallback(async (itemId: number) => {
+  if (isViewer) return;
+  // ... existing logic (window.confirm, etc.)
+}, [isViewer, ...]);
+Guard addQuote function:
+const addQuote = useCallback(async () => {
+  if (isViewer) { toast({ title: "Read-only access", description: "Changes cannot be saved.", variant: "destructive" }); return; }
+  // ... existing logic
+}, [isViewer, ...]);
+Guard deleteQuote function:
+const deleteQuote = useCallback(async (qId: number) => {
+  if (isViewer) return;
+  // ... existing logic
+}, [isViewer, ...]);
+Guard addBreakoutGroup function (if present):
+const addBreakoutGroup = useCallback(async () => {
+  if (isViewer) { toast({ title: "Read-only access", description: "Changes cannot be saved.", variant: "destructive" }); return; }
+  // ... existing logic
+}, [isViewer, ...]);
+FILE: client/src/pages/ProjectStartPage.tsx
+Add import (if useAuth isn't already imported):
+import { useAuth } from "@/lib/auth";
+Add hook call inside the component function (near the top, with other hooks):
+const { isViewer } = useAuth();
+Guard handleSubmit — add at the very top of the function body, before any validation:
+const handleSubmit = useCallback((opts?: { ... }) => {
+  if (isViewer) {
+    toast({ title: "Read-only access", description: "Changes cannot be saved. Contact an admin for edit access.", variant: "destructive" });
+    return;
+  }
+  // ... existing validation and submit logic
+}, [isViewer, ...]);
+Disable the submit button:
+<Button disabled={isViewer || isSubmitting} onClick={handleSubmit}>
+  Start Project
+</Button>
+FILE: client/src/submittal-builder/Dashboard.tsx (Submittal Builder dashboard, if present)
+Add import:
+import { useAuth } from "@/lib/auth";
+Add hook call inside the Dashboard component:
+const { isViewer } = useAuth();
+Disable "New Submittal" button(s) — there may be one in the header and one in the empty state; disable both:
+<button
+  onClick={isViewer ? undefined : onNew}
+  disabled={isViewer}
+  style={{ ...btnPrimary, ...(isViewer ? { opacity: 0.5, cursor: "not-allowed" } : {}) }}
+>
+  + New Submittal
+</button>
+Disable the delete button on each project row:
+<button
+  onClick={(e) => { e.stopPropagation(); if (!isViewer && window.confirm("Delete this project?")) onDelete(p.id); }}
+  disabled={isViewer}
+  style={{
+    ...,
+    cursor: isViewer ? "not-allowed" : "pointer",
+    opacity: isViewer ? 0.3 : 1
+  }}
+  title={isViewer ? "Read-only access" : "Delete"}
+>
+  &times;
+</button>
+FILE: client/src/submittal-builder/Workspace.tsx (Submittal Builder workspace, if present)
+Add import:
+import { useAuth } from "@/lib/auth";
+Add hook call inside the Workspace component (at the top, with other state):
+const { isViewer } = useAuth();
+Guard triggerSave — add at the very top of the function body:
+const triggerSave = useCallback((updated: SubmittalProject) => {
+  if (isViewer) { setSaving("saved"); return; }
+  // ... existing logic (legacy local check, debounced save, etc.)
+}, [isViewer, ...]);
+PART 5 — PAGES/MODULES TO INTENTIONALLY SKIP
+The following are already gated by isAdmin checks and do not need additional viewer enforcement (viewers cannot reach these in the first place):
+
+CentralSettingsPage — already isAdmin-gated at render level
+AdminDashboard — already isAdmin-gated
+UserPermissions — already isAdmin-gated
+VendorDatabasePage — already isAdmin-gated
+PART 6 — VERIFICATION CHECKLIST
+After implementing, verify each item with the viewer account (viewer@yourdomain.local):
+
+ Viewer can log in and see all pages
+ Proposal log shows read-only banner
+ Status dropdowns on proposal log are disabled
+ Clicking any save/submit button on Proposal Log shows "Read-only access" toast and does nothing
+ Estimating Module: "Add line item", "Delete line item", "Add quote", "Delete quote" all show toast and do nothing
+ Project Start page: Submit button shows toast and does nothing
+ Submittal Builder: "New Submittal" button is visually dimmed and does nothing
+ Submittal Builder: Delete (×) buttons are dimmed and do nothing
+ Submittal Builder Workspace: changes are not saved (triggerSave exits immediately)
+ All of the above also return HTTP 403 from the server if the frontend guard is bypassed (test with curl or DevTools)
+ TypeScript error count does not increase from baseline after all changes
+PART 7 — KEY TECHNICAL NOTES
+The isViewer flag must come from the same useAuth() hook used everywhere else. Do not create a separate context or prop-drill it.
+Sub-components: If a page has inner sub-components (functions defined inside the same file that are NOT React hooks), each one that needs isViewer must call useAuth() independently — you cannot pass it down from an outer function that is not a React component.
+TypeScript: After each file change, run npx tsc --noEmit and verify the error count has not increased. All edits are additive and should not introduce new type errors.
+Do not touch: drizzle.config.ts, vite.config.ts, server/vite.ts, package.json. Do not install new packages — this implementation requires zero new dependencies.
+Toast calls: Use the existing useToast() hook already present in each file. Do not import a different toast system.
+Handler deps arrays: When adding isViewer to a useCallback, add it to the dependency array if the linter requires it.
