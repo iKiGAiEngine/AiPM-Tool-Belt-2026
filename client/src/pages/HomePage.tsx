@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useToast } from "@/hooks/use-toast";
 import { useTestMode } from "@/lib/testMode";
 import { useAuth } from "@/lib/auth";
+import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
+import { guardViewer } from "@/lib/viewerGuard";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 interface ToolTile {
@@ -347,7 +349,7 @@ function BidSourceLink({
 
 export default function HomePage() {
   const { isTestMode } = useTestMode();
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, isViewer, user } = useAuth();
   const { toast } = useToast();
   const { hasFeature } = useFeatureAccess();
   const [selectedToolForStats, setSelectedToolForStats] = useState<string | null>(null);
@@ -491,6 +493,7 @@ export default function HomePage() {
   const [animatingOutIds, setAnimatingOutIds] = useState<Set<number>>(new Set());
 
   const handleAcknowledge = useCallback(async (p: ProposalRow) => {
+    if (guardViewer(isViewer, toast)) return;
     if (!p._serverDbId) return;
     const entryId = p._serverDbId;
 
@@ -548,6 +551,7 @@ export default function HomePage() {
         <p className="hp-eyebrow">YOUR AI ASSISTED DIGITAL PM</p>
       </div>
       <div className="main-layout">
+        <ReadOnlyBanner />
         <div className="tools-col">
           {tools.map((tool, i) => {
             const Icon = tool.icon;
@@ -649,7 +653,7 @@ export default function HomePage() {
                         <button
                           className={`ack-btn${isAnimating ? " ack-btn-done" : ""}`}
                           title="Acknowledge"
-                          disabled={isAnimating}
+                          disabled={isAnimating || isViewer}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();

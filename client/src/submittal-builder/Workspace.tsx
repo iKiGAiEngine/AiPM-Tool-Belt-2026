@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useAuth } from "@/lib/auth";
+import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
 import { loadProject, saveProject } from "./storage";
 import { parseEstimateWorkbook } from "./estimateParser";
 import { computePagination } from "./pagination";
@@ -18,6 +20,7 @@ interface Props {
 }
 
 export default function Workspace({ projectId, onHome, flash, refreshProjects }: Props) {
+  const { isViewer } = useAuth();
   const [project, setProject] = useState<SubmittalProject | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<"saved" | "saving" | "unsaved">("saved");
@@ -40,6 +43,7 @@ export default function Workspace({ projectId, onHome, flash, refreshProjects }:
   }, [projectId]);
 
   const triggerSave = useCallback((updated: SubmittalProject) => {
+    if (isViewer) { setSaving("saved"); return; }
     setSaving("unsaved");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
@@ -114,6 +118,7 @@ export default function Workspace({ projectId, onHome, flash, refreshProjects }:
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 57px)", background: "var(--bg-page)" }}>
+      <ReadOnlyBanner />
       <div style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border-ds)", padding: "0 16px", display: "flex", alignItems: "center", height: 48, gap: 10, flexShrink: 0 }}>
         <button onClick={onHome} style={btnGhost}>&larr;</button>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>

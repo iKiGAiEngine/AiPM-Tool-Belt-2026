@@ -18,7 +18,7 @@ import { registerProjectRoutes } from "./projectRoutes";
 import { registerTemplateRoutes } from "./templateRoutes";
 import { registerScheduleConverterRoutes } from "./scheduleConverterRoutes";
 import { registerSpecExtractorRoutes } from "./specExtractorRoutes";
-import { registerAuthRoutes, requireAuth } from "./authRoutes";
+import { registerAuthRoutes, requireAuth, requireWriteAccess } from "./authRoutes";
 import { registerAdminRoutes } from "./adminRoutes";
 import { registerToolUsageRoutes } from "./toolUsageRoutes";
 import { registerAutodeskRoutes } from "./autodesk/auth";
@@ -72,6 +72,23 @@ export async function registerRoutes(
 
   app.get("/api/version", (req, res) => {
     res.json({ name: pkg.name, version: pkg.version, buildTime: BUILD_TIME });
+  });
+
+  // Block viewer role from all write operations globally — must be registered
+  // BEFORE any route files so it intercepts every POST/PUT/PATCH/DELETE.
+  const writeViewerExemptPaths = [
+    "/api/auth/login",
+    "/api/auth/logout",
+    "/api/auth/change-password",
+    "/api/auth/forgot-password",
+    "/api/auth/reset-password",
+  ];
+  app.use("/api", async (req, res, next) => {
+    const isWrite = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
+    if (!isWrite) return next();
+    const fullPath = req.originalUrl || req.path;
+    if (writeViewerExemptPaths.some(p => fullPath.startsWith(p))) return next();
+    requireWriteAccess(req, res, next);
   });
 
   registerAuthRoutes(app);

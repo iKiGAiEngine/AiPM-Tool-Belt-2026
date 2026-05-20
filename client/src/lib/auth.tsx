@@ -18,6 +18,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isViewer: boolean;
   canAccessAdminDashboard: boolean;
   mustChangePassword: boolean;
   logout: () => void;
@@ -28,6 +29,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   isAuthenticated: false,
   isAdmin: false,
+  isViewer: false,
   canAccessAdminDashboard: false,
   mustChangePassword: false,
   logout: () => {},
@@ -65,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         isAdmin: user?.role === "admin",
+        isViewer: user?.role === "viewer",
         canAccessAdminDashboard: user?.role === "admin" || user?.is_admin === true,
         mustChangePassword: !!user?.mustChangePassword,
         logout: () => logoutMutation.mutate(),

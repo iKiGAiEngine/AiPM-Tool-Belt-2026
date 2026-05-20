@@ -4,6 +4,8 @@ import { useParams, useLocation } from "wouter";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
+import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
+import { guardViewer } from "@/lib/viewerGuard";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
@@ -747,7 +749,7 @@ function EstimatingModuleInner() {
   const [, navigate] = useLocation();
   const { id: proposalLogIdStr } = useParams<{ id: string }>();
   const proposalLogId = parseInt(proposalLogIdStr || "0");
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isViewer } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { hasFeature } = useFeatureAccess();
@@ -1395,6 +1397,7 @@ function EstimatingModuleInner() {
 
   // ── Line item mutations ──
   const addLineItem = useCallback(async () => {
+    if (guardViewer(isViewer, toast)) return;
     if (!estimateId || !newItemForm.name.trim()) return;
     try {
       const r = await apiRequest("POST", `/api/estimates/${estimateId}/line-items`, {
@@ -1431,6 +1434,7 @@ function EstimatingModuleInner() {
   }, []);
 
   const deleteLineItem = useCallback(async (itemId: number) => {
+    if (guardViewer(isViewer, toast)) return;
     if (!window.confirm("Delete this line item?")) return;
     setLineItems(prev => prev.filter(i => i.id !== itemId));
     setAllocations(prev => prev.filter(a => a.lineItemId !== itemId));
@@ -1565,6 +1569,7 @@ function EstimatingModuleInner() {
 
   // ── Quote mutations ──
   const addQuote = useCallback(async () => {
+    if (guardViewer(isViewer, toast)) return;
     if (!estimateId || !newQuote.vendor.trim()) return;
     try {
       const mtc = newQuote.materialTotalCost !== "" ? parseFloat(newQuote.materialTotalCost) : null;
@@ -1638,6 +1643,7 @@ function EstimatingModuleInner() {
   }, [editDraft]);
 
   const deleteQuote = useCallback(async (qId: number) => {
+    if (guardViewer(isViewer, toast)) return;
     if (!window.confirm("Delete this quote? Items linked to it will be unlinked and their backup indicator will reset to Missing.")) return;
     setLineItems(prev => prev.map(i => i.quoteId === qId ? { ...i, quoteId: null, hasBackup: false } : i));
     setQuotes(prev => prev.filter(q => q.id !== qId));
@@ -1712,6 +1718,7 @@ function EstimatingModuleInner() {
 
   // ── Breakout group mutations ──
   const addBreakoutGroup = useCallback(async () => {
+    if (guardViewer(isViewer, toast)) return;
     if (!estimateId || !newBreakoutGroup.code.trim() || !newBreakoutGroup.label.trim()) return;
     try {
       const r = await apiRequest("POST", `/api/estimates/${estimateId}/breakout-groups`, {
@@ -2747,6 +2754,7 @@ ${html}
 
   return (
     <div className="min-h-screen pb-12" style={{ background: "var(--bg-page)", color: "var(--text)" }}>
+      <ReadOnlyBanner />
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" />
 
       {/* ── REDESIGNED HEADER (3-row card + collapsible progress) ── */}
@@ -2808,8 +2816,8 @@ ${html}
                     <div className="flex items-center gap-2 shrink-0">
                       {/* Save state button */}
                       <button
-                        onClick={() => isDirty && !isSaving && saveEstimate()}
-                        disabled={isSaving || !isDirty || !estimateId}
+                        onClick={() => !isViewer && isDirty && !isSaving && saveEstimate()}
+                        disabled={isSaving || !isDirty || !estimateId || isViewer}
                         className="px-3 py-1.5 rounded text-xs font-semibold transition-all flex items-center gap-1"
                         style={{
                           background: isSaving ? "transparent" : isDirty ? "#C8A44E" : "transparent",
@@ -3647,7 +3655,7 @@ ${html}
                       </div>
                     </div>
                     <div className="flex justify-end">
-                      <button data-testid="button-add-breakout" onClick={addBreakoutGroup} className="text-xs px-3 py-1.5 rounded font-semibold" style={{ background: "#06b6d4", color: "#fff" }}>+ Add Breakout Group</button>
+                      <button data-testid="button-add-breakout" onClick={addBreakoutGroup} disabled={isViewer} className="text-xs px-3 py-1.5 rounded font-semibold" style={{ background: "#06b6d4", color: "#fff", opacity: isViewer ? 0.5 : 1, cursor: isViewer ? "not-allowed" : "pointer" }}>+ Add Breakout Group</button>
                     </div>
                   </div>
                 </div>
@@ -4249,7 +4257,7 @@ ${html}
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button data-testid="button-create-quote" onClick={addQuote} disabled={extractingTotal} className="text-xs px-4 py-1.5 rounded font-semibold" style={{ background: "#a855f7", color: "#fff", opacity: extractingTotal ? 0.5 : 1 }}>Create Quote</button>
+                      <button data-testid="button-create-quote" onClick={addQuote} disabled={extractingTotal || isViewer} className="text-xs px-4 py-1.5 rounded font-semibold" style={{ background: "#a855f7", color: "#fff", opacity: extractingTotal || isViewer ? 0.5 : 1, cursor: isViewer ? "not-allowed" : "pointer" }}>Create Quote</button>
                       <button onClick={() => { setShowNewQuote(false); setNewQuoteFile(null); setAiExtractNote(null); }} className="text-xs px-3 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
                     </div>
                   </div>
@@ -4502,7 +4510,7 @@ ${html}
                           </label>
                         </div>
                         <div className="flex items-center gap-2 mt-1">
-                          <button onClick={addLineItem} className="flex-1 text-sm px-3 py-2 rounded font-semibold" style={{ background: "#22c55e", color: "#fff" }}>Add Item</button>
+                          <button onClick={addLineItem} disabled={isViewer} className="flex-1 text-sm px-3 py-2 rounded font-semibold" style={{ background: "#22c55e", color: "#fff", opacity: isViewer ? 0.5 : 1, cursor: isViewer ? "not-allowed" : "pointer" }}>Add Item</button>
                           <button onClick={() => setAddingItem(false)} className="text-sm px-3 py-2 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
                         </div>
                       </div>
@@ -4556,7 +4564,7 @@ ${html}
                           {fmt(newItemForm.qty * newItemForm.unitCost)}
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <button onClick={addLineItem} className="text-xs px-3 py-1.5 rounded font-semibold" style={{ background: "#22c55e", color: "#fff" }}>Add</button>
+                          <button onClick={addLineItem} disabled={isViewer} className="text-xs px-3 py-1.5 rounded font-semibold" style={{ background: "#22c55e", color: "#fff", opacity: isViewer ? 0.5 : 1, cursor: isViewer ? "not-allowed" : "pointer" }}>Add</button>
                           <button onClick={() => setAddingItem(false)} className="text-xs px-2 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>✕</button>
                         </div>
                       </div>
@@ -5008,9 +5016,10 @@ ${html}
                                 data-testid={`button-toggle-bod-${am.manufacturerId}`}
                               >{am.isBasisOfDesign ? "Unset BOD" : "Set BOD"}</button>
                               <button
-                                onClick={() => removeApprovedMfrMutation.mutate(am.id)}
+                                onClick={() => { if (!guardViewer(isViewer, toast)) removeApprovedMfrMutation.mutate(am.id); }}
+                                disabled={isViewer}
                                 className="text-[10px] px-2 py-0.5 rounded flex items-center gap-1"
-                                style={{ background: "#ef444415", border: "1px solid #ef444440", color: "#ef4444" }}
+                                style={{ background: "#ef444415", border: "1px solid #ef444440", color: "#ef4444", opacity: isViewer ? 0.4 : 1, cursor: isViewer ? "not-allowed" : "pointer" }}
                                 data-testid={`button-remove-approved-mfr-${am.manufacturerId}`}
                               ><Trash2 className="w-3 h-3" /></button>
                             </div>
@@ -5132,6 +5141,7 @@ ${html}
                         <div className="ml-auto">
                           <button
                             onClick={() => {
+                              if (guardViewer(isViewer, toast)) return;
                               setOpenRfqSelectedItemIds(new Set(catLineItems.map(i => String(i.id))));
                               setOpenRfqExistingVendorIds(new Set());
                               setOpenRfqVendorMode("existing");
@@ -5142,8 +5152,9 @@ ${html}
                               setOpenRfqExtraNotes("");
                               setShowOpenRfq(true);
                             }}
+                            disabled={isViewer}
                             className="text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 font-semibold transition-all hover:brightness-110"
-                            style={{ background: "linear-gradient(135deg, var(--gold), #c9962f)", border: "1px solid var(--gold)", color: "#1a1a1a", boxShadow: "0 2px 8px rgba(212,175,55,0.25)" }}
+                            style={{ background: "linear-gradient(135deg, var(--gold), #c9962f)", border: "1px solid var(--gold)", color: "#1a1a1a", boxShadow: "0 2px 8px rgba(212,175,55,0.25)", opacity: isViewer ? 0.5 : 1, cursor: isViewer ? "not-allowed" : "pointer" }}
                             data-testid="button-open-rfq">
                             <Send className="w-3.5 h-3.5" /> Open RFQ
                           </button>
@@ -5181,13 +5192,14 @@ ${html}
                               </div>
                               <button
                                 onClick={() => {
+                                  if (guardViewer(isViewer, toast)) return;
                                   setRfqVendorPicker(g.vendorId);
                                   setRfqVendorPickerContactIds(new Set(g.contacts.map(c => c.id)));
                                 }}
-                                disabled={eligibleCount === 0}
+                                disabled={eligibleCount === 0 || isViewer}
                                 className="text-xs px-2 py-1 rounded flex items-center gap-1"
-                                style={{ background: "var(--gold)15", border: "1px solid var(--gold)40", color: "var(--gold)", opacity: eligibleCount === 0 ? 0.5 : 1, cursor: eligibleCount === 0 ? "not-allowed" : "pointer" }}
-                                title={eligibleCount === 0 ? "No contacts on this vendor" : "Pick recipients & send consolidated RFQ"}
+                                style={{ background: "var(--gold)15", border: "1px solid var(--gold)40", color: "var(--gold)", opacity: eligibleCount === 0 || isViewer ? 0.5 : 1, cursor: eligibleCount === 0 || isViewer ? "not-allowed" : "pointer" }}
+                                title={isViewer ? "Read-only access" : eligibleCount === 0 ? "No contacts on this vendor" : "Pick recipients & send consolidated RFQ"}
                                 data-testid={`button-vendor-pick-${g.vendorId}`}>
                                 <Send className="w-3 h-3" /> Pick Recipients & Send
                               </button>
@@ -6225,14 +6237,14 @@ ${html}
             </ul>
           </div>
           <div className="flex gap-3 flex-wrap">
-            <button onClick={() => saveEstimate()} disabled={isSaving || !estimateId}
+            <button onClick={() => !isViewer && saveEstimate()} disabled={isSaving || !estimateId || isViewer}
               className="px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
               style={{ background: "var(--gold)", color: "#000" }}
               title="Save edits and push the bid total, scopes, status and notes to the matching Proposal Log Dashboard row.">
               💾 Save & Sync to Proposal Log Dashboard
             </button>
-            <button onClick={() => { markDirty(); saveEstimate("submitted"); }}
-              disabled={isSaving || !estimateId}
+            <button onClick={() => { if (!isViewer) { markDirty(); saveEstimate("submitted"); } }}
+              disabled={isSaving || !estimateId || isViewer}
               className="px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
               style={{ background: "#06b6d4", color: "#fff" }}
               title="Save, flip review status to Submitted, snapshot the version, and update the Proposal Log Dashboard row to Submitted.">
@@ -7141,8 +7153,8 @@ ${html}
                 ) : filtered.map(m => (
                   <button
                     key={m.id}
-                    onClick={() => { addApprovedMfrMutation.mutate(m.id); setShowAddMfrModal(false); }}
-                    disabled={addApprovedMfrMutation.isPending}
+                    onClick={() => { if (!guardViewer(isViewer, toast)) { addApprovedMfrMutation.mutate(m.id); setShowAddMfrModal(false); } }}
+                    disabled={addApprovedMfrMutation.isPending || isViewer}
                     className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--bg-card)]"
                     style={{ color: "var(--text)", borderBottom: "1px solid var(--border-ds)" }}
                     data-testid={`button-pick-mfr-${m.id}`}

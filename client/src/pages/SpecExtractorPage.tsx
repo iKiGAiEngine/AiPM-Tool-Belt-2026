@@ -7,6 +7,9 @@ import {
   Package, Tag, Ban, ClipboardList, AlertTriangle,
 } from "lucide-react";
 import { useToolUsage } from "@/lib/useToolUsage";
+import { useAuth } from "@/lib/auth";
+import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
+import { guardViewer } from "@/lib/viewerGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +45,7 @@ interface AiReview {
 export default function SpecExtractorPage() {
   useToolUsage("specextractor");
   const { toast } = useToast();
+  const { isViewer } = useAuth();
   const queryClient = useQueryClient();
   const [viewState, setViewState] = useState<ViewState>("upload");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -207,6 +211,7 @@ export default function SpecExtractorPage() {
   };
 
   const handleUpload = async () => {
+    if (guardViewer(isViewer, toast)) return;
     if (!selectedFile) return;
 
     // Pre-flight: production (Autoscale) proxy rejects bodies over ~32 MiB
@@ -396,6 +401,7 @@ export default function SpecExtractorPage() {
   };
 
   const handleAiReview = async () => {
+    if (guardViewer(isViewer, toast)) return;
     if (!sessionId) return;
     setIsReviewing(true);
 
@@ -451,6 +457,7 @@ export default function SpecExtractorPage() {
   };
 
   const applyAiSuggestion = async (sectionId: string, suggestedTitle: string) => {
+    if (guardViewer(isViewer, toast)) return;
     try {
       const res = await fetch(`/api/spec-extractor/sections/${sectionId}`, {
         method: "PATCH",
@@ -483,6 +490,7 @@ export default function SpecExtractorPage() {
   };
 
   const saveFolder = async (sectionId: string) => {
+    if (guardViewer(isViewer, toast)) return;
     const trimmed = editingFolderValue.trim();
     if (!trimmed) {
       setEditingFolderId(null);
@@ -520,6 +528,7 @@ export default function SpecExtractorPage() {
   };
 
   const saveProjectName = async () => {
+    if (guardViewer(isViewer, toast)) return;
     const trimmed = resultsProjectName.trim();
     setIsEditingProjectName(false);
 
@@ -577,6 +586,7 @@ export default function SpecExtractorPage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] animate-page-enter">
+      <ReadOnlyBanner />
       <div className="mx-auto max-w-7xl px-6 py-12 lg:px-8 lg:py-20">
         <div className="mx-auto max-w-3xl text-center">
           <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl font-heading" data-testid="text-tool-name">
@@ -594,18 +604,22 @@ export default function SpecExtractorPage() {
           {viewState === "upload" && (
             <div className="space-y-6">
               <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
+                onDragOver={isViewer ? undefined : handleDragOver}
+                onDragLeave={isViewer ? undefined : handleDragLeave}
+                onDrop={isViewer ? undefined : handleDrop}
                 className={cn(
-                  "mx-auto max-w-2xl rounded-lg border-2 border-dashed p-12 text-center transition-all cursor-pointer",
-                  isDragging
+                  "mx-auto max-w-2xl rounded-lg border-2 border-dashed p-12 text-center transition-all",
+                  isViewer
+                    ? "opacity-50 cursor-not-allowed"
+                    : "cursor-pointer",
+                  !isViewer && isDragging
                     ? "border-[var(--gold)]"
                     : "border-border hover:border-muted-foreground/50",
                   isUploading && "pointer-events-none opacity-60"
                 )}
                 onClick={() => {
-                  if (!isUploading) document.getElementById("se-file-input")?.click();
+                  if (isViewer || isUploading) return;
+                  document.getElementById("se-file-input")?.click();
                 }}
                 style={{
                   background: isDragging ? "rgba(200,164,78,0.10)" : undefined,
@@ -639,7 +653,7 @@ export default function SpecExtractorPage() {
                           e.stopPropagation();
                           handleUpload();
                         }}
-                        disabled={isUploading}
+                        disabled={isUploading || isViewer}
                         data-testid="button-se-upload"
                       >
                         {isUploading ? (
@@ -900,7 +914,7 @@ export default function SpecExtractorPage() {
                   <Button
                     variant="outline"
                     onClick={handleAiReview}
-                    disabled={isReviewing || sections.length === 0}
+                    disabled={isReviewing || sections.length === 0 || isViewer}
                     data-testid="button-se-ai-review"
                   >
                     {isReviewing ? (
@@ -917,7 +931,7 @@ export default function SpecExtractorPage() {
                   </Button>
                   <Button
                     onClick={handleExport}
-                    disabled={isExporting || selectedCount === 0}
+                    disabled={isExporting || selectedCount === 0 || isViewer}
                     data-testid="button-se-export"
                   >
                     {isExporting ? (
@@ -968,6 +982,7 @@ export default function SpecExtractorPage() {
                           variant="ghost"
                           size="icon"
                           onClick={startEditingProjectName}
+                          disabled={isViewer}
                           data-testid="button-se-edit-project-name"
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -984,6 +999,7 @@ export default function SpecExtractorPage() {
                           variant="outline"
                           size="sm"
                           onClick={applySuggestedProjectName}
+                          disabled={isViewer}
                           data-testid="button-se-apply-suggested-name"
                         >
                           Use: "{suggestedProjectName}"
@@ -1150,6 +1166,7 @@ export default function SpecExtractorPage() {
                                         variant="ghost"
                                         size="icon"
                                         onClick={() => startEditingFolder(section.id, section.folderName)}
+                                        disabled={isViewer}
                                         data-testid={`button-se-edit-folder-${section.sectionNumber.replace(/\s/g, "")}`}
                                       >
                                         <Pencil className="h-3 w-3" />
@@ -1167,6 +1184,7 @@ export default function SpecExtractorPage() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() => applyAiSuggestion(section.id, review.suggestedTitle)}
+                                        disabled={isViewer}
                                         data-testid={`button-se-apply-${section.sectionNumber.replace(/\s/g, "")}`}
                                       >
                                         Apply: "{review.suggestedTitle}"

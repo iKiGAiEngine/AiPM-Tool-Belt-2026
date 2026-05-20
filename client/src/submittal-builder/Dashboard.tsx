@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
 import { STATUS_META, formatTimestamp, pct, inputStyle, btnPrimary, btnGhost } from "./helpers";
 import type { SubmittalProject } from "./types";
 
@@ -14,6 +16,7 @@ interface Props {
 export default function Dashboard({ projects, loading, onOpen, onNew, onDelete, onBack }: Props) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const { isViewer } = useAuth();
 
   const filtered = projects.filter((p) => {
     if (statusFilter !== "all" && p.submittalStatus !== statusFilter) return false;
@@ -26,6 +29,7 @@ export default function Dashboard({ projects, loading, onOpen, onNew, onDelete, 
 
   return (
     <div style={{ background: "var(--bg-page)", minHeight: "calc(100vh - 57px)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      <ReadOnlyBanner />
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
           <button onClick={onBack} style={{ ...btnGhost, display: "flex", alignItems: "center", gap: 6 }}>
@@ -37,7 +41,7 @@ export default function Dashboard({ projects, loading, onOpen, onNew, onDelete, 
             <span style={{ fontSize: 16, color: "var(--text-secondary)" }}>Submittal Builder</span>
           </div>
           <div style={{ flex: 1 }} />
-          <button onClick={onNew} style={btnPrimary}>+ New Submittal</button>
+          <button onClick={isViewer ? undefined : onNew} style={{ ...btnPrimary, opacity: isViewer ? 0.5 : 1, cursor: isViewer ? "not-allowed" : "pointer" }} disabled={isViewer}>+ New Submittal</button>
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
@@ -57,7 +61,7 @@ export default function Dashboard({ projects, loading, onOpen, onNew, onDelete, 
                 <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
                 <div style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 8 }}>No submittal projects yet</div>
                 <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Start by selecting a Won project from the Proposal Log Dashboard</div>
-                <button onClick={onNew} style={btnPrimary}>+ New Submittal</button>
+                <button onClick={isViewer ? undefined : onNew} style={{ ...btnPrimary, opacity: isViewer ? 0.5 : 1, cursor: isViewer ? "not-allowed" : "pointer" }} disabled={isViewer}>+ New Submittal</button>
               </div>
             ) : "No projects match your filters."}
           </div>
@@ -90,7 +94,7 @@ export default function Dashboard({ projects, loading, onOpen, onNew, onDelete, 
                   </div>
                   <span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600, color: sm.color, background: sm.bg, whiteSpace: "nowrap" }}>{sm.label}</span>
                   <span style={{ fontSize: 11, color: "var(--text-secondary)", minWidth: 80, textAlign: "right" }}>{formatTimestamp(p.updatedAt)}</span>
-                  <button onClick={(e) => { e.stopPropagation(); if (window.confirm("Delete this project?")) onDelete(p.id); }} style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 16, padding: 4 }} title="Delete">&times;</button>
+                  <button onClick={(e) => { e.stopPropagation(); if (!isViewer && window.confirm("Delete this project?")) onDelete(p.id); }} style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: isViewer ? "not-allowed" : "pointer", fontSize: 16, padding: 4, opacity: isViewer ? 0.4 : 1 }} title="Delete" disabled={isViewer}>&times;</button>
                 </div>
               );
             })}

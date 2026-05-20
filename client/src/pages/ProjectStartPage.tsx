@@ -25,6 +25,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
+import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
+import { guardViewer } from "@/lib/viewerGuard";
 import { queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import type { Region, Project } from "@shared/schema";
@@ -73,6 +76,7 @@ interface DuplicateMatch {
 export default function ProjectStartPage() {
   useToolUsage("projectstart");
   const { toast } = useToast();
+  const { isViewer } = useAuth();
   const [, navigate] = useLocation();
   const { isTestMode } = useTestMode();
   const [projectName, setProjectName] = useState("");
@@ -364,6 +368,7 @@ export default function ProjectStartPage() {
   }, [stopPolling]);
 
   const handleSubmit = useCallback((opts?: { mergeIntoProposalLogId?: number; duplicateOverrideNote?: string }) => {
+    if (guardViewer(isViewer, toast)) return;
     if (!projectName || !regionCode || !dueDate) return;
 
     const formData = new FormData();
@@ -797,6 +802,7 @@ export default function ProjectStartPage() {
 
   return (
     <div className="container max-w-3xl mx-auto py-8 px-4 animate-page-enter">
+      <ReadOnlyBanner />
       <div className="flex items-center gap-4 mb-8">
         <Link href="/">
           <Button variant="ghost" size="icon" data-testid="button-back">
@@ -1233,7 +1239,7 @@ export default function ProjectStartPage() {
           </div>
           <Button
             onClick={checkDuplicatesThenSubmit}
-            disabled={!isReady || dupCheckLoading}
+            disabled={!isReady || dupCheckLoading || isViewer}
             data-testid="button-create-project"
           >
             {dupCheckLoading ? (

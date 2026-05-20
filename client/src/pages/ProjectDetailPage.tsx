@@ -11,6 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
+import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
+import { guardViewer } from "@/lib/viewerGuard";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Project, ProjectScope } from "@shared/schema";
 
@@ -71,6 +74,7 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = parseInt(params.id || "0");
   const { toast } = useToast();
+  const { isViewer } = useAuth();
   const [expandedScopes, setExpandedScopes] = useState<Set<number>>(new Set());
   const [expandedPlanScopes, setExpandedPlanScopes] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
@@ -299,6 +303,7 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="container max-w-4xl mx-auto py-8 px-4">
+      <ReadOnlyBanner />
       <div className="flex items-center gap-4 mb-8">
         <Link href="/">
           <Button variant="ghost" size="icon" data-testid="button-back">
@@ -392,8 +397,8 @@ export default function ProjectDetailPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => retryMutation.mutate()}
-                disabled={retryMutation.isPending}
+                onClick={() => { if (!guardViewer(isViewer, toast)) retryMutation.mutate(); }}
+                disabled={retryMutation.isPending || isViewer}
                 data-testid="button-retry"
               >
                 {retryMutation.isPending ? (
@@ -719,8 +724,8 @@ export default function ProjectDetailPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => selectAllMutation.mutate(true)}
-                  disabled={selectAllMutation.isPending || scopes.every(s => s.isSelected)}
+                  onClick={() => { if (!guardViewer(isViewer, toast)) selectAllMutation.mutate(true); }}
+                  disabled={selectAllMutation.isPending || scopes.every(s => s.isSelected) || isViewer}
                   data-testid="button-select-all"
                 >
                   Select All
@@ -728,8 +733,8 @@ export default function ProjectDetailPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => selectAllMutation.mutate(false)}
-                  disabled={selectAllMutation.isPending || scopes.every(s => !s.isSelected)}
+                  onClick={() => { if (!guardViewer(isViewer, toast)) selectAllMutation.mutate(false); }}
+                  disabled={selectAllMutation.isPending || scopes.every(s => !s.isSelected) || isViewer}
                   data-testid="button-deselect-all"
                 >
                   Deselect All
@@ -767,10 +772,11 @@ export default function ProjectDetailPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => toggleScopeMutation.mutate({
+                        onClick={() => { if (guardViewer(isViewer, toast)) return; toggleScopeMutation.mutate({
                           scopeId: scope.id,
                           isSelected: !scope.isSelected,
-                        })}
+                        }); }}
+                        disabled={toggleScopeMutation.isPending || isViewer}
                         data-testid={`button-toggle-scope-${scope.id}`}
                       >
                         {scope.isSelected ? (
@@ -866,8 +872,8 @@ export default function ProjectDetailPage() {
                       </p>
                     </div>
                     <Button
-                      onClick={() => specPassMutation.mutate()}
-                      disabled={specPassMutation.isPending || selectedCount === 0}
+                      onClick={() => { if (!guardViewer(isViewer, toast)) specPassMutation.mutate(); }}
+                      disabled={specPassMutation.isPending || selectedCount === 0 || isViewer}
                       data-testid="button-run-spec-pass"
                     >
                       {specPassMutation.isPending ? (

@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useTestMode } from "@/lib/testMode";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
+import { guardViewer } from "@/lib/viewerGuard";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { saveAs } from "file-saver";
@@ -96,7 +98,7 @@ export default function ProjectLogPage() {
   const notesPopupRef = useRef<HTMLDivElement>(null);
   const { isTestMode } = useTestMode();
   const { toast } = useToast();
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, isViewer, user } = useAuth();
   const { hasFeature } = useFeatureAccess();
 
   const [changeHistorySearch, setChangeHistorySearch] = useState("");
@@ -399,6 +401,7 @@ export default function ProjectLogPage() {
   };
 
   const commitScopes = (entryId: number) => {
+    if (guardViewer(isViewer, toast)) return;
     inlineUpdateMutation.mutate({ id: entryId, data: { nbsSelectedScopes: JSON.stringify(draftScopes) } });
     setScopePopupEntryId(null);
   };
@@ -414,11 +417,13 @@ export default function ProjectLogPage() {
   };
 
   const saveNotes = (entryId: number, text: string) => {
+    if (guardViewer(isViewer, toast)) return;
     inlineUpdateMutation.mutate({ id: entryId, data: { notes: text } });
     setNotesPopupEntryId(null);
   };
 
   const handleStatusChange = (entryId: number, newStatus: string) => {
+    if (guardViewer(isViewer, toast)) return;
     if (newStatus === "No Bid" || newStatus === "Lost") {
       setNoBidNotesEntryId(entryId);
       setNoBidPendingStatus(newStatus);
@@ -674,6 +679,7 @@ export default function ProjectLogPage() {
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)" }}>
       <div className="container max-w-7xl mx-auto py-8 px-4">
+        <ReadOnlyBanner />
         <div className="flex items-center gap-4 mb-8">
           <Link href="/">
             <Button variant="ghost" size="icon" data-testid="button-back">
@@ -1143,6 +1149,7 @@ export default function ProjectLogPage() {
                               <Select
                                 value={entry.estimateStatus || "Estimating"}
                                 onValueChange={(val) => handleStatusChange(entry.id, val)}
+                                disabled={isViewer}
                               >
                                 <SelectTrigger
                                   className="h-7 text-xs border-none px-2 py-0 w-auto min-w-[100px]"

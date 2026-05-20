@@ -32,6 +32,9 @@ import {
   ClipboardPaste,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
+import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
+import { guardViewer } from "@/lib/viewerGuard";
 import { Link } from "wouter";
 import * as XLSX from "xlsx";
 import { copyTsvWithFormatting } from "@/lib/clipboardUtils";
@@ -70,6 +73,7 @@ interface ExtractionResult {
 export default function ScheduleConverterPage() {
   useToolUsage("scheduleconverter");
   const { toast } = useToast();
+  const { isViewer } = useAuth();
   const [inputMode, setInputMode] = useState<"image" | "text">("image");
   const [imageQueue, setImageQueue] = useState<QueuedImage[]>([]);
   const [scheduleText, setScheduleText] = useState<string>("");
@@ -386,6 +390,7 @@ export default function ScheduleConverterPage() {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background animate-page-enter">
       <div className="max-w-6xl mx-auto px-6 py-8">
+        <ReadOnlyBanner />
         <div className="mb-8">
           <div className="flex items-center justify-between gap-4 flex-wrap mb-2">
             <div className="flex items-center gap-3">
@@ -643,8 +648,8 @@ export default function ScheduleConverterPage() {
           {inputMode === "image" ? (
             <Button
               size="lg"
-              onClick={() => imageQueue.length > 0 && extractMutation.mutate(imageQueue.map(q => q.file))}
-              disabled={imageQueue.length === 0 || extractMutation.isPending}
+              onClick={() => { if (guardViewer(isViewer, toast)) return; imageQueue.length > 0 && extractMutation.mutate(imageQueue.map(q => q.file)); }}
+              disabled={imageQueue.length === 0 || extractMutation.isPending || isViewer}
               data-testid="button-extract"
             >
               {extractMutation.isPending ? (
@@ -661,8 +666,8 @@ export default function ScheduleConverterPage() {
           ) : (
             <Button
               size="lg"
-              onClick={() => scheduleText.trim() && textExtractMutation.mutate(scheduleText)}
-              disabled={!scheduleText.trim() || textExtractMutation.isPending}
+              onClick={() => { if (guardViewer(isViewer, toast)) return; scheduleText.trim() && textExtractMutation.mutate(scheduleText); }}
+              disabled={!scheduleText.trim() || textExtractMutation.isPending || isViewer}
               data-testid="button-extract-text"
             >
               {textExtractMutation.isPending ? (

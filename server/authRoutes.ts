@@ -298,6 +298,22 @@ export function registerAuthRoutes(app: Express) {
   });
 }
 
+export async function requireWriteAccess(req: Request, res: Response, next: NextFunction) {
+  const userId = (req.session as any)?.userId;
+  if (!userId) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (!user || !user.isActive) {
+    req.session.destroy(() => {});
+    return res.status(401).json({ message: "Account is deactivated" });
+  }
+  if (user.role === "viewer") {
+    return res.status(403).json({ error: "READ_ONLY", message: "Viewer accounts cannot make changes." });
+  }
+  next();
+}
+
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const userId = (req.session as any)?.userId;
   if (!userId) {

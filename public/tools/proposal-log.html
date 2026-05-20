@@ -1267,9 +1267,20 @@ function setMode(m) {
   mode=m;
   document.getElementById('btn-est').classList.toggle('active',m==='estimator');
   document.getElementById('btn-lead').classList.toggle('active',m==='leadership');
-  document.getElementById('ro-banner').classList.toggle('show',m==='leadership');
-  document.getElementById('btn-add').style.display=m==='leadership'?'none':'';
-  document.getElementById('btn-import').style.display=m==='leadership'?'none':'';
+  const isViewer = currentUser && currentUser.role === 'viewer';
+  if (isViewer) {
+    const roBan = document.getElementById('ro-banner');
+    roBan.innerHTML = '&#128274; Read-only access &mdash; changes cannot be saved.';
+    roBan.classList.add('show');
+    document.getElementById('btn-add').style.display='none';
+    document.getElementById('btn-import').style.display='none';
+  } else {
+    const roBan = document.getElementById('ro-banner');
+    roBan.innerHTML = '&#128274; Leadership View &mdash; read only.';
+    roBan.classList.toggle('show',m==='leadership');
+    document.getElementById('btn-add').style.display=m==='leadership'?'none':'';
+    document.getElementById('btn-import').style.display=m==='leadership'?'none':'';
+  }
   if(m==='leadership'){selectedIndices.clear();document.getElementById('select-bar').style.display='none';}
   render();
 }
@@ -3054,6 +3065,7 @@ function toggleScope(scope, checked) {
 }
 
 function commitScopePopup() {
+  if (currentUser && currentUser.role === 'viewer') { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); closeScopePopupUI(); return; }
   if(scopePopupOi === null) return;
   const val = JSON.stringify(scopeDraft);
   data[scopePopupOi].nbsSelectedScopes = val;
@@ -3081,6 +3093,7 @@ let noBidPendingOi = null;
 let noBidPendingStatus = '';
 
 function onStatusDropdownChange(sel, oi) {
+  if (currentUser && currentUser.role === 'viewer') { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); sel.value = data[oi].estimateStatus || ''; return; }
   const newStatus = sel.value;
   if(newStatus === 'No Bid' || newStatus === 'Lost') {
     noBidPendingOi = oi;
@@ -3129,6 +3142,7 @@ function closeNoBidModal(withReason) {
 }
 
 async function syncFieldToServer(entry, field, value) {
+  if (currentUser && currentUser.role === 'viewer') { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); return; }
   const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','selfPerformEstimator','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink','nbsSelectedScopes','finalReviewer','swinertonProject','region','primaryMarket','inviteDate','filePath'];
   if (!syncableFields.includes(field)) return;
   if (!entry._serverDbId) { console.warn('Cannot sync field: entry has no _serverDbId'); return; }
@@ -3188,6 +3202,7 @@ async function fetchAcknowledgements() {
 }
 
 async function acknowledgeEntryById(entryId) {
+  if (currentUser && currentUser.role === 'viewer') { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); return; }
   try {
     await fetch('/api/proposal-log/acknowledge/' + entryId, {
       method: 'POST',
@@ -3349,6 +3364,7 @@ function entryToServerPayload(e){
 }
 
 async function commitImport(){
+  if (currentUser && currentUser.role === 'viewer') { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); closeImportModal(); return; }
   const newEntries=[];
   document.querySelectorAll('.import-row-check').forEach((cb,idx)=>{
     if(!cb.checked)return;
@@ -3468,8 +3484,9 @@ let userFeatures = [];
 let acknowledgedEntryIds = new Set();
 
 const CAPS = {
-  admin: { dashboard:true,  addRow:true,  editRow:true,  deleteRow:true,  requestDelete:true,  importExcel:true,  clearAll:true,  modeToggle:true  },
-  user:  { dashboard:false, addRow:true,  editRow:true,  deleteRow:false, requestDelete:true,  importExcel:false, clearAll:false, modeToggle:false },
+  admin:  { dashboard:true,  addRow:true,  editRow:true,  deleteRow:true,  requestDelete:true,  importExcel:true,  clearAll:true,  modeToggle:true  },
+  user:   { dashboard:false, addRow:true,  editRow:true,  deleteRow:false, requestDelete:true,  importExcel:false, clearAll:false, modeToggle:false },
+  viewer: { dashboard:false, addRow:false, editRow:false, deleteRow:false, requestDelete:false, importExcel:false, clearAll:false, modeToggle:false },
 };
 function can(cap) { return !!(currentUser && CAPS[currentUser.role]?.[cap]); }
 
@@ -3479,7 +3496,7 @@ async function checkAuth() {
     if (res.status === 401) { showAuthGate(); return; }
     const json = await res.json();
     currentUser = json.user;
-    if (!['admin','user'].includes(currentUser.role)) currentUser.role = 'user';
+    if (!['admin','user','viewer'].includes(currentUser.role)) currentUser.role = 'user';
     try {
       const fr = await fetch('/api/user/features', { credentials: 'include' });
       if (fr.ok) userFeatures = await fr.json();
@@ -3524,7 +3541,7 @@ async function quickLogin(username) {
     if (!meRes.ok) { errEl.textContent = 'Session error. Try again.'; return; }
     const meJson = await meRes.json();
     currentUser = meJson.user;
-    if (!['admin','user'].includes(currentUser.role)) currentUser.role = 'user';
+    if (!['admin','user','viewer'].includes(currentUser.role)) currentUser.role = 'user';
     try {
       const fr = await fetch('/api/user/features', { credentials: 'include' });
       if (fr.ok) userFeatures = await fr.json();
@@ -3575,6 +3592,12 @@ function applyRoleUI() {
   const btnImport = document.getElementById('btn-import');
   if (btnAdd)    btnAdd.style.display    = caps.addRow     ? '' : 'none';
   if (btnImport) btnImport.style.display = caps.importExcel ? '' : 'none';
+
+  const roBanner = document.getElementById('ro-banner');
+  if (roBanner) {
+    if (currentUser.role === 'viewer') roBanner.classList.add('show');
+    else roBanner.classList.remove('show');
+  }
 }
 
 function applyModeRestrictions() {
