@@ -109,7 +109,6 @@ export default function ProjectLogPage() {
   const [changeDateTo, setChangeDateTo] = useState("");
   const [regionFilter, setRegionFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [roleView, setRoleView] = useState<"my" | "all">("all");
 
   interface ChangeLogRecord {
     id: number;
@@ -535,10 +534,6 @@ export default function ProjectLogPage() {
       filtered = filtered.filter(e => !e.isTest);
     }
 
-    if (roleView === "my" && user?.initials) {
-      filtered = filtered.filter(e => (e.nbsEstimator || "").toUpperCase() === user.initials!.toUpperCase());
-    }
-
     if (regionFilter) {
       filtered = filtered.filter(e => e.region === regionFilter);
     }
@@ -730,30 +725,6 @@ export default function ProjectLogPage() {
           <div className="pb-4 p-6">
             {viewTab !== "changes" && (
               <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <div className="flex items-center gap-1 rounded-lg p-1" style={{ background: "var(--bg-input)" }}>
-                  <button
-                    onClick={() => setRoleView("all")}
-                    className="px-3 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors"
-                    style={{
-                      background: roleView === "all" ? "var(--gold)" : "transparent",
-                      color: roleView === "all" ? "#000" : "var(--text-dim)",
-                    }}
-                    data-testid="button-view-all"
-                  >
-                    LEADERSHIP
-                  </button>
-                  <button
-                    onClick={() => setRoleView("my")}
-                    className="px-3 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors"
-                    style={{
-                      background: roleView === "my" ? "var(--gold)" : "transparent",
-                      color: roleView === "my" ? "#000" : "var(--text-dim)",
-                    }}
-                    data-testid="button-view-my"
-                  >
-                    ESTIMATOR
-                  </button>
-                </div>
                 <select
                   value={regionFilter}
                   onChange={(e) => setRegionFilter(e.target.value)}
