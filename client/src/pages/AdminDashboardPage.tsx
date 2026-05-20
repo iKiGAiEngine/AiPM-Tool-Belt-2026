@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import { BackNav } from "@/components/BackNav";
 import {
   ShieldCheck,
   ScrollText,
@@ -121,6 +122,9 @@ export default function AdminDashboardPage() {
       data-testid="page-admin-dashboard"
     >
       <div className="max-w-7xl mx-auto px-6 py-10">
+        <div className="mb-4">
+          <BackNav href="/" label="Home" testId="button-back-home" />
+        </div>
         <header className="flex items-center gap-3 mb-2">
           <ShieldCheck className="h-7 w-7" style={{ color: "var(--gold-light)" }} />
           <h1

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from "react";
+import { BackNav } from "@/components/BackNav";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { handleAuthError } from "@/lib/handleAuthError";
@@ -1234,6 +1235,9 @@ export default function VendorDatabasePage() {
 
       {/* Header */}
       <div style={{ padding: "24px 0 20px" }}>
+        <div style={{ marginBottom: 8 }}>
+          <BackNav href="/" label="Home" testId="button-back-home" />
+        </div>
         <div style={{ fontSize: 11, fontFamily: "monospace", letterSpacing: "0.1em", color: "var(--gold)", marginBottom: 6 }}>
           AIPM TOOLBELT › <span style={{ color: "var(--text-dim)" }}>VENDOR DATABASE</span>
         </div>

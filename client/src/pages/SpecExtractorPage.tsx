@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { BackNav } from "@/components/BackNav";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Upload, FileText, X, AlertCircle, CheckCircle2, Loader2,
@@ -588,6 +589,9 @@ export default function SpecExtractorPage() {
     <div className="min-h-[calc(100vh-4rem)] animate-page-enter">
       <ReadOnlyBanner />
       <div className="mx-auto max-w-7xl px-6 py-12 lg:px-8 lg:py-20">
+        <div className="mb-4">
+          <BackNav href="/" label="Home" testId="button-back-home" />
+        </div>
         <div className="mx-auto max-w-3xl text-center">
           <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl font-heading" data-testid="text-tool-name">
             Spec Extractor

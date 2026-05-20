@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BackNav } from "@/components/BackNav";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
@@ -175,6 +176,9 @@ export default function ChangelogPage() {
     <div className="min-h-screen bg-white dark:bg-zinc-950">
       <div className="max-w-4xl mx-auto px-6 py-12">
 
+        <div className="mb-4">
+          <BackNav href="/admin" label="Admin Dashboard" testId="button-back-admin" />
+        </div>
         {/* Header */}
         <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
           <div>

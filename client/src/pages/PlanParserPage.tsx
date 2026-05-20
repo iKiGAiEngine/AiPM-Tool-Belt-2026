@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { BackNav } from "@/components/BackNav";
 import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToolUsage } from "@/lib/useToolUsage";
@@ -269,6 +270,9 @@ export default function PlanParserPage() {
   return (
     <div className="min-h-[calc(100vh-4rem)] animate-page-enter">
       <div className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
+        <div className="mb-4">
+          <BackNav href="/" label="Home" testId="button-back-home" />
+        </div>
         <div className="mx-auto max-w-3xl text-center mb-12">
           <h1 className="text-4xl font-heading font-semibold tracking-tight text-foreground sm:text-5xl" data-testid="text-tool-name">
             Plan Parser

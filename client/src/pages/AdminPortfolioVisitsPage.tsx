@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ArrowLeft, Eye, Users, Clock, Globe, RefreshCw, Loader2 } from "lucide-react";
+import { Eye, Users, Clock, Globe, RefreshCw, Loader2 } from "lucide-react";
+import { BackNav } from "@/components/BackNav";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -112,11 +113,7 @@ export default function AdminPortfolioVisitsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <Link href="/admin">
-              <Button variant="ghost" size="sm" className="gap-1.5" data-testid="button-back-admin">
-                <ArrowLeft className="w-4 h-4" /> Admin
-              </Button>
-            </Link>
+            <BackNav href="/admin" label="Admin Dashboard" testId="button-back-admin" />
             <div>
               <h1 className="text-2xl font-semibold tracking-tight" data-testid="heading-portfolio-visits">
                 Portfolio Visits
