@@ -354,7 +354,7 @@ export function requireAdminOrFeature(feature: string) {
       req.session.destroy(() => {});
       return res.status(401).json({ message: "Account is deactivated" });
     }
-    if (user.role === "admin") return next();
+    if (user.role === "admin" || user.isAdmin) return next();
     const { storage } = await import("./storage");
     const features = await storage.getUserFeatureAccess(user.id);
     if (!features.includes(feature as any)) {

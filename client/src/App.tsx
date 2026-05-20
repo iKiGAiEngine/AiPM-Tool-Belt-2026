@@ -60,18 +60,18 @@ function AdminDashboardRoute({ component: Component }: { component: React.Compon
 }
 
 function SettingsRoute({ component: Component }: { component: React.ComponentType }) {
-  const { isAdmin, isLoading } = useAuth();
+  const { canAccessAdminDashboard, isLoading } = useAuth();
   const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
   if (isLoading || featuresLoading) return null;
-  if (!isAdmin && !hasFeature("central-settings") && !hasFeature("settings-regions")) return <HomePage />;
+  if (!canAccessAdminDashboard && !hasFeature("central-settings") && !hasFeature("settings-regions")) return <HomePage />;
   return <Component />;
 }
 
 function BcSyncRoute({ component: Component }: { component: React.ComponentType }) {
-  const { isAdmin, isLoading } = useAuth();
+  const { canAccessAdminDashboard, isLoading } = useAuth();
   const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
   if (isLoading || featuresLoading) return null;
-  if (!isAdmin && !hasFeature("bc-sync")) return <HomePage />;
+  if (!canAccessAdminDashboard && !hasFeature("bc-sync")) return <HomePage />;
   return <Component />;
 }
 
