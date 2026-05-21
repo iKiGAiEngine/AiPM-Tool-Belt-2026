@@ -1006,6 +1006,330 @@ export function registerVendorDatabaseRoutes(app: Express) {
     }
   });
 
+  // ---- MANUFACTURER EXCEL UPLOAD (NBS Manufacturer List format) ----
+  // Expected sheet: "Manufacturers"
+  // Columns: short_code | name | legal_name | aliases | scopes | website | primary_contact | contact_email | contact_phone | address | notes
+
+  app.post("/api/mfr/upload-manufacturers-excel", upload.single("file"), async (req: Request, res: Response) => {
+    try {
+      const file = req.file;
+      if (!file) return res.status(400).json({ error: "No file uploaded" });
+
+      const workbook = xlsx.read(file.buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames.find((n) => n.toLowerCase().includes("manuf")) || workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows = xlsx.utils.sheet_to_json<any>(sheet, { header: 1, defval: "" });
+
+      let manufacturersCreated = 0;
+      let manufacturersUpdated = 0;
+
+      // Find header row (contains "short_code" or "name")
+      let dataStart = 0;
+      for (let i = 0; i < Math.min(10, rows.length); i++) {
+        const cell = String((rows[i] as any[])[0] || "").trim().toLowerCase();
+        if (cell === "short_code" || cell === "name") { dataStart = i + 1; break; }
+      }
+
+      const existing = await db.select().from(mfrManufacturers);
+      const byShortCode = new Map(existing.filter((m) => m.shortCode).map((m) => [m.shortCode!.toUpperCase(), m]));
+      const byName = new Map(existing.map((m) => [m.name.toLowerCase().trim(), m]));
+
+      for (let i = dataStart; i < rows.length; i++) {
+        const row = rows[i] as any[];
+        const shortCode = String(row[0] || "").trim().toUpperCase();
+        const name = String(row[1] || "").trim();
+
+        // Skip instruction rows and empty rows
+        if (shortCode.startsWith("INSTRUCTION") || (!name && !shortCode)) continue;
+        if (!name) continue;
+
+        const legalName = String(row[2] || "").trim() || null;
+        const aliasesRaw = String(row[3] || "").trim();
+        const scopesRaw = String(row[4] || "").trim();
+        const website = String(row[5] || "").trim() || null;
+        const primaryContact = String(row[6] || "").trim() || null;
+        const contactEmail = String(row[7] || "").trim() || null;
+        const contactPhone = String(row[8] || "").trim() || null;
+        const address = String(row[9] || "").trim() || null;
+        const notes = String(row[10] || "").trim() || null;
+
+        const aliases = aliasesRaw ? aliasesRaw.split(",").map((a) => a.trim()).filter(Boolean) : [];
+        const scopes = scopesRaw ? scopesRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+
+        const upsertData = {
+          name,
+          legalName,
+          shortCode: shortCode || null,
+          aliases: aliases.length > 0 ? aliases : [],
+          scopes: scopes.length > 0 ? scopes : [],
+          website,
+          primaryContact,
+          contactEmail,
+          contactPhone,
+          address,
+          notes,
+          updatedAt: new Date(),
+        };
+
+        const existingMfr = (shortCode && byShortCode.get(shortCode)) || byName.get(name.toLowerCase().trim());
+
+        if (existingMfr) {
+          await db.update(mfrManufacturers).set(upsertData).where(eq(mfrManufacturers.id, existingMfr.id));
+          manufacturersUpdated++;
+          if (shortCode) byShortCode.set(shortCode, { ...existingMfr, ...upsertData });
+        } else {
+          const [newMfr] = await db.insert(mfrManufacturers).values(upsertData).returning();
+          manufacturersCreated++;
+          byName.set(name.toLowerCase().trim(), newMfr);
+          if (shortCode) byShortCode.set(shortCode, newMfr);
+        }
+      }
+
+      res.json({ manufacturersCreated, manufacturersUpdated });
+    } catch (err: any) {
+      console.error("Manufacturer upload error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- VENDOR EXCEL UPLOAD (NBS Vendor List format) ----
+  // Sheet "Vendors": short_code | name | legal_name | aliases | category | scopes | manufacturer_short_codes | manufacturer_direct | website | materials | tags | primary_contact_name | primary_contact_role | primary_contact_email | primary_contact_phone | primary_contact_territory | notes | manufacturer_full_names
+  // Sheet "Additional Contacts": vendor_short_code | name | role | email | phone | territory | notes
+  // Sheet "Logistics & Pricing": vendor_short_code | avg_lead_time_days | ships_from | freight_notes | discount_tier | payment_terms | pricing_notes
+
+  app.post("/api/mfr/upload-vendors-excel", upload.single("file"), async (req: Request, res: Response) => {
+    try {
+      const file = req.file;
+      if (!file) return res.status(400).json({ error: "No file uploaded" });
+
+      const workbook = xlsx.read(file.buffer, { type: "buffer" });
+      const getSheet = (keyword: string) => {
+        const name = workbook.SheetNames.find((n) => n.toLowerCase().includes(keyword));
+        return name ? xlsx.utils.sheet_to_json<any>(workbook.Sheets[name], { header: 1, defval: "" }) : [];
+      };
+      const vendorRows = getSheet("vendor");
+      const contactRows = getSheet("contact");
+      const logisticsRows = getSheet("logistic");
+
+      let vendorsCreated = 0;
+      let vendorsUpdated = 0;
+      let contactsCreated = 0;
+      let manufacturerLinksCreated = 0;
+
+      // Load all existing manufacturers for short_code + name matching
+      const allMfrsDb = await db.select().from(mfrManufacturers);
+      const mfrByShortCode = new Map(allMfrsDb.filter((m) => m.shortCode).map((m) => [m.shortCode!.toUpperCase(), m]));
+      const mfrByName = new Map(allMfrsDb.map((m) => [m.name.toLowerCase().trim(), m]));
+
+      // Load existing vendors
+      const existingVendors = await db.select().from(mfrVendors);
+      const vendorByShortCode = new Map(existingVendors.filter((v) => v.shortCode).map((v) => [v.shortCode!.toUpperCase(), v]));
+      const vendorByName = new Map(existingVendors.map((v) => [v.name.toLowerCase().trim(), v]));
+
+      // Load existing vendor-manufacturer relationships
+      const existingRels = await db.select().from(mfrVendorManufacturers);
+      const relSet = new Set(existingRels.map((r) => `${r.vendorId}-${r.manufacturerId}`));
+
+      // vendorShortCode → vendorId map for later sheets
+      const vendorShortCodeToId = new Map<string, number>(
+        existingVendors.filter((v) => v.shortCode).map((v) => [v.shortCode!.toUpperCase(), v.id])
+      );
+
+      // Find data start row (skip header + INSTRUCTIONS)
+      const findDataStart = (rows: any[][]) => {
+        for (let i = 0; i < Math.min(10, rows.length); i++) {
+          const cell = String(rows[i][0] || "").trim().toLowerCase();
+          if (cell === "short_code" || cell === "vendor_short_code") return i + 1;
+        }
+        return 0;
+      };
+
+      const isSkipRow = (row: any[]) => {
+        const first = String(row[0] || "").trim();
+        return first.startsWith("INSTRUCTION") || first === "";
+      };
+
+      // ---- Process Vendors sheet ----
+      const vendorDataStart = findDataStart(vendorRows);
+      for (let i = vendorDataStart; i < vendorRows.length; i++) {
+        const row = vendorRows[i] as any[];
+        if (isSkipRow(row)) continue;
+
+        const shortCode = String(row[0] || "").trim().toUpperCase() || null;
+        const name = String(row[1] || "").trim();
+        if (!name) continue;
+
+        const legalName = String(row[2] || "").trim() || null;
+        const aliasesRaw = String(row[3] || "").trim();
+        const category = String(row[4] || "").trim() || null;
+        const scopesRaw = String(row[5] || "").trim();
+        const mfrShortCodesRaw = String(row[6] || "").trim();
+        const manufacturerDirect = String(row[7] || "").trim().toUpperCase() === "YES";
+        const website = String(row[8] || "").trim() || null;
+        const materials = String(row[9] || "").trim() || null;
+        const tagsRaw = String(row[10] || "").trim();
+        const primaryContactName = String(row[11] || "").trim() || null;
+        const primaryContactRole = String(row[12] || "").trim() || null;
+        const primaryContactEmail = String(row[13] || "").trim() || null;
+        const primaryContactPhone = String(row[14] || "").trim() || null;
+        const primaryContactTerritory = String(row[15] || "").trim() || null;
+        const notes = String(row[16] || "").trim() || null;
+        const mfrFullNamesRaw = String(row[17] || "").trim();
+
+        const aliases = aliasesRaw ? aliasesRaw.split(",").map((a) => a.trim()).filter(Boolean) : [];
+        const scopes = scopesRaw ? scopesRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+        const tags = tagsRaw ? tagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : [];
+        const mfrShortCodes = mfrShortCodesRaw ? mfrShortCodesRaw.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean) : [];
+        const mfrFullNames = mfrFullNamesRaw ? mfrFullNamesRaw.split(",").map((n) => n.trim()).filter(Boolean) : [];
+
+        // Resolve manufacturer IDs via short_code then full name
+        const linkedMfrIds: number[] = [];
+        for (let k = 0; k < Math.max(mfrShortCodes.length, mfrFullNames.length); k++) {
+          const sc = mfrShortCodes[k];
+          const fn = mfrFullNames[k];
+          let mfr = (sc && mfrByShortCode.get(sc)) || (fn && mfrByName.get(fn.toLowerCase().trim()));
+          if (!mfr && fn) {
+            // Auto-create manufacturer from full name
+            const [newMfr] = await db.insert(mfrManufacturers).values({ name: fn, shortCode: sc || null }).returning();
+            mfr = newMfr;
+            mfrByName.set(fn.toLowerCase().trim(), newMfr);
+            if (sc) mfrByShortCode.set(sc, newMfr);
+          }
+          if (mfr && !linkedMfrIds.includes(mfr.id)) linkedMfrIds.push(mfr.id);
+        }
+
+        const upsertData = {
+          name,
+          legalName,
+          shortCode,
+          aliases,
+          category,
+          scopes,
+          manufacturerDirect,
+          website,
+          materials,
+          tags,
+          manufacturerIds: linkedMfrIds,
+          notes,
+          updatedAt: new Date(),
+        };
+
+        const existingVendor = (shortCode && vendorByShortCode.get(shortCode)) || vendorByName.get(name.toLowerCase().trim());
+        let vendorId: number;
+
+        if (existingVendor) {
+          await db.update(mfrVendors).set(upsertData).where(eq(mfrVendors.id, existingVendor.id));
+          vendorId = existingVendor.id;
+          vendorsUpdated++;
+        } else {
+          const [newVendor] = await db.insert(mfrVendors).values(upsertData).returning();
+          vendorId = newVendor.id;
+          vendorsCreated++;
+          vendorByName.set(name.toLowerCase().trim(), newVendor);
+        }
+        if (shortCode) {
+          vendorByShortCode.set(shortCode, { ...(existingVendor || {}), ...upsertData, id: vendorId } as any);
+          vendorShortCodeToId.set(shortCode, vendorId);
+        }
+
+        // Link manufacturers
+        for (const mfrId of linkedMfrIds) {
+          const key = `${vendorId}-${mfrId}`;
+          if (!relSet.has(key)) {
+            await db.insert(mfrVendorManufacturers).values({ vendorId, manufacturerId: mfrId });
+            relSet.add(key);
+            manufacturerLinksCreated++;
+          }
+        }
+
+        // Create primary contact
+        if (primaryContactName || primaryContactEmail) {
+          const existingContacts = await db.select().from(mfrContacts).where(eq(mfrContacts.vendorId, vendorId));
+          const alreadyExists = existingContacts.some(
+            (c) => c.name?.toLowerCase() === (primaryContactName || "").toLowerCase() ||
+                   (primaryContactEmail && c.email?.toLowerCase() === primaryContactEmail.toLowerCase())
+          );
+          if (!alreadyExists) {
+            await db.insert(mfrContacts).values({
+              vendorId,
+              name: primaryContactName,
+              role: primaryContactRole || "Contact",
+              email: primaryContactEmail,
+              phone: primaryContactPhone,
+              territory: primaryContactTerritory,
+              isPrimary: true,
+            });
+            contactsCreated++;
+          }
+        }
+      }
+
+      // ---- Process Additional Contacts sheet ----
+      const contactDataStart = findDataStart(contactRows);
+      for (let i = contactDataStart; i < contactRows.length; i++) {
+        const row = contactRows[i] as any[];
+        if (isSkipRow(row)) continue;
+
+        const vendorShortCode = String(row[0] || "").trim().toUpperCase();
+        const contactName = String(row[1] || "").trim();
+        if (!vendorShortCode || !contactName) continue;
+
+        const vendorId = vendorShortCodeToId.get(vendorShortCode);
+        if (!vendorId) continue;
+
+        const role = String(row[2] || "").trim() || "Contact";
+        const email = String(row[3] || "").trim() || null;
+        const phone = String(row[4] || "").trim() || null;
+        const territory = String(row[5] || "").trim() || null;
+        const notes = String(row[6] || "").trim() || null;
+
+        const existingContacts = await db.select().from(mfrContacts).where(eq(mfrContacts.vendorId, vendorId));
+        const alreadyExists = existingContacts.some(
+          (c) => c.name?.toLowerCase() === contactName.toLowerCase() ||
+                 (email && c.email?.toLowerCase() === email.toLowerCase())
+        );
+        if (!alreadyExists) {
+          await db.insert(mfrContacts).values({ vendorId, name: contactName, role, email, phone, territory, notes, isPrimary: false });
+          contactsCreated++;
+        }
+      }
+
+      // ---- Process Logistics & Pricing sheet ----
+      const logDataStart = findDataStart(logisticsRows);
+      for (let i = logDataStart; i < logisticsRows.length; i++) {
+        const row = logisticsRows[i] as any[];
+        if (isSkipRow(row)) continue;
+
+        const vendorShortCode = String(row[0] || "").trim().toUpperCase();
+        if (!vendorShortCode) continue;
+
+        const vendorId = vendorShortCodeToId.get(vendorShortCode);
+        if (!vendorId) continue;
+
+        const avgLeadTimeDays = parseInt(String(row[1] || ""), 10) || null;
+        const shipsFrom = String(row[2] || "").trim() || null;
+        const freightNotes = String(row[3] || "").trim() || null;
+        const discountTier = String(row[4] || "").trim() || null;
+        const paymentTerms = String(row[5] || "").trim() || null;
+        const pricingNotes = String(row[6] || "").trim() || null;
+
+        if (avgLeadTimeDays !== null || shipsFrom || freightNotes) {
+          await db.insert(mfrLogistics).values({ vendorId, avgLeadTimeDays, shipsFrom, freightNotes })
+            .onConflictDoUpdate({ target: mfrLogistics.vendorId, set: { avgLeadTimeDays, shipsFrom, freightNotes, updatedAt: new Date() } });
+        }
+        if (discountTier || paymentTerms || pricingNotes) {
+          await db.insert(mfrPricing).values({ vendorId, discountTier, paymentTerms, notes: pricingNotes })
+            .onConflictDoUpdate({ target: mfrPricing.vendorId, set: { discountTier, paymentTerms, notes: pricingNotes, updatedAt: new Date() } });
+        }
+      }
+
+      res.json({ vendorsCreated, vendorsUpdated, contactsCreated, manufacturerLinksCreated });
+    } catch (err: any) {
+      console.error("Vendor upload error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // ---- CLEAR ALL ----
 
   app.delete("/api/mfr/all", async (req: Request, res: Response) => {

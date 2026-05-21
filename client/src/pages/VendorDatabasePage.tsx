@@ -474,15 +474,50 @@ function AliasChipInput({ aliases, onChange, testId }: { aliases: string[]; onCh
 }
 
 // ---- Excel Upload Modal ----
-function ExcelUploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+type UploadType = "manufacturers" | "vendors";
+
+const UPLOAD_CONFIG: Record<UploadType, {
+  title: string;
+  description: string;
+  endpoint: string;
+  sheetHint: string;
+}> = {
+  manufacturers: {
+    title: "Upload NBS Manufacturer List",
+    description: 'Upload your NBS Manufacturer List (.xlsx). Expected sheet: "Manufacturers" with columns: short_code, name, legal_name, aliases, scopes, website, primary_contact, contact_email, contact_phone, address, notes. Existing records are updated by short_code.',
+    endpoint: "/api/mfr/upload-manufacturers-excel",
+    sheetHint: 'Sheet: "Manufacturers"',
+  },
+  vendors: {
+    title: "Upload NBS Vendor List",
+    description: 'Upload your NBS Vendor List (.xlsx). Expected sheets: "Vendors" (main data), "Additional Contacts" (extra contacts), and "Logistics & Pricing" (lead times, discount tiers). Existing records are updated by short_code.',
+    endpoint: "/api/mfr/upload-vendors-excel",
+    sheetHint: 'Sheets: "Vendors", "Additional Contacts", "Logistics & Pricing"',
+  },
+};
+
+function ResultStat({ value, label, color }: { value: number; label: string; color?: string }) {
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ fontSize: 24, fontWeight: 700, color: color || "var(--gold)" }}>{value}</div>
+      <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{label}</div>
+    </div>
+  );
+}
+
+function ExcelUploadModal({ type, onClose, onSuccess }: { type: UploadType; onClose: () => void; onSuccess: () => void }) {
   const [dragging, setDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [result, setResult] = useState<{ vendorsCreated: number; vendorsSkipped: number; contactsCreated: number } | null>(null);
+  const [result, setResult] = useState<Record<string, number> | null>(null);
   const [loading, setLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const cfg = UPLOAD_CONFIG[type];
 
-  const handleFile = (f: File) => { if (f.name.match(/\.(xlsx|xls)$/i)) setFile(f); else toast({ title: "Invalid file", description: "Please upload an .xlsx or .xls file", variant: "destructive" }); };
+  const handleFile = (f: File) => {
+    if (f.name.match(/\.(xlsx|xls)$/i)) setFile(f);
+    else toast({ title: "Invalid file", description: "Please upload an .xlsx or .xls file", variant: "destructive" });
+  };
 
   const handleUpload = async () => {
     if (!file) return;
@@ -490,7 +525,7 @@ function ExcelUploadModal({ onClose, onSuccess }: { onClose: () => void; onSucce
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch("/api/mfr/upload-excel", { method: "POST", body: form, credentials: "include" });
+      const res = await fetch(cfg.endpoint, { method: "POST", body: form, credentials: "include" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
       setResult(data);
@@ -504,13 +539,13 @@ function ExcelUploadModal({ onClose, onSuccess }: { onClose: () => void; onSucce
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }} onClick={onClose}>
-      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderRadius: 12, padding: 28, width: 460, maxWidth: "90vw" }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>Upload NBS Manufacturer List</h2>
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderRadius: 12, padding: 28, width: 500, maxWidth: "90vw" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>{cfg.title}</h2>
           <X size={18} style={{ cursor: "pointer", color: "var(--text-dim)" }} onClick={onClose} />
         </div>
-        <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 4 }}>Upload your NBS Manufacturer List (.xlsx). The Estimating sheet will be parsed to create vendor and contact records.</p>
-        <a href="/api/mfr/template" download style={{ fontSize: 11, color: "var(--gold)", textDecoration: "underline", cursor: "pointer", marginBottom: 16, display: "inline-block" }}>Download template</a>
+        <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 4, lineHeight: 1.5 }}>{cfg.description}</p>
+        <p style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 12, fontStyle: "italic" }}>{cfg.sheetHint}</p>
 
         {!result ? (
           <>
@@ -533,11 +568,21 @@ function ExcelUploadModal({ onClose, onSuccess }: { onClose: () => void; onSucce
         ) : (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
             <Check size={40} style={{ color: "#4CAF7D", margin: "0 auto 12px" }} />
-            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}>Import Complete</p>
-            <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 20 }}>
-              <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: "var(--gold)" }}>{result.vendorsCreated}</div><div style={{ fontSize: 11, color: "var(--text-dim)" }}>Vendors Created</div></div>
-              <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: "#4CAF7D" }}>{result.contactsCreated}</div><div style={{ fontSize: 11, color: "var(--text-dim)" }}>Contacts Created</div></div>
-              <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: "var(--text-dim)" }}>{result.vendorsSkipped}</div><div style={{ fontSize: 11, color: "var(--text-dim)" }}>Skipped (existing)</div></div>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", marginBottom: 16 }}>Import Complete</p>
+            <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap", marginBottom: 20 }}>
+              {type === "manufacturers" ? (
+                <>
+                  <ResultStat value={result.manufacturersCreated ?? 0} label="Created" color="var(--gold)" />
+                  <ResultStat value={result.manufacturersUpdated ?? 0} label="Updated" color="#4CAF7D" />
+                </>
+              ) : (
+                <>
+                  <ResultStat value={result.vendorsCreated ?? 0} label="Vendors Created" color="var(--gold)" />
+                  <ResultStat value={result.vendorsUpdated ?? 0} label="Vendors Updated" color="#4CAF7D" />
+                  <ResultStat value={result.contactsCreated ?? 0} label="Contacts Added" color="#5B8DEF" />
+                  <ResultStat value={result.manufacturerLinksCreated ?? 0} label="Mfr Links" color="var(--text-dim)" />
+                </>
+              )}
             </div>
             <Btn label="Close" variant="gold" onClick={onClose} />
           </div>
@@ -1142,7 +1187,7 @@ export default function VendorDatabasePage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [showAddVendor, setShowAddVendor] = useState(false);
-  const [showExcelUpload, setShowExcelUpload] = useState(false);
+  const [showExcelUpload, setShowExcelUpload] = useState<UploadType | null>(null);
   const [newVendor, setNewVendor] = useState({ name: "", legalName: "", shortCode: "", aliases: [] as string[], category: "", website: "", notes: "", scopes: [] as string[], manufacturerIds: [] as number[] });
 
   const { data: allMfrs = [] } = useQuery<MfrManufacturerRow[]>({ queryKey: ["/api/mfr/manufacturers"] });
@@ -1228,8 +1273,12 @@ export default function VendorDatabasePage() {
     <div style={{ padding: "0 32px 40px", maxWidth: 1100, margin: "0 auto" }}>
       {showExcelUpload && (
         <ExcelUploadModal
-          onClose={() => setShowExcelUpload(false)}
-          onSuccess={() => { qc.invalidateQueries({ queryKey: ["/api/mfr/vendors"] }); }}
+          type={showExcelUpload}
+          onClose={() => setShowExcelUpload(null)}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ["/api/mfr/vendors"] });
+            qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers"] });
+          }}
         />
       )}
 
@@ -1244,7 +1293,11 @@ export default function VendorDatabasePage() {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <h1 style={{ fontSize: 24, fontWeight: 700, fontFamily: "var(--font-heading)", color: "var(--text-primary)", margin: 0 }}>Manufacturers & Vendors</h1>
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn label="Upload Excel" icon={Upload} onClick={() => setShowExcelUpload(true)} />
+            <Btn
+              label={tab === "manufacturers" ? "Upload Manufacturers" : tab === "vendors" ? "Upload Vendors" : "Upload Excel"}
+              icon={Upload}
+              onClick={() => setShowExcelUpload(tab === "manufacturers" ? "manufacturers" : "vendors")}
+            />
             <Btn label="Export JSON" icon={Download} onClick={exportAll} />
             <Btn label="Delete All" icon={Trash2} onClick={deleteAll} variant="ghost" />
           </div>
