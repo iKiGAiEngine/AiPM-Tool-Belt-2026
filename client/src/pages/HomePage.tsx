@@ -623,7 +623,14 @@ export default function HomePage() {
             </div>
 
             <div className="pl-hud-wrap">
-              <div className="pl-hud">
+              {proposalsLoading && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "16px 0", opacity: 0.5 }}>
+                  {[1,2,3].map(n => (
+                    <div key={n} style={{ height: 28, borderRadius: 6, background: "rgba(255,255,255,0.07)", animation: "pulse 1.4s ease-in-out infinite" }} />
+                  ))}
+                </div>
+              )}
+              <div className="pl-hud" style={proposalsLoading ? { visibility: "hidden", height: 0, overflow: "hidden" } : {}}>
                 <HudSection
                   label="Newly Assigned"
                   labelClass="lbl-new"

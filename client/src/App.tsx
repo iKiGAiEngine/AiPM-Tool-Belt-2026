@@ -98,7 +98,7 @@ function Router() {
       <Route path="/project-start" component={ProjectStartPage} />
       <Route path="/projects/:id" component={ProjectDetailPage} />
       <Route path="/tools/bc-sync-table">{() => <BcSyncRoute component={ProjectLogPage} />}</Route>
-      <Route path="/project-log">{() => { window.location.replace("/tools/bc-sync-table"); return null; }}</Route>
+      <Route path="/project-log">{() => { const [, nav] = useLocation(); useEffect(() => { nav("/tools/bc-sync-table"); }, []); return <RouteSpinner />; }}</Route>
       <Route path="/schedule-converter" component={ScheduleConverterPage} />
       <Route path="/spec-extractor" component={SpecExtractorPage} />
       <Route path="/admin">{() => <AdminDashboardRoute component={AdminDashboardPage} />}</Route>

@@ -1,0 +1,69 @@
+Good. Now do a second-pass audit to confirm the navigation lag is fully resolved across AiPM, not just HomePage and App.tsx.
+
+The previous fix found and corrected:
+- HomePage handleAcknowledge crash from setAcknowledgedIds
+- route guards returning null while auth loads
+- missing per-route ErrorBoundary
+- HomePage proposal query refetching on window focus
+
+Now verify the rest of the app.
+
+Audit and fix the following:
+
+1. Search the full client app for any remaining hard navigations:
+   - window.location.href
+   - window.location.assign
+   - window.location.replace
+   - plain <a href> links used for internal app routes
+   - anything that causes a full page reload instead of client-side routing
+
+For internal AiPM routes, replace these with proper router navigation unless there is a very specific reason not to.
+
+2. Search all frontend files for raw fetch() inside React components or page-level useEffect data loading.
+   Identify which ones are:
+   - acceptable one-off actions
+   - repeated page data that should use TanStack Query
+   - auth/session related
+   - heavy list/dashboard data
+
+Do not blindly convert everything, but convert repeated route-level data fetching to shared TanStack Query hooks where appropriate.
+
+3. Confirm Proposal Log and HomePage are not fetching the same proposal dataset separately with different query keys.
+   If both pages use the same proposal list data, standardize them to one shared query hook/key so cache is reused across navigation.
+
+4. Inspect login/auth loading flow.
+   Confirm:
+   - login success does not trigger unnecessary full-page reloads
+   - auth/session loading shows a visible loading state
+   - failed auth/session fetches show an error or redirect instead of blank page
+   - navigating immediately after login does not cause a blank app shell
+
+5. Inspect major routes for blank loading states.
+   At minimum check:
+   - Home
+   - Proposal Log
+   - Estimating/Draft Review route
+   - Vendor/Manufacturer pages
+   - BC Sync/Admin pages
+   - Settings/Admin Dashboard
+
+Each major route should show either:
+   - cached content
+   - a clear loading state
+   - or a clear error state
+
+No blank white content area.
+
+6. Inspect large render calculations.
+   Look for expensive filtering/sorting/mapping of proposal entries, dashboard metrics, vendor data, or estimating data happening on every render.
+   Memoize heavy derived values with useMemo where appropriate.
+
+7. Run compile/type check and fix all errors.
+
+8. Final response should include:
+   - remaining hard navigations found and fixed
+   - remaining raw fetches found and whether each was converted or intentionally left alone
+   - whether HomePage and Proposal Log now share query cache
+   - whether login → Home is stable
+   - whether Home → Proposal Log → Home is stable
+   - whether any remaining performance risks exist

@@ -184,9 +184,11 @@ export default function LoginPage() {
       setSuccess(true);
       setError("");
       queryClient.removeQueries({ queryKey: ["/api/user/features"] });
+      // Reduced from 800ms — the session cookie is set synchronously with the
+      // login response so we only need a brief moment for the state to settle.
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      }, 800);
+      }, 150);
     },
     onError: (err: Error) => {
       setError(err.message);
