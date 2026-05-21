@@ -175,14 +175,32 @@ export function Header() {
     return toolRoutes.find(r => location.startsWith(r.path));
   }, [location]);
 
+  // A project is "in progress" if it's running spec extraction, plan-parser baseline,
+  // plan-parser spec-pass, or marked as generic "processing". Matches both the legacy
+  // status the header was originally checking AND the actual lifecycle statuses the
+  // backend writes today.
+  const isInProgress = (s: string | null | undefined) =>
+    s === "processing" ||
+    s === "specsift_running" ||
+    s === "planparser_baseline_running" ||
+    s === "planparser_specpass_running";
+
+  // Poll fast (5s) only while there is something to watch; otherwise back off to 60s.
+  // This avoids hammering /api/projects with a large payload every 5s on every page of
+  // the app, which was making the whole UI feel laggy.
   const { data: allProjects } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
-    refetchInterval: 5000,
+    refetchInterval: (query) => {
+      const list = query.state.data as Project[] | undefined;
+      const hasProcessing = Array.isArray(list) && list.some(p => isInProgress(p.status));
+      return hasProcessing ? 5000 : 60000;
+    },
+    refetchIntervalInBackground: false,
   });
 
   const processingProjects = useMemo(() => {
     if (!allProjects) return [];
-    return allProjects.filter(p => p.status === "processing");
+    return allProjects.filter(p => isInProgress(p.status));
   }, [allProjects]);
 
   const settingsReady = !authLoading && !featuresLoading;
