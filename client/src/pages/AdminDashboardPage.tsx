@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { BackNav } from "@/components/BackNav";
 import {
@@ -18,6 +19,20 @@ import {
 
 const PLAYFAIR = "'Playfair Display', serif";
 const RAJDHANI = "'Rajdhani', sans-serif";
+
+function useIsDark() {
+  const [isDark, setIsDark] = useState(
+    () => typeof document !== "undefined" && document.documentElement.classList.contains("dark")
+  );
+  useEffect(() => {
+    const obs = new MutationObserver(() =>
+      setIsDark(document.documentElement.classList.contains("dark"))
+    );
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+  return isDark;
+}
 
 const ADMIN_TOOLS = [
   { href: "/admin/users", label: "Users", icon: Users, testId: "link-admin-tool-users" },
@@ -73,13 +88,16 @@ function AdminToolButton({
   label,
   icon: Icon,
   testId,
+  isDark,
 }: {
   href: string;
   label: string;
   icon: typeof ShieldCheck;
   testId: string;
+  isDark: boolean;
 }) {
   const [, setLocation] = useLocation();
+  const baseColor = isDark ? "var(--gold-light)" : "#7A5F1A";
   return (
     <button
       type="button"
@@ -87,7 +105,7 @@ function AdminToolButton({
       onClick={() => setLocation(href)}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold-light)]"
       style={{
-        color: "var(--gold-light)",
+        color: baseColor,
         border: "1px solid transparent",
         background: "transparent",
         fontFamily: RAJDHANI,
@@ -96,12 +114,12 @@ function AdminToolButton({
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = "var(--border-gold)";
         e.currentTarget.style.background = "rgba(168,137,46,0.08)";
-        e.currentTarget.style.color = "var(--gold-light)";
+        e.currentTarget.style.color = baseColor;
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = "transparent";
         e.currentTarget.style.background = "transparent";
-        e.currentTarget.style.color = "var(--gold-light)";
+        e.currentTarget.style.color = baseColor;
       }}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -111,6 +129,7 @@ function AdminToolButton({
 }
 
 export default function AdminDashboardPage() {
+  const isDark = useIsDark();
   return (
     <div
       className="min-h-screen w-full"
@@ -126,12 +145,11 @@ export default function AdminDashboardPage() {
           <BackNav href="/" label="Home" testId="button-back-home" />
         </div>
         <header className="flex items-center gap-3 mb-2">
-          <ShieldCheck className="h-7 w-7" style={{ color: "var(--gold-light)" }} />
+          <ShieldCheck className="h-7 w-7 admin-gold-text" />
           <h1
-            className="text-4xl tracking-wide"
+            className="text-4xl tracking-wide admin-gold-text"
             style={{
               fontFamily: PLAYFAIR,
-              color: "var(--gold-light)",
               letterSpacing: "0.02em",
             }}
             data-testid="text-admin-dashboard-title"
@@ -157,14 +175,14 @@ export default function AdminDashboardPage() {
           data-testid="nav-admin-tools"
         >
           <span
-            className="text-xs uppercase tracking-widest pr-3"
-            style={{ color: "var(--text-gold)", letterSpacing: "0.18em" }}
+            className="text-xs uppercase tracking-widest pr-3 admin-gold-label"
+            style={{ letterSpacing: "0.18em" }}
           >
             Admin Tools
           </span>
           <div className="flex flex-wrap gap-1">
             {ADMIN_TOOLS.map((tool) => (
-              <AdminToolButton key={tool.href} {...tool} />
+              <AdminToolButton key={tool.href} {...tool} isDark={isDark} />
             ))}
           </div>
         </nav>
@@ -186,12 +204,11 @@ export default function AdminDashboardPage() {
                 style={{ background: "linear-gradient(90deg, var(--gold-dim), var(--gold))" }}
               />
               <div className="flex items-center gap-3 mb-3">
-                <Icon className="h-5 w-5" style={{ color: "var(--gold-light)" }} />
+                <Icon className="h-5 w-5 admin-gold-text" />
                 <h2
-                  className="text-2xl"
+                  className="text-2xl admin-gold-text"
                   style={{
                     fontFamily: PLAYFAIR,
-                    color: "var(--gold-light)",
                     letterSpacing: "0.01em",
                   }}
                   data-testid={`heading-${id}`}

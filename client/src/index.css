@@ -1097,6 +1097,23 @@
   .tool-card, .hud-col { animation: none !important; }
 }
 
+/* ===== ADMIN DASHBOARD — light-mode gold contrast fix ===== */
+/* In light mode the standard --gold-light (#C9A84C) washes out on white.
+   These classes use the darker gold tokens in light mode and restore the
+   standard lighter gold in dark mode. Dark-mode styles are untouched. */
+.admin-gold-text {
+  color: #7A5F1A; /* --gold-dim: readable dark amber on white */
+}
+.dark .admin-gold-text {
+  color: #E2C97E; /* --gold-light: original light gold on dark bg */
+}
+.admin-gold-label {
+  color: #6B5318; /* slightly deeper for small uppercase labels */
+}
+.dark .admin-gold-label {
+  color: #C9A84C; /* --text-gold in dark mode */
+}
+
 /* ===== RESPONSIVE FALLBACK (mobile) ===== */
 @media (max-width: 720px) {
   .hp-root { overflow: auto; height: auto; min-height: calc(100vh - 3.5rem); }
