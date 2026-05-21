@@ -36,6 +36,16 @@ const DEV_ACCOUNTS = [
     isActive: false,
     invited: true,
   },
+  {
+    email: "viewonly@aipm.local",
+    password: "Viewer1",
+    displayName: "ViewOnly",
+    initials: "VO",
+    role: "viewer" as const,
+    status: "active",
+    isActive: true,
+    invited: false,
+  },
 ];
 
 export async function runDevSeed(): Promise<void> {
@@ -72,6 +82,7 @@ export async function runDevSeed(): Promise<void> {
         }
         const updates: Partial<InferInsertModel<typeof users>> = {
           role: account.role,
+          isAdmin: account.role === "admin",
           displayName: account.displayName,
           initials: account.initials,
         };
