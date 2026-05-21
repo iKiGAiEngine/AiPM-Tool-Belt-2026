@@ -370,75 +370,56 @@ export default function HomePage() {
     enabled: !!selectedToolForStats && isAdmin,
   });
 
-  const [proposals, setProposals] = useState<ProposalRow[]>([]);
-  const [acknowledgedIds, setAcknowledgedIds] = useState<Set<number>>(new Set());
+  // Use TanStack Query so the proposals list and acknowledgements are cached across
+  // page navigations within the React app. Previously this used raw fetch() on every
+  // mount, forcing a fresh ~42KB download every time the user navigated back to home.
+  const { data: rawProposals } = useQuery<any[]>({
+    queryKey: ["/api/proposal-log/entries"],
+    staleTime: 30000,
+    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
+  });
 
-  const fetchProposals = useCallback(async () => {
-    try {
-      const res = await fetch("/api/proposal-log/entries", { credentials: "include" });
-      if (!res.ok) return;
-      const entries = await res.json();
-      const mapped: ProposalRow[] = entries.map((e: any) => ({
-        projectName: e.projectName || "",
-        estimateNumber: e.estimateNumber || "",
-        region: e.region || "",
-        primaryMarket: e.primaryMarket || "",
-        inviteDate: e.inviteDate || "",
-        dueDate: e.dueDate || "",
-        nbsEstimator: e.nbsEstimator || "",
-        gcEstimateLead: e.gcEstimateLead || "",
-        proposalTotal: e.proposalTotal || "",
-        estimateStatus: e.estimateStatus || "Estimating",
-        anticipatedStart: e.anticipatedStart || "",
-        anticipatedFinish: e.anticipatedFinish || "",
-        owner: e.owner || "",
-        filePath: e.filePath || "",
-        bcLink: e.bcLink || "",
-        sourceType: e.sourceType || "",
-        sourceEmail: e.sourceEmail || "",
-        sourceEmailSubject: e.sourceEmailSubject || "",
-        sourceAttachmentUrl: e.sourceAttachmentUrl || "",
-        comments: "",
-        _screenshotId: e.estimateNumber || "",
-        _isTest: e.isTest || false,
-        _serverDbId: e.id,
-      }));
-      setProposals(mapped);
-    } catch (err) {
-      console.warn("HUD sync from server failed:", err);
-    }
-  }, []);
+  const { data: ackData } = useQuery<{ entryIds: number[] }>({
+    queryKey: ["/api/proposal-log/acknowledgements"],
+    staleTime: 30000,
+    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
+  });
 
-  const fetchAcknowledgements = useCallback(async () => {
-    try {
-      const res = await fetch("/api/proposal-log/acknowledgements", { credentials: "include" });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.entryIds) {
-        setAcknowledgedIds(new Set(data.entryIds as number[]));
-      }
-    } catch (err) {
-      console.warn("Failed to fetch acknowledgements:", err);
-    }
-  }, []);
+  const proposals: ProposalRow[] = useMemo(() => {
+    if (!Array.isArray(rawProposals)) return [];
+    return rawProposals.map((e: any) => ({
+      projectName: e.projectName || "",
+      estimateNumber: e.estimateNumber || "",
+      region: e.region || "",
+      primaryMarket: e.primaryMarket || "",
+      inviteDate: e.inviteDate || "",
+      dueDate: e.dueDate || "",
+      nbsEstimator: e.nbsEstimator || "",
+      gcEstimateLead: e.gcEstimateLead || "",
+      proposalTotal: e.proposalTotal || "",
+      estimateStatus: e.estimateStatus || "Estimating",
+      anticipatedStart: e.anticipatedStart || "",
+      anticipatedFinish: e.anticipatedFinish || "",
+      owner: e.owner || "",
+      filePath: e.filePath || "",
+      bcLink: e.bcLink || "",
+      sourceType: e.sourceType || "",
+      sourceEmail: e.sourceEmail || "",
+      sourceEmailSubject: e.sourceEmailSubject || "",
+      sourceAttachmentUrl: e.sourceAttachmentUrl || "",
+      comments: "",
+      _screenshotId: e.estimateNumber || "",
+      _isTest: e.isTest || false,
+      _serverDbId: e.id,
+    }));
+  }, [rawProposals]);
 
-  useEffect(() => {
-    fetchProposals();
-    fetchAcknowledgements();
-    const syncInterval = setInterval(() => {
-      fetchProposals();
-      fetchAcknowledgements();
-    }, 60000);
-    const handleFocus = () => {
-      fetchProposals();
-      fetchAcknowledgements();
-    };
-    window.addEventListener("focus", handleFocus);
-    return () => {
-      clearInterval(syncInterval);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [fetchProposals, fetchAcknowledgements]);
+  const acknowledgedIds: Set<number> = useMemo(
+    () => new Set(ackData?.entryIds ?? []),
+    [ackData]
+  );
 
   const userInitials = user?.initials || (user ? getUserInitials(user) : "HK");
   const userEstimatorCode = (user?.initials || "").toUpperCase();
