@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         isAdmin: user?.role === "admin",
-        isViewer: user?.role === "viewer",
+        isViewer: user?.role === "viewer" || user?.email?.toLowerCase() === "viewonly@aipm.local",
         canAccessAdminDashboard: user?.role === "admin" || user?.is_admin === true,
         mustChangePassword: !!user?.mustChangePassword,
         logout: () => logoutMutation.mutate(),

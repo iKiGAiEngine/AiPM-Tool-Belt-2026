@@ -3017,7 +3017,7 @@ function toggleScope(scope, checked) {
 }
 
 function commitScopePopup() {
-  if (currentUser && currentUser.role === 'viewer') { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); closeScopePopupUI(); return; }
+  if (isReadOnlyAccount(currentUser)) { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); closeScopePopupUI(); return; }
   if(scopePopupOi === null) return;
   const val = JSON.stringify(scopeDraft);
   data[scopePopupOi].nbsSelectedScopes = val;
@@ -3045,7 +3045,7 @@ let noBidPendingOi = null;
 let noBidPendingStatus = '';
 
 function onStatusDropdownChange(sel, oi) {
-  if (currentUser && currentUser.role === 'viewer') { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); sel.value = data[oi].estimateStatus || ''; return; }
+  if (isReadOnlyAccount(currentUser)) { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); sel.value = data[oi].estimateStatus || ''; return; }
   const newStatus = sel.value;
   if(newStatus === 'No Bid' || newStatus === 'Lost') {
     noBidPendingOi = oi;
@@ -3094,7 +3094,7 @@ function closeNoBidModal(withReason) {
 }
 
 async function syncFieldToServer(entry, field, value) {
-  if (currentUser && currentUser.role === 'viewer') { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); return; }
+  if (isReadOnlyAccount(currentUser)) { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); return; }
   const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','selfPerformEstimator','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink','nbsSelectedScopes','finalReviewer','swinertonProject','region','primaryMarket','inviteDate','filePath'];
   if (!syncableFields.includes(field)) return;
   if (!entry._serverDbId) { console.warn('Cannot sync field: entry has no _serverDbId'); return; }
@@ -3154,7 +3154,7 @@ async function fetchAcknowledgements() {
 }
 
 async function acknowledgeEntryById(entryId) {
-  if (currentUser && currentUser.role === 'viewer') { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); return; }
+  if (isReadOnlyAccount(currentUser)) { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); return; }
   try {
     await fetch('/api/proposal-log/acknowledge/' + entryId, {
       method: 'POST',
@@ -3316,7 +3316,7 @@ function entryToServerPayload(e){
 }
 
 async function commitImport(){
-  if (currentUser && currentUser.role === 'viewer') { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); closeImportModal(); return; }
+  if (isReadOnlyAccount(currentUser)) { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); closeImportModal(); return; }
   const newEntries=[];
   document.querySelectorAll('.import-row-check').forEach((cb,idx)=>{
     if(!cb.checked)return;
@@ -3440,7 +3440,19 @@ const CAPS = {
   user:   { dashboard:false, addRow:true,  editRow:true,  deleteRow:false, requestDelete:true,  importExcel:false, clearAll:false, modeToggle:false },
   viewer: { dashboard:false, addRow:false, editRow:false, deleteRow:false, requestDelete:false, importExcel:false, clearAll:false, modeToggle:false },
 };
-function can(cap) { return !!(currentUser && CAPS[currentUser.role]?.[cap]); }
+// ViewOnly admin shadow account: admin visibility (dashboard) but ALL write caps off.
+function isReadOnlyAccount(user) {
+  return !!user && (user.role === 'viewer' || (user.email || '').toLowerCase() === 'viewonly@aipm.local');
+}
+function effectiveCaps(user) {
+  if (!user) return CAPS.user;
+  if (isReadOnlyAccount(user)) {
+    const base = CAPS[user.role] || CAPS.viewer;
+    return { ...base, addRow:false, editRow:false, deleteRow:false, requestDelete:false, importExcel:false, clearAll:false, modeToggle:false };
+  }
+  return CAPS[user.role] || CAPS.user;
+}
+function can(cap) { return !!(currentUser && effectiveCaps(currentUser)[cap]); }
 
 async function checkAuth() {
   try {
@@ -3527,7 +3539,7 @@ function doLogout() {
 function applyRoleUI() {
   if (!currentUser) return;
   const role = currentUser.role;
-  const caps = CAPS[role] || CAPS.user;
+  const caps = effectiveCaps(currentUser);
 
   const emailEl = document.getElementById('header-user-email');
   if (emailEl) emailEl.textContent = currentUser.email || currentUser.displayName || currentUser.username || '';
@@ -3546,14 +3558,14 @@ function applyRoleUI() {
 
   const roBanner = document.getElementById('ro-banner');
   if (roBanner) {
-    if (currentUser.role === 'viewer') roBanner.classList.add('show');
+    if (isReadOnlyAccount(currentUser)) roBanner.classList.add('show');
     else roBanner.classList.remove('show');
   }
 }
 
 function applyModeRestrictions() {
   if (!currentUser) return;
-  const caps = CAPS[currentUser.role] || CAPS.user;
+  const caps = effectiveCaps(currentUser);
   const isAdmin = currentUser.role === 'admin';
 
   const selBar = document.getElementById('select-bar');

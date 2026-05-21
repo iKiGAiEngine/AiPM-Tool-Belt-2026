@@ -41,7 +41,7 @@ const DEV_ACCOUNTS = [
     password: "Viewer1",
     displayName: "ViewOnly",
     initials: "VO",
-    role: "viewer" as const,
+    role: "admin" as const,
     status: "active",
     isActive: true,
     invited: false,

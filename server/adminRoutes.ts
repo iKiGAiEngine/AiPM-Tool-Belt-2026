@@ -85,7 +85,7 @@ export function registerAdminRoutes(app: Express) {
       const { role } = req.body;
       const actorId = (req.session as any)?.userId;
 
-      // Lock the shared ViewOnly test account — its role must always stay viewer
+      // Lock the shared ViewOnly test account — read-only is enforced by email, not role
       const [targetUser] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId));
       if (targetUser?.email?.toLowerCase() === "viewonly@aipm.local") {
         return res.status(400).json({ message: "The ViewOnly account role is locked and cannot be changed." });

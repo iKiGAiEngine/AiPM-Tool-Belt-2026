@@ -308,8 +308,8 @@ export async function requireWriteAccess(req: Request, res: Response, next: Next
     req.session.destroy(() => {});
     return res.status(401).json({ message: "Account is deactivated" });
   }
-  if (user.role === "viewer") {
-    return res.status(403).json({ error: "READ_ONLY", message: "Viewer accounts cannot make changes." });
+  if (user.role === "viewer" || user.email?.toLowerCase() === "viewonly@aipm.local") {
+    return res.status(403).json({ error: "READ_ONLY", message: "This account is read-only and cannot make changes." });
   }
   next();
 }
