@@ -92,6 +92,10 @@ app.use((req, res, next) => {
     await runDevSeed();
   }
 
+  // Always seed permanent accounts (dev + production)
+  const { seedPermanentAccounts } = await import("./seedPermanentAccounts");
+  await seedPermanentAccounts();
+
   // Initialize permissions table
   const { initializePermissions } = await import("./permissionsInit");
   await initializePermissions();
