@@ -371,20 +371,21 @@ export default function HomePage() {
   });
 
   // Use TanStack Query so the proposals list and acknowledgements are cached across
-  // page navigations within the React app. Previously this used raw fetch() on every
-  // mount, forcing a fresh ~42KB download every time the user navigated back to home.
-  const { data: rawProposals } = useQuery<any[]>({
+  // page navigations within the React app. staleTime: Infinity matches the global
+  // default — data stays fresh until invalidated; a 2-min background interval keeps
+  // the HUD current without re-fetching on every focus/route change.
+  const { data: rawProposals, isLoading: proposalsLoading } = useQuery<any[]>({
     queryKey: ["/api/proposal-log/entries"],
-    staleTime: 30000,
-    refetchInterval: 60000,
-    refetchOnWindowFocus: true,
+    staleTime: Infinity,
+    refetchInterval: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: ackData } = useQuery<{ entryIds: number[] }>({
     queryKey: ["/api/proposal-log/acknowledgements"],
-    staleTime: 30000,
-    refetchInterval: 60000,
-    refetchOnWindowFocus: true,
+    staleTime: Infinity,
+    refetchInterval: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const proposals: ProposalRow[] = useMemo(() => {
@@ -416,6 +417,8 @@ export default function HomePage() {
     }));
   }, [rawProposals]);
 
+  // Derived from query cache — updated optimistically via queryClient.setQueryData
+  // in handleAcknowledge so the UI responds immediately without a re-fetch.
   const acknowledgedIds: Set<number> = useMemo(
     () => new Set(ackData?.entryIds ?? []),
     [ackData]
@@ -473,6 +476,22 @@ export default function HomePage() {
 
   const [animatingOutIds, setAnimatingOutIds] = useState<Set<number>>(new Set());
 
+  // Optimistically update the ack cache so the UI responds immediately
+  // without waiting for a refetch.
+  const patchAckCache = useCallback((entryId: number, add: boolean) => {
+    queryClient.setQueryData<{ entryIds: number[] }>(
+      ["/api/proposal-log/acknowledgements"],
+      (old) => {
+        const ids = old?.entryIds ?? [];
+        return {
+          entryIds: add
+            ? ids.includes(entryId) ? ids : [...ids, entryId]
+            : ids.filter((id) => id !== entryId),
+        };
+      }
+    );
+  }, []);
+
   const handleAcknowledge = useCallback(async (p: ProposalRow) => {
     if (guardViewer(isViewer, toast)) return;
     if (!p._serverDbId) return;
@@ -490,11 +509,8 @@ export default function HomePage() {
         next.delete(entryId);
         return next;
       });
-      setAcknowledgedIds((prev) => {
-        const next = new Set(prev);
-        next.add(entryId);
-        return next;
-      });
+      // Optimistic update — mark as acknowledged in the cache immediately
+      patchAckCache(entryId, true);
 
       try {
         const res = await fetch(`/api/proposal-log/acknowledge/${entryId}`, {
@@ -503,22 +519,14 @@ export default function HomePage() {
         });
         if (!res.ok) {
           console.warn("Acknowledge request failed:", res.status);
-          setAcknowledgedIds((prev) => {
-            const next = new Set(prev);
-            next.delete(entryId);
-            return next;
-          });
+          patchAckCache(entryId, false); // roll back on failure
         }
       } catch (err) {
         console.warn("Failed to acknowledge entry:", err);
-        setAcknowledgedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(entryId);
-          return next;
-        });
+        patchAckCache(entryId, false); // roll back on failure
       }
     }, 700);
-  }, []);
+  }, [patchAckCache]);
 
   const selectedToolTitle = tools.find((t) => t.id === selectedToolForStats)?.title || "";
 

@@ -11,6 +11,7 @@ import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { Header } from "@/components/Header";
 import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
 import { Loader2 } from "lucide-react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import HomePage from "@/pages/HomePage";
 import PlanParserPage from "@/pages/PlanParserPage";
 import CentralSettingsPage from "@/pages/CentralSettingsPage";
@@ -41,9 +42,18 @@ import NotFound from "@/pages/not-found";
 
 const PUBLIC_PATHS = ["/forgot-password", "/reset-password"];
 
+// Shared inline spinner for route guards — keeps the content area non-blank during auth check
+function RouteSpinner() {
+  return (
+    <div className="flex items-center justify-center min-h-[40vh]">
+      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+    </div>
+  );
+}
+
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
   const { canAccessAdminDashboard, isLoading } = useAuth();
-  if (isLoading) return null;
+  if (isLoading) return <RouteSpinner />;
   if (!canAccessAdminDashboard) return <HomePage />;
   return <Component />;
 }
@@ -56,14 +66,15 @@ function AdminDashboardRoute({ component: Component }: { component: React.Compon
       setLocation("/");
     }
   }, [isLoading, canAccessAdminDashboard, setLocation]);
-  if (isLoading || !canAccessAdminDashboard) return null;
+  if (isLoading) return <RouteSpinner />;
+  if (!canAccessAdminDashboard) return null;
   return <Component />;
 }
 
 function SettingsRoute({ component: Component }: { component: React.ComponentType }) {
   const { canAccessAdminDashboard, isLoading } = useAuth();
   const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
-  if (isLoading || featuresLoading) return null;
+  if (isLoading || featuresLoading) return <RouteSpinner />;
   if (!canAccessAdminDashboard && !hasFeature("central-settings") && !hasFeature("settings-regions")) return <HomePage />;
   return <Component />;
 }
@@ -71,7 +82,7 @@ function SettingsRoute({ component: Component }: { component: React.ComponentTyp
 function BcSyncRoute({ component: Component }: { component: React.ComponentType }) {
   const { canAccessAdminDashboard, isLoading } = useAuth();
   const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
-  if (isLoading || featuresLoading) return null;
+  if (isLoading || featuresLoading) return <RouteSpinner />;
   if (!canAccessAdminDashboard && !hasFeature("bc-sync")) return <HomePage />;
   return <Component />;
 }
@@ -147,7 +158,21 @@ function AuthGate() {
       <div className="min-h-screen bg-background">
         <Header />
         <ReadOnlyBanner global />
-        <Router />
+        <ErrorBoundary
+          fallback={
+            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 p-8">
+              <p className="text-muted-foreground text-sm">Something went wrong loading this page.</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="text-sm underline text-primary"
+              >
+                Reload
+              </button>
+            </div>
+          }
+        >
+          <Router />
+        </ErrorBoundary>
       </div>
     </TestModeProvider>
   );

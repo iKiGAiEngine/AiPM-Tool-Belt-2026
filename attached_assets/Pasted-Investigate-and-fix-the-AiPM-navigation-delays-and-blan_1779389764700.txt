@@ -1,0 +1,57 @@
+Investigate and fix the AiPM navigation delays and blank white screen issues across the app.
+
+Current symptoms:
+- Proposal Log opens with a slight delay.
+- Navigating from Proposal Log back to Home has a longer delay.
+- Sometimes the app shows a blank white screen and requires refresh.
+- The app also feels laggy in other areas.
+- At one point it would not load properly after logging in.
+- A previous fix changed HomePage from raw fetch() to TanStack Query with staleTime, but the issue may be broader than HomePage.
+
+Do not assume the HomePage query cache fix fully solved this. I need a full audit and real fix.
+
+Please inspect:
+1. Routing/navigation setup
+   - Look for routes that remount large components unnecessarily.
+   - Check if navigation triggers full data reloads.
+   - Check if any links/buttons use window.location, href reloads, or hard refresh behavior instead of client-side routing.
+   - Confirm back/home navigation uses proper router navigation.
+
+2. Data fetching
+   - Find all pages still using raw fetch() directly instead of TanStack Query where caching would help.
+   - Identify duplicate fetches triggered on mount, focus, or navigation.
+   - Check whether large lists like proposal log entries are being fetched repeatedly without caching.
+   - Check if query keys are stable and not recreated with changing object references.
+   - Check staleTime, gcTime/cacheTime, refetchOnWindowFocus, and retry settings for heavy queries.
+
+3. Login/auth flow
+   - Inspect the login/auth redirect and session loading behavior.
+   - Make sure the app does not render a blank screen while auth/session state is loading.
+   - Confirm failed auth/session fetches show a user-visible error instead of a blank page.
+   - Make sure login does not trigger unnecessary full-app reloads.
+
+4. Frontend errors
+   - Search for uncaught runtime errors that could cause a white screen.
+   - Add route-level or app-level ErrorBoundary if missing.
+   - Add a fallback UI that says something like “Something went wrong loading AiPM” with a retry button, instead of a blank white screen.
+   - Check browser console/server logs for errors during Home → Proposal Log → Home navigation.
+
+5. Loading states
+   - Ensure HomePage, Proposal Log, and major dashboard routes show skeleton/loading states instead of blank white screens.
+   - Avoid blocking the whole app shell while page-specific data loads.
+   - The sidebar/header/app frame should stay visible during route loading whenever possible.
+
+6. Performance bottlenecks
+   - Look for expensive filtering/sorting/mapping of all proposal entries on every render.
+   - Memoize heavy derived calculations with useMemo where appropriate.
+   - Avoid recalculating dashboard metrics from 384+ entries every time the route changes if cached query data is available.
+   - Check whether large tables render all rows at once and consider basic pagination, memoization, or virtualization if needed.
+
+Deliverables:
+- Identify the root causes found.
+- Fix the causes directly.
+- Add safe fallback/error handling so a blank white screen does not happen again.
+- Add lightweight console timing logs only if useful for diagnosis, then remove noisy logs before finalizing.
+- Verify the app compiles.
+- Test the path: login → Home → Proposal Log → Home → another module → Home.
+- Report exactly what changed and why.
