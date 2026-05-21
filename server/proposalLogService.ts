@@ -229,9 +229,10 @@ export async function getUnsyncedEntries() {
 }
 
 export async function markEntriesSynced(ids: number[]) {
-  for (const id of ids) {
-    await db.update(proposalLogEntries).set({ syncedToLocal: true }).where(eq(proposalLogEntries.id, id));
-  }
+  if (!ids || ids.length === 0) return;
+  await db.update(proposalLogEntries)
+    .set({ syncedToLocal: true })
+    .where(and(inArray(proposalLogEntries.id, ids), eq(proposalLogEntries.syncedToLocal, false)));
 }
 
 export async function getActiveProposalLogEntries() {

@@ -3681,40 +3681,48 @@ async function loadFromServer() {
     const entries = await res.json();
 
     const localData = data.slice();
-    const merged = [];
-    const syncedIds = [];
+    // Build O(1) lookup indices instead of O(N*M) .find() per entry
+    const byServerId = new Map();
+    const byNaturalKey = new Map();
+    for (const p of localData) {
+      if (p._serverDbId) byServerId.set(p._serverDbId, p);
+      const k = `${p.projectName}|${p.dueDate}|${p.estimateNumber}`;
+      if (!byNaturalKey.has(k)) byNaturalKey.set(k, p);
+    }
 
-    for (const e of entries) {
-      const localMatch = localData.find(p =>
-        (p._serverDbId && p._serverDbId === e.id) ||
-        (p.projectName === e.projectName && p.dueDate === e.dueDate && p.estimateNumber === e.estimateNumber)
-      );
-      merged.push(serverEntryToLocal(e, localMatch));
+    const merged = new Array(entries.length);
+    const syncedIds = [];
+    const serverIdSet = new Set();
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      serverIdSet.add(e.id);
+      const localMatch = byServerId.get(e.id) || byNaturalKey.get(`${e.projectName}|${e.dueDate}|${e.estimateNumber}`);
+      merged[i] = serverEntryToLocal(e, localMatch);
       syncedIds.push(e.id);
     }
 
-    const localOnly = localData.filter(p => {
-      if (!p._serverDbId) return true;
-      return !entries.some(e => e.id === p._serverDbId);
-    }).filter(p => !p._serverDbId);
-    merged.push(...localOnly);
+    // Append local-only entries that have never been pushed to the server
+    const localOnly = [];
+    for (const p of localData) {
+      if (!p._serverDbId) localOnly.push(p);
+    }
+    if (localOnly.length) merged.push(...localOnly);
 
     data = merged;
     save();
 
-    if(localOnly.length>0){
+    if (localOnly.length > 0) {
       pushLocalEntriesToServer(localOnly);
     }
 
+    // Fire-and-forget — don't block the initial render on this background bookkeeping call
     if (syncedIds.length) {
-      try {
-        await fetch('/api/proposal-log/mark-synced', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids: syncedIds }),
-          credentials: 'include'
-        });
-      } catch(e) {}
+      fetch('/api/proposal-log/mark-synced', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: syncedIds }),
+        credentials: 'include'
+      }).catch(() => {});
     }
     return true;
   } catch (err) {
@@ -3741,14 +3749,17 @@ async function initApp() {
 
   setMode('estimator');
   applyModeRestrictions();
-  const serverLoaded = await loadFromServer();
+  // Run independent fetches in parallel — acknowledgements & google-sheet check don't depend on the entries load
+  const [serverLoaded] = await Promise.all([
+    loadFromServer(),
+    fetchAcknowledgements(),
+  ]);
   if (!serverLoaded && data.length === 0) {
     showBanner('Could not load proposals from server. Please check your connection or sign in again.', 'error');
   } else if (!serverLoaded && data.length > 0) {
     showBanner('Server sync unavailable — showing locally cached data.', 'warning');
   }
   for(const p of data){if(p.region)p.region=normalizeRegion(p.region);}
-  await fetchAcknowledgements();
   render();
   checkGoogleSheet();
 
