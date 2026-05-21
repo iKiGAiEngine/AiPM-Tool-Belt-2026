@@ -597,9 +597,9 @@ export function AdminUsersSection() {
                             data-testid={`button-change-role-${u.id}`}
                           >
                             {u.role === "admin" ? (
-                              <Shield className="w-4 h-4 text-muted-foreground" />
-                            ) : (
                               <ShieldCheck className="w-4 h-4" style={{ color: "var(--gold)" }} />
+                            ) : (
+                              <Shield className="w-4 h-4 text-muted-foreground" />
                             )}
                           </Button>
                           <Button
