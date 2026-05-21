@@ -1,0 +1,62 @@
+Good second-pass audit. Before I republish, I need a true production-readiness verification, not just Vite hot reload.
+
+Please run the actual compile/build/type-check commands available in this Replit project.
+
+Do not rely only on HMR or dev preview.
+
+Verify:
+1. Production build passes.
+2. TypeScript check passes, if this project has a type-check command.
+3. No broken imports.
+4. No runtime console errors on fresh browser load.
+5. No noisy temporary debug logs left behind.
+6. The app still starts correctly after the build check.
+
+Then manually test these exact flows in the dev preview:
+
+A. Fresh session / login flow
+- Open the app fresh.
+- Log in.
+- Confirm the app reaches Home without a blank white screen.
+- Confirm the app shell/header/sidebar appears correctly.
+- Confirm the reduced login delay does not cause a race condition with session/auth loading.
+
+B. Home to Proposal Log
+- Navigate from Home to Proposal Log.
+- Confirm Proposal Log opens correctly.
+- Confirm no full white screen.
+- Confirm the Proposal Log data loads correctly.
+
+C. Proposal Log back to Home
+- Navigate back to Home.
+- Confirm Home appears quickly.
+- Confirm cached or previous data is used where expected.
+- Confirm the bid panel does not go blank.
+- Confirm no unnecessary full reload occurs.
+
+D. Refresh behavior
+- Refresh while on Home.
+- Refresh while on Proposal Log.
+- Refresh while on any protected route.
+- Confirm each route either loads correctly or shows a visible loading/auth state.
+- No blank white screen.
+
+E. Error handling
+- Confirm the route ErrorBoundary is still in place.
+- Confirm a page-level error would show the fallback instead of killing the entire app shell.
+
+F. Cache freshness
+Because HomePage proposal queries now use staleTime: Infinity, confirm that proposal-related updates still refresh the UI correctly after:
+- acknowledging a bid
+- editing a proposal log entry
+- marking an estimate submitted
+- approving/importing a BC sync item if applicable
+
+If any of these flows show stale data indefinitely, add the correct queryClient.setQueryData or queryClient.invalidateQueries call.
+
+Final response should include:
+- exact build/type-check commands run
+- pass/fail checklist for each test above
+- any fixes made
+- any remaining risk
+- clear recommendation: safe to republish or not safe yet

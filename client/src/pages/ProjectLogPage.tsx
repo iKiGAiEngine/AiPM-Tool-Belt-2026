@@ -254,6 +254,7 @@ export default function ProjectLogPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       toast({ title: "Draft rejected", description: "The draft has been rejected." });
       setRejectingDraftId(null);
@@ -270,6 +271,7 @@ export default function ProjectLogPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
       toast({ title: "Draft updated", description: "The draft has been updated." });
       setEditingDraft(null);
     },
@@ -299,6 +301,7 @@ export default function ProjectLogPage() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       setApproveResult({
         projectId: result.project.projectId,
@@ -334,6 +337,7 @@ export default function ProjectLogPage() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       setDupBlockedDraft(null);
       setDupBlockedData(null);
@@ -363,6 +367,7 @@ export default function ProjectLogPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       setDupBlockedDraft(null);
       setDupBlockedData(null);
@@ -388,6 +393,7 @@ export default function ProjectLogPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update entry.", variant: "destructive" });

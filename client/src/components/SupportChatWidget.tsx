@@ -175,16 +175,12 @@ export function SupportChatWidget() {
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const items = Array.from(e.clipboardData?.items ?? []);
-    const hasImage = items.some((it) => it.type.startsWith("image/"));
-    // Step 6 will wire actual screenshot upload. For now, log the paste event only.
-    console.log("[SupportChatWidget] paste event", {
-      hasImage,
-      types: items.map((it) => it.type),
-    });
+    const _hasImage = items.some((it) => it.type.startsWith("image/"));
+    // Step 6 will wire actual screenshot upload
   };
 
   const handlePaperclipClick = () => {
-    console.log("[SupportChatWidget] paperclip clicked — screenshot upload arrives in Step 6");
+    // paperclip clicked
   };
 
   return (

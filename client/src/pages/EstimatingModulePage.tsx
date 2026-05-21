@@ -1349,6 +1349,7 @@ function EstimatingModuleInner() {
       });
       qc.invalidateQueries({ queryKey: ["/api/proposal-log/entry", proposalLogId] });
       qc.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      qc.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
     } catch { /* project info patch failure is non-critical — log entry sync already succeeded */ }
 
     qc.invalidateQueries({ queryKey: ["/api/estimates/by-proposal", proposalLogId] });
