@@ -2149,10 +2149,16 @@ function getScopedDashboardData() {
 function getDashFiltered() { return getScopedDashboardData(); }
 
 // ─── DASHBOARD LAYOUT VISIBILITY ─────────────────────────────────────────────
+// Admin users always get the full admin layout regardless of stored dashboardLayout.
+function getEffectiveLayout() {
+  if (currentUser?.role === 'admin') return 'admin';
+  return currentUser?.dashboardLayout || 'estimator';
+}
+
 // Applies show/hide rules to major dashboard sections based on dashboardLayout.
 // Uses stable wrapper IDs added to the HTML.
 function applyDashboardLayout() {
-  const layout = currentUser?.dashboardLayout || 'estimator';
+  const layout = getEffectiveLayout();
 
   const show = (id, visible) => {
     const el = document.getElementById(id);
@@ -2301,7 +2307,7 @@ function renderNewlyAssigned() {
   const container = document.getElementById('dash-newly-assigned');
   if (!wrap || !container) return;
 
-  const layout = currentUser?.dashboardLayout || 'estimator';
+  const layout = getEffectiveLayout();
   const myInitials = currentUser?.initials || '';
   // Only show for estimator layout with a known user
   if (layout !== 'estimator' || !myInitials) { wrap.style.display = 'none'; return; }
@@ -2354,8 +2360,8 @@ function renderDash() {
   const trueDecided = awarded.length + nbsLost.length;
   const trueWinRate = trueDecided ? Math.round(awarded.length/trueDecided*100) : 0;
 
-  // Step 5: Render KPI cards based on dashboardLayout
-  const layout = currentUser?.dashboardLayout || 'estimator';
+  // Step 5: Render KPI cards based on effective layout (admin always gets admin view)
+  const layout = getEffectiveLayout();
   const kpis = getDashboardKpis(layout, all);
   document.getElementById('dash-kpis').innerHTML = kpis.map((c,i)=>`<div class="kpi-card" style="animation-delay:${i*0.05}s">
     <div class="kpi-label">${c.label}</div>
