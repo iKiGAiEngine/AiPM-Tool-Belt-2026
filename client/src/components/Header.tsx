@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Home, Wrench, Receipt, FlaskConical, Loader2, Shield, LogOut, KeyRound,
-  FolderPlus, ScanSearch, ClipboardList, TableProperties, Settings, Users, Calculator, type LucideIcon
+  FolderPlus, ScanSearch, ClipboardList, TableProperties, Settings, Users, Calculator, Menu, type LucideIcon
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -10,6 +10,14 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useTestMode } from "@/lib/testMode";
 import { useAuth } from "@/lib/auth";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
@@ -41,7 +49,7 @@ const toolRoutes: ToolRoute[] = [
 function HexagonLogo() {
   return (
     <div
-      className="flex h-9 w-9 items-center justify-center"
+      className="flex h-9 w-9 items-center justify-center shrink-0"
       style={{
         clipPath: "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)",
         background: "linear-gradient(135deg, var(--gold), var(--gold-dim))",
@@ -175,19 +183,12 @@ export function Header() {
     return toolRoutes.find(r => location.startsWith(r.path));
   }, [location]);
 
-  // A project is "in progress" if it's running spec extraction, plan-parser baseline,
-  // plan-parser spec-pass, or marked as generic "processing". Matches both the legacy
-  // status the header was originally checking AND the actual lifecycle statuses the
-  // backend writes today.
   const isInProgress = (s: string | null | undefined) =>
     s === "processing" ||
     s === "specsift_running" ||
     s === "planparser_baseline_running" ||
     s === "planparser_specpass_running";
 
-  // Poll fast (5s) only while there is something to watch; otherwise back off to 60s.
-  // This avoids hammering /api/projects with a large payload every 5s on every page of
-  // the app, which was making the whole UI feel laggy.
   const { data: allProjects } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
     refetchInterval: (query) => {
@@ -204,16 +205,18 @@ export function Header() {
   }, [allProjects]);
 
   const settingsReady = !authLoading && !featuresLoading;
+  const showSettings = settingsReady && (isAdmin || canSettingsFull || canSettingsRegions);
 
   return (
     <>
       <ChangePasswordDialog open={changePwOpen} onClose={() => setChangePwOpen(false)} />
       <header
-        className="sticky top-0 z-50 flex h-14 items-center gap-4 border-b px-4 md:px-6"
+        className="sticky top-0 z-50 flex h-14 items-center gap-2 border-b px-3 md:px-6"
         style={{ background: "var(--bg-header)", borderColor: "var(--border-ds)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
       >
-        <div className="flex flex-1 items-center gap-4">
-          <Link href="/" className="flex items-center gap-2.5" data-testid="link-logo">
+        {/* Left: logo + tool name */}
+        <div className="flex flex-1 items-center gap-2 min-w-0">
+          <Link href="/" className="flex items-center gap-2.5 shrink-0" data-testid="link-logo">
             <HexagonLogo />
             <span className="hidden font-bold text-base leading-tight font-heading sm:inline-block" style={{ color: "var(--text)" }}>
               AiPM Tool Belt
@@ -224,10 +227,10 @@ export function Header() {
 
           {activeToolRoute && (
             <>
-              <div className="h-5 w-px" style={{ background: "var(--border-ds)" }} />
-              <div className="flex items-center gap-1.5">
-                <activeToolRoute.icon className="h-4 w-4" style={{ color: "var(--gold)" }} />
-                <span className="text-sm font-medium font-heading" style={{ color: "var(--text)" }} data-testid="text-active-tool">
+              <div className="h-5 w-px shrink-0" style={{ background: "var(--border-ds)" }} />
+              <div className="flex items-center gap-1.5 min-w-0">
+                <activeToolRoute.icon className="h-4 w-4 shrink-0" style={{ color: "var(--gold)" }} />
+                <span className="text-sm font-medium font-heading truncate" style={{ color: "var(--text)" }} data-testid="text-active-tool">
                   {activeToolRoute.label}
                 </span>
               </div>
@@ -235,7 +238,8 @@ export function Header() {
           )}
         </div>
 
-        <nav className="hidden items-center gap-6 md:flex">
+        {/* Right: desktop full controls */}
+        <div className="hidden md:flex items-center gap-3">
           {!isHome && (
             <Link
               href="/"
@@ -247,9 +251,6 @@ export function Header() {
               Home
             </Link>
           )}
-        </nav>
-
-        <div className="flex items-center gap-3">
           {processingProjects.length > 0 && (
             <button
               onClick={() => navigate(`/projects/${processingProjects[0].id}`)}
@@ -280,7 +281,7 @@ export function Header() {
               />
             </label>
           )}
-          {settingsReady && (isAdmin || canSettingsFull || canSettingsRegions) && (
+          {showSettings && (
             <Link href="/settings">
               <Button variant="ghost" size="icon" title={isAdmin || canSettingsFull ? "Settings" : "Regions"} data-testid="link-settings">
                 <Settings className="h-4 w-4" />
@@ -323,7 +324,121 @@ export function Header() {
             </Button>
           </div>
         </div>
+
+        {/* Right: mobile compact controls */}
+        <div className="flex md:hidden items-center gap-1">
+          {processingProjects.length > 0 && (
+            <button
+              onClick={() => navigate(`/projects/${processingProjects[0].id}`)}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium font-heading"
+              style={{ color: "var(--gold)", background: "rgba(201,168,76,0.1)" }}
+              data-testid="button-processing-indicator-mobile"
+            >
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>{processingProjects.length}</span>
+            </button>
+          )}
+          <NotificationBell />
+          <ThemeToggle />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" data-testid="button-mobile-menu">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              {user && (
+                <>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-medium" style={{ color: "var(--text)" }}>{user.displayName || user.username}</span>
+                      <span className="text-xs truncate" style={{ color: "var(--text-dim)" }}>{user.email}</span>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+
+              {!isHome && (
+                <DropdownMenuItem asChild>
+                  <Link href="/" className="flex items-center gap-2 cursor-pointer" data-testid="link-nav-home-mobile">
+                    <Home className="h-4 w-4" />
+                    Home
+                  </Link>
+                </DropdownMenuItem>
+              )}
+
+              {(isAdmin || isViewer) && (
+                <DropdownMenuItem
+                  onSelect={(e) => { e.preventDefault(); if (!isLockedOn) toggleTestMode(); }}
+                  disabled={isLockedOn}
+                  data-testid="toggle-test-mode-mobile"
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <FlaskConical className="h-4 w-4" style={{ color: isTestMode ? "var(--gold)" : "var(--text-dim)" }} />
+                      <span style={{ color: isTestMode ? "var(--gold)" : undefined }}>Test Mode</span>
+                    </div>
+                    <Switch
+                      checked={isTestMode}
+                      onCheckedChange={isLockedOn ? undefined : toggleTestMode}
+                      disabled={isLockedOn}
+                      className="data-[state=checked]:bg-primary pointer-events-none"
+                    />
+                  </div>
+                </DropdownMenuItem>
+              )}
+
+              {showSettings && (
+                <DropdownMenuItem asChild>
+                  <Link href="/settings" className="flex items-center gap-2 cursor-pointer" data-testid="link-settings-mobile">
+                    <Settings className="h-4 w-4" />
+                    {isAdmin || canSettingsFull ? "Settings" : "Regions"}
+                  </Link>
+                </DropdownMenuItem>
+              )}
+
+              {canAccessAdminDashboard && (
+                <DropdownMenuItem asChild>
+                  <Link href="/admin" className="flex items-center gap-2 cursor-pointer" data-testid="link-admin-mobile">
+                    <Shield className="h-4 w-4" />
+                    Admin Dashboard
+                  </Link>
+                </DropdownMenuItem>
+              )}
+
+              {isAdmin && (
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/permissions" className="flex items-center gap-2 cursor-pointer" data-testid="link-admin-permissions-mobile">
+                    <Users className="h-4 w-4" />
+                    User Permissions
+                  </Link>
+                </DropdownMenuItem>
+              )}
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                onSelect={(e) => { e.preventDefault(); setChangePwOpen(true); }}
+                data-testid="button-change-password-open-mobile"
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                Change Password
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onSelect={logout}
+                className="text-destructive focus:text-destructive"
+                data-testid="button-logout-mobile"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </header>
+
       {isAdmin && isTestMode && (
         <div
           className="sticky top-14 z-40 flex items-center justify-center gap-2 px-4 py-1.5 text-sm font-bold font-heading uppercase tracking-wider"
