@@ -285,7 +285,6 @@ export default function LoginPage() {
         }
         .pw-toggle:hover { color: #C8A44E; }
       `}</style>
-
       <div className="login-page-root" style={{ fontFamily: "'DM Sans', sans-serif", background: "var(--bg)", minHeight: "100vh", overflow: "hidden" }}>
         <AnimatedCanvas />
 
@@ -321,7 +320,9 @@ export default function LoginPage() {
               </div>
               <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.65rem", fontWeight: 700, letterSpacing: "-0.01em" }}>
                 <span style={{ background: "linear-gradient(135deg, var(--gold-light), var(--gold))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>AiPM</span>
-                <span style={{ color: "var(--text)" }}> Tool Belt</span>
+                <span
+                  style={{ color: "var(--text)" }}
+                  className="opacity-[1] border-t-[#dcdce0] border-r-[#dcdce0] border-b-[#dcdce0] border-l-[#dcdce0] bg-[transparent] text-[#8a8aa8]"> Tool Belt</span>
               </span>
             </div>
 
