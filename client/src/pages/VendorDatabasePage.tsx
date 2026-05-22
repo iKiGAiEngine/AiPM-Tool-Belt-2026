@@ -526,7 +526,14 @@ function ExcelUploadModal({ type, onClose, onSuccess }: { type: UploadType; onCl
       const form = new FormData();
       form.append("file", file);
       const res = await fetch(cfg.endpoint, { method: "POST", body: form, credentials: "include" });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("Non-JSON response from upload:", text.slice(0, 500));
+        throw new Error(`Server returned unexpected response (status ${res.status}). Check console for details.`);
+      }
       if (!res.ok) throw new Error(data.error || "Upload failed");
       setResult(data);
       onSuccess();

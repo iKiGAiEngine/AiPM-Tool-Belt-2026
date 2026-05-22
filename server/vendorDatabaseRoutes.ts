@@ -1010,8 +1010,11 @@ export function registerVendorDatabaseRoutes(app: Express) {
   // Expected sheet: "Manufacturers"
   // Columns: short_code | name | legal_name | aliases | scopes | website | primary_contact | contact_email | contact_phone | address | notes
 
-  app.post("/api/mfr/upload-manufacturers-excel", upload.single("file"), async (req: Request, res: Response) => {
+  app.post("/api/mfr/upload-manufacturers-excel", async (req: Request, res: Response) => {
     try {
+      await new Promise<void>((resolve, reject) => {
+        upload.single("file")(req, res, (err) => { if (err) reject(err); else resolve(); });
+      });
       const file = req.file;
       if (!file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -1097,8 +1100,11 @@ export function registerVendorDatabaseRoutes(app: Express) {
   // Sheet "Additional Contacts": vendor_short_code | name | role | email | phone | territory | notes
   // Sheet "Logistics & Pricing": vendor_short_code | avg_lead_time_days | ships_from | freight_notes | discount_tier | payment_terms | pricing_notes
 
-  app.post("/api/mfr/upload-vendors-excel", upload.single("file"), async (req: Request, res: Response) => {
+  app.post("/api/mfr/upload-vendors-excel", async (req: Request, res: Response) => {
     try {
+      await new Promise<void>((resolve, reject) => {
+        upload.single("file")(req, res, (err) => { if (err) reject(err); else resolve(); });
+      });
       const file = req.file;
       if (!file) return res.status(400).json({ error: "No file uploaded" });
 
