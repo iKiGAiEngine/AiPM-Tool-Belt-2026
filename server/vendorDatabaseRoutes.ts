@@ -957,8 +957,10 @@ export function registerVendorDatabaseRoutes(app: Express) {
         }
 
         // Create contact(s) once per vendor - support up to 3 contacts
-        const existingContacts = await db.select().from(mfrContacts).where(eq(mfrContacts.vendorId, vendorId));
-        let contactIndex = existingContacts.length;
+        // Use pre-loaded cache (no per-row SELECT)
+        if (!contactKeysByVendorId.has(vendorId)) contactKeysByVendorId.set(vendorId, new Set());
+        const existingKeys = contactKeysByVendorId.get(vendorId)!;
+        let contactIndex = allExistingContacts.filter((c) => c.vendorId === vendorId).length;
 
         // Contact pairs: [name, email]
         const contactPairs = [
@@ -973,8 +975,8 @@ export function registerVendorDatabaseRoutes(app: Express) {
           // Extract first email if semicolon/comma separated
           const firstEmail = contactEmail.split(/[;,]/)[0].trim();
 
-          // Check if this contact already exists
-          const exists = existingContacts.some((c) => c.name?.toLowerCase() === contactName.toLowerCase());
+          // Check if this contact already exists (in-memory)
+          const exists = existingKeys.has(contactName.toLowerCase());
           if (!exists) {
             await db.insert(mfrContacts).values({
               vendorId,
@@ -983,6 +985,8 @@ export function registerVendorDatabaseRoutes(app: Express) {
               email: firstEmail || null,
               isPrimary: contactIndex === 0,
             });
+            existingKeys.add(contactName.toLowerCase());
+            if (firstEmail) existingKeys.add(firstEmail.toLowerCase());
             contactsCreated++;
             contactIndex++;
           }
@@ -1141,6 +1145,17 @@ export function registerVendorDatabaseRoutes(app: Express) {
         existingVendors.filter((v) => v.shortCode).map((v) => [v.shortCode!.toUpperCase(), v.id])
       );
 
+      // Pre-load ALL contacts once — avoids a SELECT per vendor row (the main timeout cause)
+      const allExistingContacts = await db.select().from(mfrContacts);
+      // contactKeysByVendorId: vendorId → Set of lowercase "name|email" dedup keys
+      const contactKeysByVendorId = new Map<number, Set<string>>();
+      for (const c of allExistingContacts) {
+        if (!contactKeysByVendorId.has(c.vendorId)) contactKeysByVendorId.set(c.vendorId, new Set());
+        const s = contactKeysByVendorId.get(c.vendorId)!;
+        if (c.name) s.add(c.name.toLowerCase());
+        if (c.email) s.add(c.email.toLowerCase());
+      }
+
       // Find data start row (skip header + INSTRUCTIONS)
       const findDataStart = (rows: any[][]) => {
         for (let i = 0; i < Math.min(10, rows.length); i++) {
@@ -1248,13 +1263,13 @@ export function registerVendorDatabaseRoutes(app: Express) {
           }
         }
 
-        // Create primary contact
+        // Create primary contact (in-memory dedup — no per-row SELECT)
         if (primaryContactName || primaryContactEmail) {
-          const existingContacts = await db.select().from(mfrContacts).where(eq(mfrContacts.vendorId, vendorId));
-          const alreadyExists = existingContacts.some(
-            (c) => c.name?.toLowerCase() === (primaryContactName || "").toLowerCase() ||
-                   (primaryContactEmail && c.email?.toLowerCase() === primaryContactEmail.toLowerCase())
-          );
+          if (!contactKeysByVendorId.has(vendorId)) contactKeysByVendorId.set(vendorId, new Set());
+          const ckeys = contactKeysByVendorId.get(vendorId)!;
+          const nameKey = (primaryContactName || "").toLowerCase();
+          const emailKey = (primaryContactEmail || "").toLowerCase();
+          const alreadyExists = (nameKey && ckeys.has(nameKey)) || (emailKey && ckeys.has(emailKey));
           if (!alreadyExists) {
             await db.insert(mfrContacts).values({
               vendorId,
@@ -1265,6 +1280,8 @@ export function registerVendorDatabaseRoutes(app: Express) {
               territory: primaryContactTerritory,
               isPrimary: true,
             });
+            if (nameKey) ckeys.add(nameKey);
+            if (emailKey) ckeys.add(emailKey);
             contactsCreated++;
           }
         }
@@ -1289,13 +1306,16 @@ export function registerVendorDatabaseRoutes(app: Express) {
         const territory = String(row[5] || "").trim() || null;
         const notes = String(row[6] || "").trim() || null;
 
-        const existingContacts = await db.select().from(mfrContacts).where(eq(mfrContacts.vendorId, vendorId));
-        const alreadyExists = existingContacts.some(
-          (c) => c.name?.toLowerCase() === contactName.toLowerCase() ||
-                 (email && c.email?.toLowerCase() === email.toLowerCase())
-        );
+        // In-memory dedup — no per-row SELECT
+        if (!contactKeysByVendorId.has(vendorId)) contactKeysByVendorId.set(vendorId, new Set());
+        const ckeys2 = contactKeysByVendorId.get(vendorId)!;
+        const nameKey2 = contactName.toLowerCase();
+        const emailKey2 = (email || "").toLowerCase();
+        const alreadyExists = ckeys2.has(nameKey2) || (emailKey2 && ckeys2.has(emailKey2));
         if (!alreadyExists) {
           await db.insert(mfrContacts).values({ vendorId, name: contactName, role, email, phone, territory, notes, isPrimary: false });
+          ckeys2.add(nameKey2);
+          if (emailKey2) ckeys2.add(emailKey2);
           contactsCreated++;
         }
       }
