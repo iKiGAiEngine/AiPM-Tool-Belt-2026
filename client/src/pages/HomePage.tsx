@@ -425,7 +425,7 @@ export default function HomePage() {
   );
 
   const userInitials = user?.initials || (user ? getUserInitials(user) : "HK");
-  const userEstimatorCode = (user?.initials || "").toUpperCase();
+  const userEstimatorCode = userInitials.toUpperCase();
 
   const activeStatuses = ["Lead", "Estimating"];
 
