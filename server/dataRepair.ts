@@ -121,19 +121,19 @@ export async function repairProposalStatuses(): Promise<void> {
   }
 }
 
-// One-time fix: assign Welbe Health - TESTING (26-1257) to the VO (ViewOnly) account
+// One-time fix: assign Welbe Health - TESTING (26-1257) to the VI account
 // so it appears in the ViewOnly user's Home HUD. Safe to leave in — idempotent.
 export async function assignWelbeTestingToViewOnly(): Promise<void> {
   const result = await db.execute(sql`
     UPDATE proposal_log_entries
-    SET nbs_estimator = 'VO'
+    SET nbs_estimator = 'VI'
     WHERE estimate_number = '26-1257'
-      AND (nbs_estimator IS DISTINCT FROM 'VO')
+      AND (nbs_estimator IS DISTINCT FROM 'VI')
     RETURNING id, project_name, estimate_number, nbs_estimator
   `);
   if (result.rows.length > 0) {
     const row = result.rows[0] as any;
-    console.log(`[DataRepair] Assigned "${row.project_name}" (${row.estimate_number}) nbs_estimator -> VO`);
+    console.log(`[DataRepair] Assigned "${row.project_name}" (${row.estimate_number}) nbs_estimator -> VI`);
   }
 }
 
