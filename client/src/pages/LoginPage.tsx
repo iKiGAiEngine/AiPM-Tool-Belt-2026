@@ -295,7 +295,7 @@ export default function LoginPage() {
             style={{
               width: "100%",
               maxWidth: "420px",
-              background: "rgba(14,17,24,0.88)",
+              background: "rgba(10,13,20,0.96)",
               backdropFilter: "blur(40px)",
               WebkitBackdropFilter: "blur(40px)",
               border: "1px solid rgba(200,164,78,0.12)",
@@ -338,12 +338,12 @@ export default function LoginPage() {
               </div>
             ) : (
               <div className="step-animate">
-                <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.3rem", textAlign: "center" }}>Sign in</h2>
-                <p style={{ fontSize: "0.82rem", color: "#8A8F9E", margin: "0 0 1.5rem", textAlign: "center" }}>Access is by authorized invite only. Contact your administrator for access.</p>
+                <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "#FFFFFF", margin: "0 0 0.3rem", textAlign: "center" }}>Sign in</h2>
+                <p style={{ fontSize: "0.82rem", color: "#B8BCC8", margin: "0 0 1.5rem", textAlign: "center" }}>Access is by authorized invite only. Contact your administrator for access.</p>
 
                 <form onSubmit={handleSubmit}>
                   <div style={{ marginBottom: "1rem" }}>
-                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, color: "#8A8F9E", marginBottom: "0.4rem" }}>Email</label>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, color: "#B8BCC8", marginBottom: "0.4rem" }}>Email</label>
                     <input
                       className="login-input"
                       type="email"
@@ -359,7 +359,7 @@ export default function LoginPage() {
                   </div>
 
                   <div style={{ marginBottom: "0.5rem" }}>
-                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, color: "#8A8F9E", marginBottom: "0.4rem" }}>Password</label>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, color: "#B8BCC8", marginBottom: "0.4rem" }}>Password</label>
                     <div style={{ position: "relative" }}>
                       <input
                         className="login-input"
