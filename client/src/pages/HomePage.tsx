@@ -353,7 +353,7 @@ export default function HomePage() {
   const { toast } = useToast();
   const { hasFeature } = useFeatureAccess();
   const [selectedToolForStats, setSelectedToolForStats] = useState<string | null>(null);
-  const effectiveTestMode = isAdmin && isTestMode;
+  const effectiveTestMode = isAdmin && !isViewer && isTestMode;
 
   const { data: usageSummary } = useQuery<UsageSummary>({
     queryKey: ["/api/tool-usage/summary"],
