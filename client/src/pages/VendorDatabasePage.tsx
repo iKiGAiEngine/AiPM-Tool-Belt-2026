@@ -1285,6 +1285,8 @@ export default function VendorDatabasePage() {
           onSuccess={() => {
             qc.invalidateQueries({ queryKey: ["/api/mfr/vendors"] });
             qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers"] });
+            qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers/with-stats"] });
+            qc.invalidateQueries({ queryKey: ["/api/mfr/dashboard"] });
           }}
         />
       )}
