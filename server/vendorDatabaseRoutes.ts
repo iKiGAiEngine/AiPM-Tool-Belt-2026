@@ -30,16 +30,21 @@ function getCertStatus(cert: { sent?: boolean | null; vendorConfirmed?: boolean 
 }
 
 async function getFullVendor(id: number) {
-  const [vendor] = await db.select().from(mfrVendors).where(eq(mfrVendors.id, id));
-  if (!vendor) return null;
-  const contacts = await db.select().from(mfrContacts).where(eq(mfrContacts.vendorId, id));
-  const products = await db.select().from(mfrProducts).where(eq(mfrProducts.vendorId, id));
-  const [pricing] = await db.select().from(mfrPricing).where(eq(mfrPricing.vendorId, id));
-  const [logistics] = await db.select().from(mfrLogistics).where(eq(mfrLogistics.vendorId, id));
-  const [taxInfo] = await db.select().from(mfrTaxInfo).where(eq(mfrTaxInfo.vendorId, id));
-  const certs = await db.select().from(mfrResaleCerts).where(eq(mfrResaleCerts.vendorId, id));
-  const files = await db.select().from(mfrFiles).where(eq(mfrFiles.vendorId, id));
-  return { ...vendor, contacts, products, pricing: pricing || null, logistics: logistics || null, taxInfo: taxInfo || null, certs, files };
+  try {
+    const [vendor] = await db.select().from(mfrVendors).where(eq(mfrVendors.id, id));
+    if (!vendor) return null;
+    const contacts = await db.select().from(mfrContacts).where(eq(mfrContacts.vendorId, id));
+    const products = await db.select().from(mfrProducts).where(eq(mfrProducts.vendorId, id));
+    const [pricing] = await db.select().from(mfrPricing).where(eq(mfrPricing.vendorId, id));
+    const [logistics] = await db.select().from(mfrLogistics).where(eq(mfrLogistics.vendorId, id));
+    const [taxInfo] = await db.select().from(mfrTaxInfo).where(eq(mfrTaxInfo.vendorId, id));
+    const certs = await db.select().from(mfrResaleCerts).where(eq(mfrResaleCerts.vendorId, id));
+    const files = await db.select().from(mfrFiles).where(eq(mfrFiles.vendorId, id));
+    return { ...vendor, contacts, products, pricing: pricing || null, logistics: logistics || null, taxInfo: taxInfo || null, certs, files };
+  } catch (err: any) {
+    console.error(`[getFullVendor(${id})] DIAGNOSTIC ERROR:`, err.message, err.stack?.split("\n")[1]);
+    throw err;
+  }
 }
 
 export function registerVendorDatabaseRoutes(app: Express) {
@@ -1105,9 +1110,18 @@ export function registerVendorDatabaseRoutes(app: Express) {
   // Sheet "Logistics & Pricing": vendor_short_code | avg_lead_time_days | ships_from | freight_notes | discount_tier | payment_terms | pricing_notes
 
   app.post("/api/mfr/upload-vendors-excel", async (req: Request, res: Response) => {
+    console.log("[VendorUpload] DIAGNOSTIC: handler reached. Content-Type:", req.headers["content-type"], "Content-Length:", req.headers["content-length"]);
     try {
       await new Promise<void>((resolve, reject) => {
-        upload.single("file")(req, res, (err) => { if (err) reject(err); else resolve(); });
+        upload.single("file")(req, res, (err) => {
+          if (err) {
+            console.error("[VendorUpload] DIAGNOSTIC: multer error:", err.message);
+            reject(err);
+          } else {
+            console.log("[VendorUpload] DIAGNOSTIC: multer ok. file present:", !!req.file, req.file ? `size=${req.file.size}` : "");
+            resolve();
+          }
+        });
       });
       const file = req.file;
       if (!file) return res.status(400).json({ error: "No file uploaded" });
