@@ -320,9 +320,7 @@ export default function LoginPage() {
               </div>
               <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.65rem", fontWeight: 700, letterSpacing: "-0.01em" }}>
                 <span style={{ background: "linear-gradient(135deg, var(--gold-light), var(--gold))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>AiPM</span>
-                <span
-                  style={{ color: "var(--text)" }}
-                  className="opacity-[1] border-t-[#dcdce0] border-r-[#dcdce0] border-b-[#dcdce0] border-l-[#dcdce0] bg-[transparent] text-[#717196]"> Tool Belt</span>
+                <span style={{ color: "#9A9FAE" }}> Tool Belt</span>
               </span>
             </div>
 
