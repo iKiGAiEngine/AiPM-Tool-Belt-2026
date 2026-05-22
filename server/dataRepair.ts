@@ -121,19 +121,36 @@ export async function repairProposalStatuses(): Promise<void> {
   }
 }
 
-// One-time fix: assign Welbe Health - TESTING (26-1257) to the VI account
-// so it appears in the ViewOnly user's Home HUD. Safe to leave in — idempotent.
+// Fix: assign Welbe Health - TESTING (26-1257) to VI and keep it in Estimating status.
+// Runs AFTER repairProposalStatuses so it can override the auto-Submitted logic.
+// Safe to leave in — idempotent.
 export async function assignWelbeTestingToViewOnly(): Promise<void> {
   const result = await db.execute(sql`
     UPDATE proposal_log_entries
-    SET nbs_estimator = 'VI'
+    SET nbs_estimator = 'VI',
+        estimate_status = 'Estimating'
     WHERE estimate_number = '26-1257'
-      AND (nbs_estimator IS DISTINCT FROM 'VI')
-    RETURNING id, project_name, estimate_number, nbs_estimator
+      AND (nbs_estimator IS DISTINCT FROM 'VI' OR estimate_status IS DISTINCT FROM 'Estimating')
+    RETURNING id, project_name, estimate_number, nbs_estimator, estimate_status
   `);
   if (result.rows.length > 0) {
     const row = result.rows[0] as any;
-    console.log(`[DataRepair] Assigned "${row.project_name}" (${row.estimate_number}) nbs_estimator -> VI`);
+    console.log(`[DataRepair] Pinned "${row.project_name}" (${row.estimate_number}) -> nbs_estimator=VI, estimate_status=Estimating`);
+  }
+}
+
+// Ensure the viewonly account has initials set so it appears in the estimator dropdown
+// and the Home HUD filter matches correctly.
+export async function repairViewOnlyUserInitials(): Promise<void> {
+  const result = await db.execute(sql`
+    UPDATE users
+    SET initials = 'VI'
+    WHERE email = 'viewonly@aipm.local'
+      AND (initials IS NULL OR initials = '')
+    RETURNING id, email, initials
+  `);
+  if (result.rows.length > 0) {
+    console.log(`[DataRepair] Set initials='VI' for viewonly@aipm.local`);
   }
 }
 
@@ -143,6 +160,7 @@ export async function runDataRepairs(): Promise<void> {
     await repairDuplicateEstimateNumbers();
     await repairProposalStatuses();
     await assignWelbeTestingToViewOnly();
+    await repairViewOnlyUserInitials();
   } catch (err) {
     console.error("[DataRepair] Error during data repair:", err);
   }
