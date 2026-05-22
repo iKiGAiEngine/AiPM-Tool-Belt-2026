@@ -1,0 +1,23 @@
+I'm getting a `net::ERR_FAILED` in production when I click "Upload & Import" on the Vendors tab of the Manufacturers & Vendors page. The browser is POSTing to a URL that starts with `/api/mfr/upload-vendors-...` and the request fails before getting a real response.
+
+Key clue: the **Manufacturers** upload on this same page works fine in production, and the **Vendors** upload works fine in dev. So this is specific to the vendors-upload route in production — most likely the backend route is missing, misnamed, mismounted, or the deployed build is stale.
+
+Please do all of the following and report back what you find at each step before changing anything:
+
+1. **Find the frontend call.** Search the entire repo for `upload-vendors` and show me every match. I specifically need the full path the frontend is POSTing to (the part hidden behind the `...` in my console). Tell me which file and line number sends the request.
+
+2. **Find the backend route.** In the server code (likely `server/routes.ts`, `server/index.ts`, or files under a `routes/` or `api/` folder), find the matching `app.post(...)` or `router.post(...)` handler for that exact path. Confirm: does it exist? Is it spelled identically to what the frontend calls? Is the router actually mounted on the Express app (look for `app.use(...)` that registers it)?
+
+3. **Compare to the working Manufacturers upload.** Find the Manufacturers upload route (the one that works) and show me how it's defined and mounted. Diff it against the Vendors upload route. Tell me every difference — middleware, multer config, path prefix, mount point, file-field name, anything.
+
+4. **Check multer / body limits.** If the route uses `multer`, show me the `limits` config (especially `fileSize`). Show me any `express.json({ limit: ... })` or `express.urlencoded({ limit: ... })` settings. Tell me if the vendors route uses a different limit than the manufacturers route.
+
+5. **Check the deployed vs. current code.** Tell me when the production deployment was last updated and whether the vendors-upload route exists in the currently deployed build. If Replit is serving stale code, say so explicitly.
+
+6. **Check server logs.** Look at the most recent server console output. Is there any error, stack trace, or log line referencing the vendors upload, multer, xlsx parsing, or the Drizzle/Postgres insert? Paste the relevant lines.
+
+After you've gathered all of that, give me:
+- A one-paragraph plain-English diagnosis of what's actually broken (no jargon — I'm a vibe coder).
+- The exact file(s) and line(s) that need to change.
+- The proposed fix as a diff I can review before you apply it.
+- **Do not change any code yet.** Wait for my approval before editing anything.
