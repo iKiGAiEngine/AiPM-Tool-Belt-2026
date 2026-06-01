@@ -111,11 +111,20 @@ export default function ScheduleConverterPage() {
   }, []);
 
   const extractSingleImage = async (file: File): Promise<ExtractionResult> => {
-    const formData = new FormData();
-    formData.append("image", file);
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        resolve(dataUrl.split(",")[1]);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
     const response = await fetch("/api/toolbelt/schedule-to-estimate", {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: base64, mimeType: file.type || "image/png" }),
     });
     const data = await response.json();
     if (!response.ok) {

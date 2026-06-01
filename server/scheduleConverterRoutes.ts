@@ -41,18 +41,25 @@ export function registerScheduleConverterRoutes(app: Express) {
     }
   });
 
-  app.post("/api/toolbelt/schedule-to-estimate", handleMulterError, async (req: Request, res: Response) => {
+  app.post("/api/toolbelt/schedule-to-estimate", async (req: Request, res: Response) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ message: "No image uploaded" });
+      const { image, mimeType } = req.body || {};
+
+      if (!image || typeof image !== "string") {
+        return res.status(400).json({ message: "No image provided" });
       }
 
       if (!process.env.OPENAI_API_KEY) {
         return res.status(500).json({ message: "OpenAI API key not configured" });
       }
 
-      const mimeType = req.file.mimetype || "image/png";
-      const result = await extractScheduleWithAI(req.file.buffer, mimeType);
+      const imageBuffer = Buffer.from(image, "base64");
+      const resolvedMimeType =
+        typeof mimeType === "string" && mimeType.startsWith("image/")
+          ? mimeType
+          : "image/png";
+
+      const result = await extractScheduleWithAI(imageBuffer, resolvedMimeType);
       res.json(result);
     } catch (error: any) {
       console.error("AI schedule extraction error:", error);
