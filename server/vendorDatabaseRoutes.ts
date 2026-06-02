@@ -254,12 +254,27 @@ export function registerVendorDatabaseRoutes(app: Express) {
 
   // ---- VENDORS ----
 
+  app.get("/api/mfr/vendors/scope-tags", async (req: Request, res: Response) => {
+    try {
+      const rows = await db.select({ scopes: mfrVendors.scopes }).from(mfrVendors);
+      const tagSet = new Set<string>();
+      for (const row of rows) {
+        if (Array.isArray(row.scopes)) {
+          for (const tag of row.scopes) { if (tag) tagSet.add(tag); }
+        }
+      }
+      res.json(Array.from(tagSet).sort((a, b) => a.localeCompare(b)));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to load scope tags" });
+    }
+  });
+
   app.get("/api/mfr/vendors", async (req: Request, res: Response) => {
     try {
-      const { search, category } = req.query as Record<string, string>;
+      const { search, scope } = req.query as Record<string, string>;
       let rows = await db.select().from(mfrVendors);
 
-      if (category) rows = rows.filter((v) => v.category === category);
+      if (scope) rows = rows.filter((v) => Array.isArray(v.scopes) && (v.scopes as string[]).includes(scope));
 
       if (search) {
         const s = search.toLowerCase();

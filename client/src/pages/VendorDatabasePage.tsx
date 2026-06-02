@@ -20,11 +20,10 @@ interface MfrLogistics { avgLeadTimeDays: number | null; shipsFrom: string | nul
 interface MfrTaxInfo { ein: string | null; w9OnFile: boolean | null; w9ReceivedDate: string | null; is1099Eligible: boolean | null; taxExempt: boolean | null; exemptionType: string | null; exemptionCertNumber: string | null; nexusStates: string[] | null; taxNotes: string | null; }
 interface MfrResaleCert { id: number; vendorId: number; vendorName?: string; state: string; certType: string | null; certNumber: string | null; issueDate: string | null; expirationDate: string | null; sent: boolean | null; dateSent: string | null; contactSentTo: string | null; vendorConfirmed: boolean | null; confirmationDate: string | null; blanket: boolean | null; projectName: string | null; notes: string | null; status: string; }
 interface MfrFile { id: number; fileType: string | null; originalName: string | null; mimeType: string | null; sizeBytes: number | null; uploadedBy: string | null; uploadedAt: string; notes: string | null; }
-interface MfrVendorSummary { id: number; name: string; legalName?: string | null; shortCode?: string | null; aliases?: string[] | null; category: string | null; website: string | null; tags: string[]; scopes: string[] | null; manufacturerIds: number[] | null; manufacturerDirect: boolean | null; contactCount: number; productCount: number; certCount: number; w9OnFile: boolean; hasExpiredCert: boolean; hasExpiringCert: boolean; }
+interface MfrVendorSummary { id: number; name: string; legalName?: string | null; shortCode?: string | null; aliases?: string[] | null; website: string | null; tags: string[]; scopes: string[] | null; manufacturerIds: number[] | null; manufacturerDirect: boolean | null; contactCount: number; productCount: number; certCount: number; w9OnFile: boolean; hasExpiredCert: boolean; hasExpiringCert: boolean; }
 interface MfrVendorFull extends MfrVendorSummary { notes: string | null; contacts: MfrContact[]; products: MfrProduct[]; pricing: MfrPricing | null; logistics: MfrLogistics | null; taxInfo: MfrTaxInfo | null; certs: MfrResaleCert[]; files: MfrFile[]; }
 interface DashboardData { totalVendors: number; w9OnFile: number; w9Missing: number; certsTotal: number; certsSent: number; certsConfirmed: number; certsExpiring: number; certsExpired: number; certsNotSent: number; vendorsNoCerts: { id: number; name: string }[]; }
 
-const CATEGORIES = ["Toilet Accessories", "Partitions", "Lockers", "Appliances", "Fire Protection", "Postal Specialties", "Visual Display Units", "Flagpoles", "Other"];
 
 // Scope tags for contacts. Mirrors ALL_SCOPES in EstimatingModulePage so contacts
 // can be tagged with the scope category they cover for RFQ recipient picking.
@@ -621,7 +620,7 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
     },
   });
 
-  const [form, setForm] = useState({ name: "", legalName: "", shortCode: "", aliases: [] as string[], category: "", website: "", notes: "", tags: [] as string[], scopes: [] as string[], manufacturerIds: [] as number[], manufacturerDirect: false });
+  const [form, setForm] = useState({ name: "", legalName: "", shortCode: "", aliases: [] as string[], website: "", notes: "", tags: [] as string[], scopes: [] as string[], manufacturerIds: [] as number[], manufacturerDirect: false });
   const [pricingForm, setPricingForm] = useState({ discountTier: "", paymentTerms: "", notes: "" });
   const [logisticsForm, setLogisticsForm] = useState({ avgLeadTimeDays: "", shipsFrom: "", freightNotes: "" });
   const [taxForm, setTaxForm] = useState({ ein: "", w9OnFile: false, w9ReceivedDate: "", is1099Eligible: false, taxExempt: false, exemptionType: "", exemptionCertNumber: "", nexusStates: [] as string[], taxNotes: "" });
@@ -641,7 +640,7 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
 
   useMemo(() => {
     if (vendor && !initialized) {
-      setForm({ name: vendor.name, legalName: vendor.legalName || vendor.name || "", shortCode: vendor.shortCode || "", aliases: vendor.aliases || [], category: vendor.category || "", website: vendor.website || "", notes: vendor.notes || "", tags: vendor.tags || [], scopes: vendor.scopes || [], manufacturerIds: vendor.manufacturerIds || [], manufacturerDirect: !!vendor.manufacturerDirect });
+      setForm({ name: vendor.name, legalName: vendor.legalName || vendor.name || "", shortCode: vendor.shortCode || "", aliases: vendor.aliases || [], website: vendor.website || "", notes: vendor.notes || "", tags: vendor.tags || [], scopes: vendor.scopes || [], manufacturerIds: vendor.manufacturerIds || [], manufacturerDirect: !!vendor.manufacturerDirect });
       setPricingForm({ discountTier: vendor.pricing?.discountTier || "", paymentTerms: vendor.pricing?.paymentTerms || "", notes: vendor.pricing?.notes || "" });
       setLogisticsForm({ avgLeadTimeDays: String(vendor.logistics?.avgLeadTimeDays || ""), shipsFrom: vendor.logistics?.shipsFrom || "", freightNotes: vendor.logistics?.freightNotes || "" });
       setTaxForm({ ein: vendor.taxInfo?.ein || "", w9OnFile: !!vendor.taxInfo?.w9OnFile, w9ReceivedDate: vendor.taxInfo?.w9ReceivedDate || "", is1099Eligible: !!vendor.taxInfo?.is1099Eligible, taxExempt: !!vendor.taxInfo?.taxExempt, exemptionType: vendor.taxInfo?.exemptionType || "", exemptionCertNumber: vendor.taxInfo?.exemptionCertNumber || "", nexusStates: vendor.taxInfo?.nexusStates || [], taxNotes: vendor.taxInfo?.taxNotes || "" });
@@ -777,7 +776,6 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
           <Field label="Display Name"><InpText value={form.name} onChange={(v) => setForm({ ...form, name: v })} /></Field>
           <Field label="Legal Name"><InpText value={form.legalName} onChange={(v) => setForm({ ...form, legalName: v })} placeholder="Pacific Building Specialties, Inc." /></Field>
           <Field label="Short Code"><InpText value={form.shortCode} onChange={(v) => setForm({ ...form, shortCode: v.toUpperCase().slice(0, 10) })} placeholder="e.g. PBS" /></Field>
-          <Field label="Category"><InpSelect value={form.category} onChange={(v) => setForm({ ...form, category: v })} options={CATEGORIES} /></Field>
           <Field label="Website"><InpText value={form.website} onChange={(v) => setForm({ ...form, website: v })} placeholder="https://" /></Field>
           <Field label="Tags"><TagInput tags={form.tags} onChange={(t) => setForm({ ...form, tags: t })} /></Field>
         </div>
@@ -1192,19 +1190,25 @@ export default function VendorDatabasePage() {
   const [tab, setTab] = useState<"vendors" | "certs" | "manufacturers">("vendors");
   const [selectedVendorId, setSelectedVendorId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [scopeFilter, setScopeFilter] = useState("");
   const [showAddVendor, setShowAddVendor] = useState(false);
   const [showExcelUpload, setShowExcelUpload] = useState<UploadType | null>(null);
-  const [newVendor, setNewVendor] = useState({ name: "", legalName: "", shortCode: "", aliases: [] as string[], category: "", website: "", notes: "", scopes: [] as string[], manufacturerIds: [] as number[] });
+  const [newVendor, setNewVendor] = useState({ name: "", legalName: "", shortCode: "", aliases: [] as string[], website: "", notes: "", scopes: [] as string[], manufacturerIds: [] as number[] });
 
   const { data: allMfrs = [] } = useQuery<MfrManufacturerRow[]>({ queryKey: ["/api/mfr/manufacturers"] });
 
+  const { data: scopeTagsRaw } = useQuery<string[]>({
+    queryKey: ["/api/mfr/vendors/scope-tags"],
+    queryFn: () => fetch("/api/mfr/vendors/scope-tags", { credentials: "include" }).then((r) => r.ok ? r.json() : []),
+  });
+  const scopeTags: string[] = Array.isArray(scopeTagsRaw) ? scopeTagsRaw : [];
+
   const { data: vendorsRaw, isLoading } = useQuery<MfrVendorSummary[]>({
-    queryKey: ["/api/mfr/vendors", search, categoryFilter],
+    queryKey: ["/api/mfr/vendors", search, scopeFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
-      if (categoryFilter) params.set("category", categoryFilter);
+      if (scopeFilter) params.set("scope", scopeFilter);
       const r = await fetch(`/api/mfr/vendors?${params}`, { credentials: "include" });
       if (!r.ok) throw new Error(`Failed to load vendors (${r.status})`);
       const json = await r.json();
@@ -1237,7 +1241,7 @@ export default function VendorDatabasePage() {
       }
       qc.invalidateQueries({ queryKey: ["/api/mfr/vendors"] });
       setShowAddVendor(false);
-      setNewVendor({ name: "", legalName: "", shortCode: "", aliases: [], category: "", website: "", notes: "", scopes: [], manufacturerIds: [] });
+      setNewVendor({ name: "", legalName: "", shortCode: "", aliases: [], website: "", notes: "", scopes: [], manufacturerIds: [] });
       setSelectedVendorId(v.id);
       toast({ title: "Vendor created" });
     } catch (e: any) {
@@ -1347,9 +1351,9 @@ export default function VendorDatabasePage() {
               <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />
               <input style={{ ...inputStyle, paddingLeft: 30 }} placeholder="Search vendors, contacts, products…" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-vendor-search" />
             </div>
-            <select style={{ ...inputStyle, width: "auto" }} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} data-testid="select-category-filter">
-              <option value="">All Categories</option>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            <select style={{ ...inputStyle, width: "auto" }} value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value)} data-testid="select-category-filter">
+              <option value="">All Scopes</option>
+              {scopeTags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
             </select>
             <Btn label="Add Vendor" variant="gold" icon={Plus} onClick={() => setShowAddVendor(true)} />
           </div>
@@ -1368,8 +1372,7 @@ export default function VendorDatabasePage() {
                   <AliasChipInput aliases={newVendor.aliases} onChange={(a) => setNewVendor({ ...newVendor, aliases: a })} testId="input-newvendor-aliases" />
                 </Field>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                <Field label="Category"><InpSelect value={newVendor.category} onChange={(v) => setNewVendor({ ...newVendor, category: v })} options={CATEGORIES} /></Field>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
                 <Field label="Website"><InpText value={newVendor.website} onChange={(v) => setNewVendor({ ...newVendor, website: v })} placeholder="https://" /></Field>
               </div>
               <div style={{ marginBottom: 12 }}>
@@ -1413,7 +1416,6 @@ export default function VendorDatabasePage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)" }}>{v.name}</span>
-                      {v.category && <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 4, background: "var(--bg-page)", color: "var(--text-dim)", border: "1px solid var(--border-ds)" }}>{v.category}</span>}
                       {(v.tags as string[]).map((t, i) => <span key={i} style={{ fontSize: 10, padding: "1px 7px", borderRadius: 10, background: "rgba(91,141,239,0.12)", color: "#5B8DEF" }}>{t}</span>)}
                     </div>
                     <div style={{ display: "flex", gap: 14, marginTop: 3 }}>
