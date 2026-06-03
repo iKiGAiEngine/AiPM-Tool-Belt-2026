@@ -2129,7 +2129,8 @@ ${html}
         const count = toImport.filter(i => i._assignedScope === s).length;
         return `${scopeLabel} (${count})`;
       }).join(", ");
-      toast({ title: `${data.created} items added`, description: scopeBreakdown });
+      const skippedSuffix = data.skipped > 0 ? `, ${data.skipped} skipped — needs a name` : "";
+      toast({ title: `${data.created} items added${skippedSuffix}`, description: scopeBreakdown });
     } catch (err: any) {
       toast({ title: "Import failed", description: err.message, variant: "destructive" });
     } finally {

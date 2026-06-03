@@ -1622,14 +1622,23 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
       const mfrByLowerName = new Map(allMfrs.map(m => [m.name.trim().toLowerCase(), m.id]));
 
       const created: any[] = [];
+      let skipped = 0;
       for (const item of items) {
-        if (!item.category || !item.name) continue;
+        // Resolve a display name from the first non-empty source field.
+        const resolvedName = (
+          (item.description || "").toString().trim() ||
+          (item.name        || "").toString().trim() ||
+          (item.planCallout || "").toString().trim() ||
+          (item.model       || "").toString().trim() ||
+          ((item.manufacturer || item.mfr) || "").toString().trim()
+        );
+        if (!item.category || !resolvedName) { skipped++; continue; }
         const mfrName: string | null = (item.manufacturer || item.mfr || "").toString().trim() || null;
         const matchedMfrId = mfrName ? (mfrByLowerName.get(mfrName.toLowerCase()) ?? null) : null;
         const [row] = await db.insert(estimateLineItems).values({
           estimateId,
           category: item.category,
-          name: item.description || item.name,
+          name: resolvedName,
           model: item.modelNumber || item.model || null,
           mfr: mfrName,
           manufacturerId: matchedMfrId,
@@ -1646,7 +1655,7 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
         created.push(row);
       }
 
-      res.status(201).json({ created: created.length, items: created });
+      res.status(201).json({ created: created.length, skipped, items: created });
     } catch (err: any) {
       console.error("POST import-items error:", err);
       res.status(500).json({ message: err.message || "Failed to import items" });
