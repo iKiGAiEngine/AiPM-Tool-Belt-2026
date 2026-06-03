@@ -2046,7 +2046,7 @@ ${html}
       const data = await r.json();
       const items: ExtractedItem[] = (data.items || []).map((item: any, i: number) => ({
         ...item,
-        _selected: item.suggestedScope !== "not_div10",
+        _selected: item.suggestedScope !== "not_div10" && ![item.description, item.planCallout, item.name, item.manufacturer, item.model, item.suggestedScope].some(f => /ofci/i.test(f || "")),
         _assignedScope: item.suggestedScope !== "not_div10" ? item.suggestedScope : null,
         _id: `item-${Date.now()}-${i}`,
       }));
@@ -2071,7 +2071,7 @@ ${html}
       const data = await r.json();
       const items: ExtractedItem[] = (data.items || []).map((item: any, i: number) => ({
         ...item,
-        _selected: item.suggestedScope !== "not_div10",
+        _selected: item.suggestedScope !== "not_div10" && ![item.description, item.planCallout, item.name, item.manufacturer, item.model, item.suggestedScope].some(f => /ofci/i.test(f || "")),
         _assignedScope: item.suggestedScope !== "not_div10" ? item.suggestedScope : null,
         _id: `item-${Date.now()}-${i}`,
       }));
