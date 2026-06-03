@@ -1353,7 +1353,11 @@ export default function VendorDatabasePage() {
             </div>
             <select style={{ ...inputStyle, width: "auto" }} value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value)} data-testid="select-category-filter">
               <option value="">All Scopes</option>
-              {scopeTags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+              {scopeTags.map((tag) => {
+                const found = CONTACT_SCOPE_OPTIONS.find((o) => o.id === tag);
+                const label = found ? found.label : tag.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                return <option key={tag} value={tag}>{label}</option>;
+              })}
             </select>
             <Btn label="Add Vendor" variant="gold" icon={Plus} onClick={() => setShowAddVendor(true)} />
           </div>
