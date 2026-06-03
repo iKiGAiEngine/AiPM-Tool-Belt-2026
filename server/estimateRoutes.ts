@@ -120,8 +120,8 @@ function matchesTagCode(text: string, code: string): boolean {
   return re.test(text);
 }
 
-function suggestScope(description: string, mfr: string): { scopeId: string | null; confidence: number } {
-  const text = `${description} ${mfr}`.toLowerCase();
+function suggestScope(description: string, mfr: string, planCallout = ""): { scopeId: string | null; confidence: number } {
+  const text = `${description} ${mfr} ${planCallout}`.toLowerCase();
   let best: string | null = null;
   let bestScore = 0;
 
@@ -1567,7 +1567,7 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
         }
 
         const enriched = results.map(item => {
-          const { scopeId, confidence } = suggestScope(item.description || "", item.manufacturer || "");
+          const { scopeId, confidence } = suggestScope(item.description || "", item.manufacturer || "", item.planCallout || "");
           return {
             ...item,
             suggestedScope: scopeId,
@@ -1594,7 +1594,7 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
 
       const result = await extractScheduleFromText(text.trim());
       const enriched = result.items.map(item => {
-        const { scopeId, confidence } = suggestScope(item.description || "", item.manufacturer || "");
+        const { scopeId, confidence } = suggestScope(item.description || "", item.manufacturer || "", item.planCallout || "");
         return {
           ...item,
           suggestedScope: scopeId,

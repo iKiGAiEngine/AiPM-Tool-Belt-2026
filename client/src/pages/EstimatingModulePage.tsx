@@ -2087,10 +2087,6 @@ ${html}
     if (!estimateId) return;
     const toImport = extractedItems.filter(i => i._selected && i._assignedScope);
     const unassigned = extractedItems.filter(i => i._selected && !i._assignedScope);
-    if (unassigned.length > 0) {
-      toast({ title: "Unassigned items", description: `${unassigned.length} items have no scope assigned. Assign a scope or deselect them.`, variant: "destructive" });
-      return;
-    }
     if (toImport.length === 0) {
       toast({ title: "Nothing to import", description: "Select items to import." });
       return;
@@ -2118,19 +2114,27 @@ ${html}
       // imported line items) actually re-hydrates local state.
       initializedEstimateIdRef.current = null;
       qc.invalidateQueries({ queryKey: ["/api/estimates/by-proposal", proposalLogId] });
-      setShowScheduleExtractor(false);
-      setExtractedItems([]);
-      setScheduleClipboardImages([]);
-      setScheduleImagePasteCount(0);
-      setExtractPasteText("");
-      setSchedulePasteCount(0);
+      // If every checked row had a scope, close the panel and clear state.
+      // If some rows had no scope, keep the panel open so the user can assign them.
+      if (unassigned.length === 0) {
+        setShowScheduleExtractor(false);
+        setExtractedItems([]);
+        setScheduleClipboardImages([]);
+        setScheduleImagePasteCount(0);
+        setExtractPasteText("");
+        setSchedulePasteCount(0);
+      } else {
+        // Leave only the unassigned rows in the list so the user can scope & re-import them.
+        setExtractedItems(unassigned);
+      }
       const scopeBreakdown = newScopes.map(s => {
         const scopeLabel = ALL_SCOPES.find(sc => sc.id === s)?.label || s;
         const count = toImport.filter(i => i._assignedScope === s).length;
         return `${scopeLabel} (${count})`;
       }).join(", ");
       const skippedSuffix = data.skipped > 0 ? `, ${data.skipped} skipped — needs a name` : "";
-      toast({ title: `${data.created} items added${skippedSuffix}`, description: scopeBreakdown });
+      const unassignedSuffix = unassigned.length > 0 ? `, ${unassigned.length} need a scope` : "";
+      toast({ title: `${data.created} items added${skippedSuffix}${unassignedSuffix}`, description: scopeBreakdown || undefined });
     } catch (err: any) {
       toast({ title: "Import failed", description: err.message, variant: "destructive" });
     } finally {
