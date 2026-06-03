@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ScanSearch, Receipt, FolderPlus, ClipboardList,
   Loader2, FlaskConical,
@@ -352,6 +352,7 @@ export default function HomePage() {
   const { isAdmin, isViewer, user } = useAuth();
   const { toast } = useToast();
   const { hasFeature } = useFeatureAccess();
+  const queryClient = useQueryClient();
   const [selectedToolForStats, setSelectedToolForStats] = useState<string | null>(null);
   const effectiveTestMode = isAdmin && !isViewer && isTestMode;
 
@@ -518,12 +519,21 @@ export default function HomePage() {
           credentials: "include",
         });
         if (!res.ok) {
-          console.warn("Acknowledge request failed:", res.status);
-          patchAckCache(entryId, false); // roll back on failure
+          patchAckCache(entryId, false);
+          const body = await res.json().catch(() => ({}));
+          toast({
+            title: "Couldn't acknowledge bid",
+            description: body?.message || `Server error (${res.status}) — please try again.`,
+            variant: "destructive",
+          });
         }
-      } catch (err) {
-        console.warn("Failed to acknowledge entry:", err);
-        patchAckCache(entryId, false); // roll back on failure
+      } catch (err: any) {
+        patchAckCache(entryId, false);
+        toast({
+          title: "Couldn't acknowledge bid",
+          description: err?.message || "Network error — please check your connection and try again.",
+          variant: "destructive",
+        });
       }
     }, 700);
   }, [patchAckCache]);
