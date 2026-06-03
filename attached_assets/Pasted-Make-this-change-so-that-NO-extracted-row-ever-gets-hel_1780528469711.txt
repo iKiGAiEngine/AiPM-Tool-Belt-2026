@@ -1,0 +1,31 @@
+Make this change so that NO extracted row ever gets held back or shows blank,
+regardless of its callout. This replaces the current "needs a scope" hold-back
+behavior. Find the exact lines first, then apply, then show me what changed.
+
+GOAL: Any checked extracted row should carry over into the Line Items tab, even
+when no scope could be detected. A row should only ever be skipped if it has no
+usable label at all — never just because its scope is unknown.
+
+CHANGE 1 — Carry unscoped rows into an "Uncategorized" bucket.
+In EstimatingModulePage.tsx importExtractedItems: right now rows with no
+_assignedScope are pulled into "unassigned" and held back in the panel. Instead,
+include them in the import. For any checked row whose _assignedScope is empty/null,
+send its category as "uncategorized" so it saves as a real line item under an
+"Uncategorized" scope that the user can re-tag later in the Line Items tab. Remove
+the behavior that holds these rows back or blocks the import. Keep the soft toast
+notice telling the user how many landed in Uncategorized.
+
+CHANGE 2 — Make sure the "Uncategorized" scope/category is a valid bucket.
+Confirm the Line Items tab can display a row whose category is "uncategorized" —
+i.e. there's a scope tab or grouping it falls under so the user can see and re-tag
+it. If the tab only shows known scopes, add "Uncategorized" as a visible bucket.
+Tell me how categories/scopes are listed and what you changed to include it.
+
+CHANGE 3 — Never save or show a blank name (applies to ALL rows, any callout).
+Confirm the name resolution (description → name → planCallout → model → mfr) is
+used both when SAVING the row and when DISPLAYING it in the review list, so any
+callout-only row — "New FE", "CG1", "PWD1", anything — shows and saves its callout
+as the label instead of appearing blank. Fix wherever this fallback is missing.
+
+Report before/after for each change and explain each in one plain sentence. Do not
+hold any checked row back from import for lack of scope.

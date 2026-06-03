@@ -48,6 +48,7 @@ const ALL_SCOPES = [
   { id: "knox_box",         label: "Knox Box",             csi: "08 71 13" },
   { id: "site_furnishing",  label: "Site Furnishing",      csi: "12 93 00" },
 ];
+const UNCATEGORIZED_SCOPE = { id: "uncategorized", label: "Uncategorized", csi: "" };
 
 const CHECKLIST_TEMPLATE = [
   { id: "c1", stage: "intake", label: "Spec sections identified and reviewed", done: false, auto: false },
@@ -1046,7 +1047,10 @@ function EstimatingModuleInner() {
   }, [estimateData, proposalEntry]);
 
   // ── Categories derived from active scopes ──
-  const CATEGORIES = useMemo(() => ALL_SCOPES.filter(s => activeScopes.includes(s.id)), [activeScopes]);
+  const CATEGORIES = useMemo(() => {
+    const base = ALL_SCOPES.filter(s => activeScopes.includes(s.id));
+    return activeScopes.includes("uncategorized") ? [...base, UNCATEGORIZED_SCOPE] : base;
+  }, [activeScopes]);
 
   useEffect(() => {
     if (CATEGORIES.length > 0 && (!activeCat || !activeScopes.includes(activeCat))) {
@@ -1076,7 +1080,7 @@ function EstimatingModuleInner() {
 
   const calcData = useMemo(() => {
     const data: Record<string, any> = {};
-    ALL_SCOPES.forEach(cat => {
+    [...ALL_SCOPES, ...(activeScopes.includes("uncategorized") ? [UNCATEGORIZED_SCOPE] : [])].forEach(cat => {
       const items = lineItems.filter(i => i.category === cat.id);
       const catQ = quotes.filter(q => q.category === cat.id);
       const material = items.reduce((s, i) => s + n(i.unitCost) * i.qty, 0);
@@ -2046,6 +2050,7 @@ ${html}
       const data = await r.json();
       const items: ExtractedItem[] = (data.items || []).map((item: any, i: number) => ({
         ...item,
+        description: (item.description || "").trim() || (item.planCallout || "").trim() || (item.modelNumber || item.model || "").trim() || (item.manufacturer || "").trim(),
         _selected: item.suggestedScope !== "not_div10" && ![item.description, item.planCallout, item.name, item.manufacturer, item.model, item.suggestedScope].some(f => /ofci/i.test(f || "")),
         _assignedScope: item.suggestedScope !== "not_div10" ? item.suggestedScope : null,
         _id: `item-${Date.now()}-${i}`,
@@ -2071,6 +2076,7 @@ ${html}
       const data = await r.json();
       const items: ExtractedItem[] = (data.items || []).map((item: any, i: number) => ({
         ...item,
+        description: (item.description || "").trim() || (item.planCallout || "").trim() || (item.modelNumber || item.model || "").trim() || (item.manufacturer || "").trim(),
         _selected: item.suggestedScope !== "not_div10" && ![item.description, item.planCallout, item.name, item.manufacturer, item.model, item.suggestedScope].some(f => /ofci/i.test(f || "")),
         _assignedScope: item.suggestedScope !== "not_div10" ? item.suggestedScope : null,
         _id: `item-${Date.now()}-${i}`,
@@ -2085,9 +2091,9 @@ ${html}
 
   const importExtractedItems = useCallback(async () => {
     if (!estimateId) return;
-    const toImport = extractedItems.filter(i => i._selected && i._assignedScope);
-    const unassigned = extractedItems.filter(i => i._selected && !i._assignedScope);
-    if (toImport.length === 0) {
+    const allChecked = extractedItems.filter(i => i._selected);
+    const unscoped = allChecked.filter(i => !i._assignedScope);
+    if (allChecked.length === 0) {
       toast({ title: "Nothing to import", description: "Select items to import." });
       return;
     }
@@ -2096,12 +2102,15 @@ ${html}
       const r = await fetch(`/api/estimates/${estimateId}/import-items`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: toImport.map(i => ({ category: i._assignedScope, planCallout: i.planCallout || null, name: i.description, model: i.modelNumber || null, mfr: i.manufacturer || null, qty: i.quantity, uom: i.uom || "EA", source: "schedule", extractionConfidence: i.confidence })) }),
+        body: JSON.stringify({ items: allChecked.map(i => ({ category: i._assignedScope || "uncategorized", planCallout: i.planCallout || null, name: i.description, model: i.modelNumber || null, mfr: i.manufacturer || null, qty: i.quantity, uom: i.uom || "EA", source: "schedule", extractionConfidence: i.confidence })) }),
       });
       if (!r.ok) throw new Error((await r.json()).message || "Import failed");
       const data = await r.json();
-      // Auto-check scopes that received items
-      const newScopes = [...new Set(toImport.map(i => i._assignedScope!).filter(Boolean))];
+      // Auto-check scopes that received items; include "uncategorized" if any rows had no scope
+      const newScopes = [...new Set([
+        ...allChecked.filter(i => i._assignedScope).map(i => i._assignedScope!),
+        ...(unscoped.length > 0 ? ["uncategorized"] : []),
+      ])];
       const mergedScopes = [...new Set([...activeScopes, ...newScopes])];
       setActiveScopes(mergedScopes);
       // Persist merged scopes to DB immediately — before invalidateQueries triggers a
@@ -2114,27 +2123,21 @@ ${html}
       // imported line items) actually re-hydrates local state.
       initializedEstimateIdRef.current = null;
       qc.invalidateQueries({ queryKey: ["/api/estimates/by-proposal", proposalLogId] });
-      // If every checked row had a scope, close the panel and clear state.
-      // If some rows had no scope, keep the panel open so the user can assign them.
-      if (unassigned.length === 0) {
-        setShowScheduleExtractor(false);
-        setExtractedItems([]);
-        setScheduleClipboardImages([]);
-        setScheduleImagePasteCount(0);
-        setExtractPasteText("");
-        setSchedulePasteCount(0);
-      } else {
-        // Leave only the unassigned rows in the list so the user can scope & re-import them.
-        setExtractedItems(unassigned);
-      }
-      const scopeBreakdown = newScopes.map(s => {
+      // Always close and clear — no rows are ever held back
+      setShowScheduleExtractor(false);
+      setExtractedItems([]);
+      setScheduleClipboardImages([]);
+      setScheduleImagePasteCount(0);
+      setExtractPasteText("");
+      setSchedulePasteCount(0);
+      const scopeBreakdown = newScopes.filter(s => s !== "uncategorized").map(s => {
         const scopeLabel = ALL_SCOPES.find(sc => sc.id === s)?.label || s;
-        const count = toImport.filter(i => i._assignedScope === s).length;
+        const count = allChecked.filter(i => i._assignedScope === s).length;
         return `${scopeLabel} (${count})`;
       }).join(", ");
+      const uncategorizedSuffix = unscoped.length > 0 ? `, ${unscoped.length} in Uncategorized` : "";
       const skippedSuffix = data.skipped > 0 ? `, ${data.skipped} skipped — needs a name` : "";
-      const unassignedSuffix = unassigned.length > 0 ? `, ${unassigned.length} need a scope` : "";
-      toast({ title: `${data.created} items added${skippedSuffix}${unassignedSuffix}`, description: scopeBreakdown || undefined });
+      toast({ title: `${data.created} items added${uncategorizedSuffix}${skippedSuffix}`, description: scopeBreakdown || undefined });
     } catch (err: any) {
       toast({ title: "Import failed", description: err.message, variant: "destructive" });
     } finally {
