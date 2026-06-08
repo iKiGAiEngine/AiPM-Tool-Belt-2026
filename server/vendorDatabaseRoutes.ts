@@ -1406,7 +1406,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
     }
   });
 
-  // ---- EXPORT ----
+  // ---- EXPORT (JSON — kept for internal use) ----
 
   app.get("/api/mfr/export", async (req: Request, res: Response) => {
     try {
@@ -1414,6 +1414,179 @@ export function registerVendorDatabaseRoutes(app: Express) {
       const result = await Promise.all(vendors.map((v) => getFullVendor(v.id)));
       res.json(result);
     } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- EXPORT EXCEL (round-trip compatible with upload-manufacturers-excel + upload-vendors-excel) ----
+
+  app.get("/api/mfr/export-excel", async (req: Request, res: Response) => {
+    try {
+      const wb = new ExcelJS.Workbook();
+
+      // ---- Sheet 1: Manufacturers ----
+      // Columns match POST /api/mfr/upload-manufacturers-excel:
+      // short_code | name | legal_name | aliases | scopes | website | primary_contact | contact_email | contact_phone | address | notes
+      const mfrSheet = wb.addWorksheet("Manufacturers");
+      const mfrHeader = ["short_code", "name", "legal_name", "aliases", "scopes", "website", "primary_contact", "contact_email", "contact_phone", "address", "notes"];
+      const mfrHeaderRow = mfrSheet.addRow(mfrHeader);
+      mfrHeaderRow.font = { bold: true };
+      mfrHeaderRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F0F0" } };
+      mfrSheet.columns = [
+        { width: 14 }, { width: 30 }, { width: 30 }, { width: 30 },
+        { width: 35 }, { width: 28 }, { width: 22 }, { width: 30 },
+        { width: 16 }, { width: 30 }, { width: 40 },
+      ];
+
+      const allMfrs = await db.select().from(mfrManufacturers).orderBy(mfrManufacturers.name);
+      for (const m of allMfrs) {
+        mfrSheet.addRow([
+          m.shortCode || "",
+          m.name,
+          m.legalName || "",
+          (m.aliases || []).join(", "),
+          (m.scopes || []).join(", "),
+          m.website || "",
+          m.primaryContact || "",
+          m.contactEmail || "",
+          m.contactPhone || "",
+          m.address || "",
+          m.notes || "",
+        ]);
+      }
+
+      // ---- Sheet 2: Vendors ----
+      // Columns match POST /api/mfr/upload-vendors-excel "Vendors" sheet:
+      // short_code | name | legal_name | aliases | category | scopes | manufacturer_short_codes | manufacturer_direct | website | materials | tags | primary_contact_name | primary_contact_role | primary_contact_email | primary_contact_phone | primary_contact_territory | notes | manufacturer_full_names
+      const vendorSheet = wb.addWorksheet("Vendors");
+      const vendorHeader = [
+        "short_code", "name", "legal_name", "aliases", "category", "scopes",
+        "manufacturer_short_codes", "manufacturer_direct", "website", "materials", "tags",
+        "primary_contact_name", "primary_contact_role", "primary_contact_email",
+        "primary_contact_phone", "primary_contact_territory", "notes", "manufacturer_full_names",
+      ];
+      const vendorHeaderRow = vendorSheet.addRow(vendorHeader);
+      vendorHeaderRow.font = { bold: true };
+      vendorHeaderRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F0F0" } };
+      vendorSheet.columns = [
+        { width: 14 }, { width: 30 }, { width: 30 }, { width: 25 }, { width: 18 }, { width: 35 },
+        { width: 30 }, { width: 16 }, { width: 28 }, { width: 25 }, { width: 25 },
+        { width: 22 }, { width: 18 }, { width: 30 }, { width: 16 }, { width: 18 }, { width: 40 }, { width: 30 },
+      ];
+
+      const allVendors = await db.select().from(mfrVendors).orderBy(mfrVendors.name);
+      const allContacts = await db.select().from(mfrContacts);
+      const allLogistics = await db.select().from(mfrLogistics);
+      const allPricing = await db.select().from(mfrPricing);
+      const allRels = await db.select().from(mfrVendorManufacturers);
+      // Build manufacturer lookup by id → record
+      const mfrById = new Map(allMfrs.map((m) => [m.id, m]));
+
+      // Group contacts/logistics/pricing/rels by vendorId for O(n) lookup
+      const contactsByVendor = new Map<number, typeof allContacts>();
+      for (const c of allContacts) {
+        if (!contactsByVendor.has(c.vendorId)) contactsByVendor.set(c.vendorId, []);
+        contactsByVendor.get(c.vendorId)!.push(c);
+      }
+      const logisticsByVendor = new Map(allLogistics.map((l) => [l.vendorId, l]));
+      const pricingByVendor = new Map(allPricing.map((p) => [p.vendorId, p]));
+      const relsByVendor = new Map<number, number[]>();
+      for (const r of allRels) {
+        if (!relsByVendor.has(r.vendorId)) relsByVendor.set(r.vendorId, []);
+        relsByVendor.get(r.vendorId)!.push(r.manufacturerId);
+      }
+
+      // ---- Sheet 3: Additional Contacts ----
+      // Columns match "Additional Contacts" sheet: vendor_short_code | name | role | email | phone | territory | notes
+      const contactSheet = wb.addWorksheet("Additional Contacts");
+      const contactHeader = ["vendor_short_code", "name", "role", "email", "phone", "territory", "notes"];
+      const contactHeaderRow = contactSheet.addRow(contactHeader);
+      contactHeaderRow.font = { bold: true };
+      contactHeaderRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F0F0" } };
+      contactSheet.columns = [
+        { width: 14 }, { width: 25 }, { width: 18 }, { width: 30 }, { width: 16 }, { width: 18 }, { width: 40 },
+      ];
+
+      // ---- Sheet 4: Logistics & Pricing ----
+      // Columns match "Logistics & Pricing" sheet: vendor_short_code | avg_lead_time_days | ships_from | freight_notes | discount_tier | payment_terms | pricing_notes
+      const logSheet = wb.addWorksheet("Logistics & Pricing");
+      const logHeader = ["vendor_short_code", "avg_lead_time_days", "ships_from", "freight_notes", "discount_tier", "payment_terms", "pricing_notes"];
+      const logHeaderRow = logSheet.addRow(logHeader);
+      logHeaderRow.font = { bold: true };
+      logHeaderRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F0F0" } };
+      logSheet.columns = [
+        { width: 14 }, { width: 18 }, { width: 20 }, { width: 35 }, { width: 18 }, { width: 20 }, { width: 40 },
+      ];
+
+      // Fill Vendors, Additional Contacts, Logistics & Pricing rows together
+      for (const v of allVendors) {
+        const contacts = contactsByVendor.get(v.id) || [];
+        const primaryContact = contacts.find((c) => c.isPrimary) || contacts[0] || null;
+        const logistics = logisticsByVendor.get(v.id) || null;
+        const pricing = pricingByVendor.get(v.id) || null;
+        const linkedMfrIds = relsByVendor.get(v.id) || [];
+        const linkedMfrs = linkedMfrIds.map((id) => mfrById.get(id)).filter(Boolean) as typeof allMfrs;
+
+        const mfrShortCodes = linkedMfrs.map((m) => m.shortCode || "").filter(Boolean).join(", ");
+        const mfrFullNames = linkedMfrs.map((m) => m.name).join(", ");
+
+        // Vendors sheet row
+        vendorSheet.addRow([
+          v.shortCode || "",
+          v.name,
+          v.legalName || "",
+          (v.aliases || []).join(", "),
+          v.category || "",
+          (v.scopes || []).join(", "),
+          mfrShortCodes,
+          v.manufacturerDirect ? "YES" : "NO",
+          v.website || "",
+          v.materials || "",
+          (v.tags || []).join(", "),
+          primaryContact?.name || "",
+          primaryContact?.role || "",
+          primaryContact?.email || "",
+          primaryContact?.phone || "",
+          primaryContact?.territory || "",
+          v.notes || "",
+          mfrFullNames,
+        ]);
+
+        // Additional Contacts rows (all non-primary contacts for this vendor)
+        const toEmit = primaryContact ? contacts.filter((c) => c.id !== primaryContact.id) : contacts;
+        for (const c of toEmit) {
+          contactSheet.addRow([
+            v.shortCode || "",
+            c.name || "",
+            c.role || "",
+            c.email || "",
+            c.phone || "",
+            c.territory || "",
+            c.notes || "",
+          ]);
+        }
+
+        // Logistics & Pricing row (only if data exists)
+        if (logistics || pricing) {
+          logSheet.addRow([
+            v.shortCode || "",
+            logistics?.avgLeadTimeDays ?? "",
+            logistics?.shipsFrom || "",
+            logistics?.freightNotes || "",
+            pricing?.discountTier || "",
+            pricing?.paymentTerms || "",
+            pricing?.notes || "",
+          ]);
+        }
+      }
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const date = new Date().toISOString().slice(0, 10);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="Manufacturers_Vendors_${date}.xlsx"`);
+      res.send(buffer);
+    } catch (err: any) {
+      console.error("Excel export error:", err);
       res.status(500).json({ error: err.message });
     }
   });

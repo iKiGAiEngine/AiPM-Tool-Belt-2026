@@ -1250,13 +1250,21 @@ export default function VendorDatabasePage() {
   };
 
   const exportAll = async () => {
-    const data = await fetch("/api/mfr/export", { credentials: "include" }).then((r) => r.json());
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "nbs-vendors-export.json"; a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: "Export downloaded" });
+    try {
+      const res = await fetch("/api/mfr/export-excel", { credentials: "include" });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const date = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `Manufacturers_Vendors_${date}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Export downloaded", description: "Edit and re-upload the file to update records." });
+    } catch (e: any) {
+      toast({ title: "Export failed", description: e?.message || "Network error", variant: "destructive" });
+    }
   };
 
   const deleteAll = async () => {
@@ -1311,7 +1319,7 @@ export default function VendorDatabasePage() {
               icon={Upload}
               onClick={() => setShowExcelUpload(tab === "manufacturers" ? "manufacturers" : "vendors")}
             />
-            <Btn label="Export JSON" icon={Download} onClick={exportAll} />
+            <Btn label="Export Excel" icon={Download} onClick={exportAll} />
             <Btn label="Delete All" icon={Trash2} onClick={deleteAll} variant="ghost" />
           </div>
         </div>
