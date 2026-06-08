@@ -1275,6 +1275,32 @@ export default function VendorDatabasePage() {
     }
   };
 
+  const exportContactsReport = async () => {
+    try {
+      const res = await fetch("/api/mfr/contacts-report", { credentials: "include" });
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "Export failed");
+        throw new Error(msg);
+      }
+      const ab = await res.arrayBuffer();
+      const blob = new Blob([ab], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const date = new Date().toISOString().slice(0, 10);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Estimate_Contacts_Report_${date}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast({ title: "Estimate Contacts Report downloaded" });
+    } catch (e: any) {
+      toast({ title: "Export failed", description: e?.message || "Network error", variant: "destructive" });
+    }
+  };
+
   const deleteAll = async () => {
     if (!confirm("Are you sure? This will delete ALL manufacturers, vendors, contacts, products, and certificates. This cannot be undone.")) return;
     try {
@@ -1328,6 +1354,7 @@ export default function VendorDatabasePage() {
               onClick={() => setShowExcelUpload(tab === "manufacturers" ? "manufacturers" : "vendors")}
             />
             <Btn label="Export Excel" icon={Download} onClick={exportAll} />
+            <Btn label="Estimate Contacts Report" icon={Download} onClick={exportContactsReport} />
             <Btn label="Delete All" icon={Trash2} onClick={deleteAll} variant="ghost" />
           </div>
         </div>

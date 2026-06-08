@@ -1597,4 +1597,97 @@ export function registerVendorDatabaseRoutes(app: Express) {
       res.status(500).json({ error: err.message });
     }
   });
+
+  // ---- ESTIMATE CONTACTS REPORT ----
+  app.get("/api/mfr/contacts-report", async (req: Request, res: Response) => {
+    const userId = (req.session as any)?.userId;
+    if (!userId) return res.status(401).json({ message: "Authentication required" });
+    try {
+      const SCOPE_LABELS: Record<string, string> = {
+        accessories:       "Toilet Accessories",
+        partitions:        "Toilet Compartments",
+        wire_partitions:   "Wire Mesh Partitions",
+        lockers:           "Lockers",
+        appliances:        "Appliances",
+        fec:               "FEC",
+        wall_protection:   "Wall Protection",
+        visual_display:    "Visual Displays",
+        bike_racks:        "Bike Racks",
+        expansion_joints:  "Expansion Joints",
+        flagpoles:         "Flagpole",
+        entrance_mats:     "Entrance Mats",
+        cubicle_curtains:  "Cubicle Curtains",
+        window_shades:     "Window Shades",
+        postal:            "Mailbox",
+        hand_dryers:       "Toilet Accessories",
+        projection_screens:"Visual Displays",
+        aed:               "Med Equipment",
+        corner_guards:     "Wall Protection",
+      };
+
+      const allVendors  = await db.select().from(mfrVendors);
+      const allMfrs     = await db.select().from(mfrManufacturers);
+      const allContacts = await db.select().from(mfrContacts);
+
+      const mfrNameById = new Map(allMfrs.map((m) => [m.id, m.name]));
+
+      // primary contact per vendor
+      const primaryByVendor = new Map<number, { name: string; email: string }>();
+      for (const c of allContacts) {
+        if (c.isPrimary) {
+          primaryByVendor.set(c.vendorId, { name: c.name || "", email: c.email || "" });
+        }
+      }
+
+      // Expand: one row per vendor per scope
+      type ReportRow = { scopeLabel: string; brands: string; vendorName: string; contactName: string; email: string };
+      const rows: ReportRow[] = [];
+
+      for (const v of allVendors) {
+        const scopeCodes = (v.scopes ?? []).filter(Boolean);
+        if (scopeCodes.length === 0) continue;
+
+        const brands = (v.manufacturerIds ?? [])
+          .map((id) => mfrNameById.get(id) ?? "")
+          .filter(Boolean)
+          .join(", ");
+
+        const primary = primaryByVendor.get(v.id);
+
+        for (const code of scopeCodes) {
+          rows.push({
+            scopeLabel:  SCOPE_LABELS[code] ?? code,
+            brands,
+            vendorName:  v.name,
+            contactName: primary?.name ?? "",
+            email:       primary?.email ?? "",
+          });
+        }
+      }
+
+      // Sort: scope label asc, then vendor name asc
+      rows.sort((a, b) => {
+        const s = a.scopeLabel.localeCompare(b.scopeLabel);
+        return s !== 0 ? s : a.vendorName.localeCompare(b.vendorName);
+      });
+
+      const sheetData: any[][] = [
+        ["Scope", "Brands Priced", "Vendor Name", "Contact Name", "Email"],
+        ...rows.map((r) => [r.scopeLabel, r.brands, r.vendorName, r.contactName, r.email]),
+      ];
+
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet(sheetData), "Estimate Contacts");
+
+      const buffer: Buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+      const date = new Date().toISOString().slice(0, 10);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="Estimate_Contacts_Report_${date}.xlsx"`);
+      res.setHeader("Content-Length", buffer.length);
+      res.end(buffer);
+    } catch (err: any) {
+      console.error("Contacts report error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 }
