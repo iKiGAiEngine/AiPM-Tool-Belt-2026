@@ -1009,7 +1009,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
             <option>Estimating</option>
             <option>Revising</option>
             <option>Submitted</option>
-            <option>Awarded</option>
+            <option>Won</option>
             <option>Lost - Note Why in Comments</option>
           </select>
         </div>
@@ -1174,7 +1174,7 @@ function normalizeRegion(val) {
   return val;
 }
 const MARKETS = ['Aviation','Education','Entertainment','Healthcare','Hospitality','Residential','Retail','Office','Parking Structure','Public Facility','Special Projects'];
-const STATUSES = ['Lead','Estimating','Revising','Submitted','Awarded','Won','Lost','No Bid','Undecided','Declined','Lost - Note Why in Comments'];
+const STATUSES = ['Lead','Estimating','Revising','Submitted','Won','Lost','No Bid','Lost - Note Why in Comments'];
 
 const COL_DEFS = [
   {key:'projectName',    label:'Project Name',       w:180, filter:'text'},
@@ -1250,7 +1250,7 @@ const fmtD = d => { if(!d) return '\u2014'; const [y,m,dy]=d.split('-'); return 
 const fmtMY = d => { if(!d) return '\u2014'; const [y,m]=d.split('-'); return `${m}/${y.slice(2)}`; };
 
 function statusBadge(s) {
-  const map = {'Lead':'s-lead','Estimating':'s-estimating','Revising':'s-revising','Submitted':'s-submitted','Awarded':'s-awarded','Won':'s-awarded','Lost - Note Why in Comments':'s-lost','Lost':'s-lost','No Bid':'s-nobid','Undecided':'s-undecided','Declined':'s-lost'};
+  const map = {'Lead':'s-lead','Estimating':'s-estimating','Revising':'s-revising','Submitted':'s-submitted','Awarded':'s-awarded','Won':'s-awarded','Lost - Note Why in Comments':'s-lost','Lost':'s-lost','No Bid':'s-nobid'};
   if(!s) return '\u2014';
   return `<span class="badge ${map[s]||''}">${s==='Lost - Note Why in Comments'?'Lost':s}</span>`;
 }
@@ -2231,7 +2231,7 @@ function applyDashboardLayout() {
 // Returns the KPI card definitions based on dashboardLayout and scoped data.
 function getDashboardKpis(layout, all) {
   const awarded   = all.filter(p => isAwardedStatus(p.estimateStatus));
-  const lost      = all.filter(p => isLostStatus(p.estimateStatus) || p.estimateStatus==='No Bid' || p.estimateStatus==='Declined');
+  const lost      = all.filter(p => isLostStatus(p.estimateStatus) || p.estimateStatus==='No Bid');
   const active    = all.filter(p => isActiveStatus(p.estimateStatus));
   const pending   = all.filter(p => p.estimateStatus==='Submitted' || p.estimateStatus==='Revising');
   const gcLost    = all.filter(p => isLostStatus(p.estimateStatus) && p.lossWho==='GC Lost');
@@ -2286,20 +2286,18 @@ const STATUS_COLORS={
   'Won':       '#3DAA6A',
   'Lost - Note Why in Comments':'#C0392B',
   'Lost':      '#C0392B',
-  'No Bid':    '#8A8A9A',
-  'Undecided': '#FFA500',
-  'Declined':  '#C0392B'
+  'No Bid':    '#8A8A9A'
 };
 function isLostStatus(s) { return s === 'Lost - Note Why in Comments' || s === 'Lost'; }
-function isAwardedStatus(s) { return s === 'Awarded' || s === 'Won'; }
+function isAwardedStatus(s) { return s === 'Won' || s === 'Awarded'; }
 function isActiveStatus(s) { return ['Lead','Estimating','Revising','Submitted'].includes(s); }
 const FUNNEL_STAGES=[
   {key:'Lead',       color:'#8A8A9A', label:'Lead'},
   {key:'Estimating', color:'#C9A84C', label:'Estimating'},
   {key:'Revising',   color:'#A78BFA', label:'Revising'},
   {key:'Submitted',  color:'#64C8FF', label:'Submitted'},
-  {key:'Awarded',    color:'#3DAA6A', label:'Awarded / Won', matcher: s => isAwardedStatus(s)},
-  {key:'Lost - Note Why in Comments', color:'#C0392B', label:'Lost / No Bid', matcher: s => isLostStatus(s) || s === 'No Bid' || s === 'Declined'},
+  {key:'Won',        color:'#3DAA6A', label:'Won',           matcher: s => isAwardedStatus(s)},
+  {key:'Lost - Note Why in Comments', color:'#C0392B', label:'Lost / No Bid', matcher: s => isLostStatus(s) || s === 'No Bid'},
 ];
 
 function renderNewlyAssigned() {
@@ -2348,7 +2346,7 @@ function renderDash() {
   // Step 4: Get scoped dataset — uses dashboardScope, NOT role
   const all = getScopedDashboardData();
   const awarded  = all.filter(p=>isAwardedStatus(p.estimateStatus));
-  const lost     = all.filter(p=>isLostStatus(p.estimateStatus) || p.estimateStatus==='No Bid' || p.estimateStatus==='Declined');
+  const lost     = all.filter(p=>isLostStatus(p.estimateStatus) || p.estimateStatus==='No Bid');
   const active   = all.filter(p=>isActiveStatus(p.estimateStatus));
   const decided  = awarded.length + lost.length;
   const winRate  = decided ? Math.round(awarded.length/decided*100) : 0;
@@ -2441,7 +2439,7 @@ function renderDash() {
   const ax={ticks:{color:'#8A8A9A',font:{size:10}},grid:{color:'#1E1E28'}};
 
   const monthDecided={}, monthWon={};
-  all.filter(p=>p.dueDate&&(isAwardedStatus(p.estimateStatus)||isLostStatus(p.estimateStatus)||p.estimateStatus==='No Bid'||p.estimateStatus==='Declined')).forEach(p=>{
+  all.filter(p=>p.dueDate&&(isAwardedStatus(p.estimateStatus)||isLostStatus(p.estimateStatus)||p.estimateStatus==='No Bid')).forEach(p=>{
     const m=p.dueDate.slice(0,7);
     monthDecided[m]=(monthDecided[m]||0)+1;
     if(isAwardedStatus(p.estimateStatus)) monthWon[m]=(monthWon[m]||0)+1;
@@ -2508,8 +2506,8 @@ function renderDash() {
   MARKETS.forEach(m=>mktMap[m]={submitted:0,awarded:0});
   all.forEach(p=>{
     if(!p.primaryMarket||!mktMap[p.primaryMarket]) return;
-    if(['Submitted','Awarded'].includes(p.estimateStatus)) mktMap[p.primaryMarket].submitted++;
-    if(p.estimateStatus==='Awarded') mktMap[p.primaryMarket].awarded++;
+    if(p.estimateStatus==='Submitted'||isAwardedStatus(p.estimateStatus)) mktMap[p.primaryMarket].submitted++;
+    if(isAwardedStatus(p.estimateStatus)) mktMap[p.primaryMarket].awarded++;
   });
   const mktActive=MARKETS.filter(m=>mktMap[m].submitted>0||mktMap[m].awarded>0);
 
@@ -2539,7 +2537,7 @@ function renderDash() {
     if(!gcMap[p.gcEstimateLead]) gcMap[p.gcEstimateLead]={count:0,val:0,won:0};
     gcMap[p.gcEstimateLead].count++;
     gcMap[p.gcEstimateLead].val+=(Number(p.proposalTotal)||0);
-    if(p.estimateStatus==='Awarded') gcMap[p.gcEstimateLead].won++;
+    if(isAwardedStatus(p.estimateStatus)) gcMap[p.gcEstimateLead].won++;
   });
   const gcTop=Object.entries(gcMap).sort((a,b)=>b[1].val-a[1].val).slice(0,7);
   const gcMaxVal=gcTop[0]?gcTop[0][1].val:1;
@@ -2862,7 +2860,7 @@ function openEditPopup(e,oi,field){
     const cur=p[field]?p[field].slice(0,7):'';
     body.innerHTML=`<input type="month" id="ep-input" value="${cur}" onclick="event.stopPropagation()" onkeydown="epKeydown(event)">`;
   } else if(type==='select-status'){
-    const STATUS_OPTS=['Estimating','Submitted','Revising','Won','Awarded','Lost','No Bid','Undecided','Declined'];
+    const STATUS_OPTS=['Estimating','Submitted','Revising','Won','Lost','No Bid'];
     const cur=p.estimateStatus==='Lost - Note Why in Comments'?'Lost':(p[field]||'Estimating');
     body.innerHTML=STATUS_OPTS.map(s=>`<div class="ep-item${cur===s?' ep-selected':''}" onclick="epSelectItem(this,'${s}')" data-value="${s}"><span class="ep-radio"></span>${s}</div>`).join('');
   } else if(type==='select-estimator'){
@@ -3194,7 +3192,7 @@ function cancelInlineEdit(){
 }
 
 function getKnownRegions() { return REGIONS; }
-const STATUS_MAP={'pending':'Submitted','submitted':'Submitted','bidding':'Estimating','estimating':'Estimating','in progress':'Estimating','revising':'Revising','revision':'Revising','lost':'Lost - Note Why in Comments','loss':'Lost - Note Why in Comments','win':'Awarded','won':'Awarded','awarded':'Awarded'};
+const STATUS_MAP={'pending':'Submitted','submitted':'Submitted','bidding':'Estimating','estimating':'Estimating','in progress':'Estimating','revising':'Revising','revision':'Revising','lost':'Lost - Note Why in Comments','loss':'Lost - Note Why in Comments','win':'Won','won':'Won','awarded':'Won'};
 let importRows=[];
 
 function parseRegion(raw){if(!raw)return'';const s=raw.toString().trim();const KR=getKnownRegions();if(KR.includes(s))return s;const n=normalizeRegion(s);if(n&&KR.includes(n))return n;for(const r of KR){const code=r.split(' - ')[0];if(code&&s.toUpperCase().includes(code))return r;}for(const r of KR){if(s.startsWith(r))return r;}return'';}
@@ -3276,7 +3274,7 @@ function renderImportPreview(){
     const checked=!r._isDuplicate;
     const cls=r._isDuplicate?'irow-dup':r._regionWarning?'irow-warn':'irow-ok';
     const flag=r._isDuplicate?`<span class="import-flag dup">DUPE</span>`:r._regionWarning?`<span class="import-flag warn">REGION?</span>`:`<span class="import-flag ok">OK</span>`;
-    const sMap={'Estimating':'s-estimating','Revising':'s-revising','Submitted':'s-submitted','Awarded':'s-awarded','Lost - Note Why in Comments':'s-lost'};
+    const sMap={'Estimating':'s-estimating','Revising':'s-revising','Submitted':'s-submitted','Won':'s-awarded','Awarded':'s-awarded','Lost - Note Why in Comments':'s-lost'};
     const statusBadgeHtml=r.estimateStatus?`<span class="badge ${sMap[r.estimateStatus]||''}">${r.estimateStatus==='Lost - Note Why in Comments'?'Lost':r.estimateStatus}</span>`:'\u2014';
     return`<tr class="${cls}">
       <td><input type="checkbox" class="import-row-check" data-idx="${idx}" ${checked?'checked':''} onchange="updateImportFooter()"></td>
