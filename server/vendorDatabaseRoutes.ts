@@ -1580,11 +1580,13 @@ export function registerVendorDatabaseRoutes(app: Express) {
         }
       }
 
-      const buffer = await wb.xlsx.writeBuffer();
+      const rawBuffer = await wb.xlsx.writeBuffer();
+      const buffer = Buffer.isBuffer(rawBuffer) ? rawBuffer : Buffer.from(rawBuffer);
       const date = new Date().toISOString().slice(0, 10);
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename="Manufacturers_Vendors_${date}.xlsx"`);
-      res.send(buffer);
+      res.setHeader("Content-Length", buffer.length);
+      res.end(buffer);
     } catch (err: any) {
       console.error("Excel export error:", err);
       res.status(500).json({ error: err.message });
