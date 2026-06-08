@@ -1249,22 +1249,8 @@ export default function VendorDatabasePage() {
     }
   };
 
-  const exportAll = async () => {
-    try {
-      const res = await fetch("/api/mfr/export-excel", { credentials: "include" });
-      if (!res.ok) throw new Error("Export failed");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      const date = new Date().toISOString().slice(0, 10);
-      a.href = url;
-      a.download = `Manufacturers_Vendors_${date}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast({ title: "Export downloaded", description: "Edit and re-upload the file to update records." });
-    } catch (e: any) {
-      toast({ title: "Export failed", description: e?.message || "Network error", variant: "destructive" });
-    }
+  const exportAll = () => {
+    window.location.href = "/api/mfr/export-excel";
   };
 
   const deleteAll = async () => {
