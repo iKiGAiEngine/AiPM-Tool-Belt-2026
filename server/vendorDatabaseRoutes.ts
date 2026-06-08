@@ -1050,35 +1050,40 @@ export function registerVendorDatabaseRoutes(app: Express) {
       let manufacturersCreated = 0;
       let manufacturersUpdated = 0;
 
-      // Find header row (contains "short_code" or "name")
+      // Find header row — detect whether the new "id" column is present
       let dataStart = 0;
+      let mfrHasIdCol = false;
       for (let i = 0; i < Math.min(10, rows.length); i++) {
         const cell = String((rows[i] as any[])[0] || "").trim().toLowerCase();
+        if (cell === "id") { mfrHasIdCol = true; dataStart = i + 1; break; }
         if (cell === "short_code" || cell === "name") { dataStart = i + 1; break; }
       }
+      const mfrOff = mfrHasIdCol ? 1 : 0;
 
       const existing = await db.select().from(mfrManufacturers);
+      const byId = new Map(existing.map((m) => [m.id, m]));
       const byShortCode = new Map(existing.filter((m) => m.shortCode).map((m) => [m.shortCode!.toUpperCase(), m]));
       const byName = new Map(existing.map((m) => [m.name.toLowerCase().trim(), m]));
 
       for (let i = dataStart; i < rows.length; i++) {
         const row = rows[i] as any[];
-        const shortCode = String(row[0] || "").trim().toUpperCase();
-        const name = String(row[1] || "").trim();
+        const rowId = mfrHasIdCol ? (Number(row[0]) || null) : null;
+        const shortCode = String(row[0 + mfrOff] || "").trim().toUpperCase();
+        const name = String(row[1 + mfrOff] || "").trim();
 
         // Skip instruction rows and empty rows
         if (shortCode.startsWith("INSTRUCTION") || (!name && !shortCode)) continue;
         if (!name) continue;
 
-        const legalName = String(row[2] || "").trim() || null;
-        const aliasesRaw = String(row[3] || "").trim();
-        const scopesRaw = String(row[4] || "").trim();
-        const website = String(row[5] || "").trim() || null;
-        const primaryContact = String(row[6] || "").trim() || null;
-        const contactEmail = String(row[7] || "").trim() || null;
-        const contactPhone = String(row[8] || "").trim() || null;
-        const address = String(row[9] || "").trim() || null;
-        const notes = String(row[10] || "").trim() || null;
+        const legalName = String(row[2 + mfrOff] || "").trim() || null;
+        const aliasesRaw = String(row[3 + mfrOff] || "").trim();
+        const scopesRaw = String(row[4 + mfrOff] || "").trim();
+        const website = String(row[5 + mfrOff] || "").trim() || null;
+        const primaryContact = String(row[6 + mfrOff] || "").trim() || null;
+        const contactEmail = String(row[7 + mfrOff] || "").trim() || null;
+        const contactPhone = String(row[8 + mfrOff] || "").trim() || null;
+        const address = String(row[9 + mfrOff] || "").trim() || null;
+        const notes = String(row[10 + mfrOff] || "").trim() || null;
 
         const aliases = aliasesRaw ? aliasesRaw.split(",").map((a) => a.trim()).filter(Boolean) : [];
         const scopes = scopesRaw ? scopesRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
@@ -1098,15 +1103,21 @@ export function registerVendorDatabaseRoutes(app: Express) {
           updatedAt: new Date(),
         };
 
-        const existingMfr = (shortCode && byShortCode.get(shortCode)) || byName.get(name.toLowerCase().trim());
+        // ID match first (exported file), then short_code, then name
+        const existingMfr =
+          (rowId && byId.get(rowId)) ||
+          (shortCode && byShortCode.get(shortCode)) ||
+          byName.get(name.toLowerCase().trim());
 
         if (existingMfr) {
           await db.update(mfrManufacturers).set(upsertData).where(eq(mfrManufacturers.id, existingMfr.id));
           manufacturersUpdated++;
+          byId.set(existingMfr.id, { ...existingMfr, ...upsertData });
           if (shortCode) byShortCode.set(shortCode, { ...existingMfr, ...upsertData });
         } else {
           const [newMfr] = await db.insert(mfrManufacturers).values(upsertData).returning();
           manufacturersCreated++;
+          byId.set(newMfr.id, newMfr);
           byName.set(name.toLowerCase().trim(), newMfr);
           if (shortCode) byShortCode.set(shortCode, newMfr);
         }
@@ -1186,45 +1197,63 @@ export function registerVendorDatabaseRoutes(app: Express) {
       }
 
       // Find data start row (skip header + INSTRUCTIONS)
+      // Detect whether this file has the new "id" column at position 0
+      const detectHasId = (rows: any[][]) => {
+        for (let i = 0; i < Math.min(10, rows.length); i++) {
+          const cell = String(rows[i][0] || "").trim().toLowerCase();
+          if (cell === "id") return true;
+          if (cell === "short_code" || cell === "vendor_short_code") return false;
+        }
+        return false;
+      };
+
       const findDataStart = (rows: any[][]) => {
         for (let i = 0; i < Math.min(10, rows.length); i++) {
           const cell = String(rows[i][0] || "").trim().toLowerCase();
-          if (cell === "short_code" || cell === "vendor_short_code") return i + 1;
+          if (cell === "id" || cell === "short_code" || cell === "vendor_short_code") return i + 1;
         }
         return 0;
       };
 
-      const isSkipRow = (row: any[]) => {
-        const first = String(row[0] || "").trim();
-        return first.startsWith("INSTRUCTION") || first === "";
+      const vendorHasIdCol = detectHasId(vendorRows);
+      const vOff = vendorHasIdCol ? 1 : 0;
+
+      const isSkipRow = (row: any[], off: number) => {
+        const nameCol = String(row[1 + off] || "").trim();
+        const firstCol = String(row[0] || "").trim();
+        return firstCol.startsWith("INSTRUCTION") || (nameCol === "" && firstCol === "");
       };
+
+      // Load existing vendors by ID for fast lookup
+      const vendorById = new Map(existingVendors.map((v) => [v.id, v]));
 
       // ---- Process Vendors sheet ----
       const vendorDataStart = findDataStart(vendorRows);
       for (let i = vendorDataStart; i < vendorRows.length; i++) {
         const row = vendorRows[i] as any[];
-        if (isSkipRow(row)) continue;
+        if (isSkipRow(row, vOff)) continue;
 
-        const shortCode = String(row[0] || "").trim().toUpperCase() || null;
-        const name = String(row[1] || "").trim();
+        const rowVendorId = vendorHasIdCol ? (Number(row[0]) || null) : null;
+        const shortCode = String(row[0 + vOff] || "").trim().toUpperCase() || null;
+        const name = String(row[1 + vOff] || "").trim();
         if (!name) continue;
 
-        const legalName = String(row[2] || "").trim() || null;
-        const aliasesRaw = String(row[3] || "").trim();
-        const category = String(row[4] || "").trim() || null;
-        const scopesRaw = String(row[5] || "").trim();
-        const mfrShortCodesRaw = String(row[6] || "").trim();
-        const manufacturerDirect = String(row[7] || "").trim().toUpperCase() === "YES";
-        const website = String(row[8] || "").trim() || null;
-        const materials = String(row[9] || "").trim() || null;
-        const tagsRaw = String(row[10] || "").trim();
-        const primaryContactName = String(row[11] || "").trim() || null;
-        const primaryContactRole = String(row[12] || "").trim() || null;
-        const primaryContactEmail = String(row[13] || "").trim() || null;
-        const primaryContactPhone = String(row[14] || "").trim() || null;
-        const primaryContactTerritory = String(row[15] || "").trim() || null;
-        const notes = String(row[16] || "").trim() || null;
-        const mfrFullNamesRaw = String(row[17] || "").trim();
+        const legalName = String(row[2 + vOff] || "").trim() || null;
+        const aliasesRaw = String(row[3 + vOff] || "").trim();
+        const category = String(row[4 + vOff] || "").trim() || null;
+        const scopesRaw = String(row[5 + vOff] || "").trim();
+        const mfrShortCodesRaw = String(row[6 + vOff] || "").trim();
+        const manufacturerDirect = String(row[7 + vOff] || "").trim().toUpperCase() === "YES";
+        const website = String(row[8 + vOff] || "").trim() || null;
+        const materials = String(row[9 + vOff] || "").trim() || null;
+        const tagsRaw = String(row[10 + vOff] || "").trim();
+        const primaryContactName = String(row[11 + vOff] || "").trim() || null;
+        const primaryContactRole = String(row[12 + vOff] || "").trim() || null;
+        const primaryContactEmail = String(row[13 + vOff] || "").trim() || null;
+        const primaryContactPhone = String(row[14 + vOff] || "").trim() || null;
+        const primaryContactTerritory = String(row[15 + vOff] || "").trim() || null;
+        const notes = String(row[16 + vOff] || "").trim() || null;
+        const mfrFullNamesRaw = String(row[17 + vOff] || "").trim();
 
         const aliases = aliasesRaw ? aliasesRaw.split(",").map((a) => a.trim()).filter(Boolean) : [];
         const scopes = scopesRaw ? scopesRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
@@ -1264,17 +1293,23 @@ export function registerVendorDatabaseRoutes(app: Express) {
           updatedAt: new Date(),
         };
 
-        const existingVendor = (shortCode && vendorByShortCode.get(shortCode)) || vendorByName.get(name.toLowerCase().trim());
+        // ID match first (exported file), then short_code, then name
+        const existingVendor =
+          (rowVendorId && vendorById.get(rowVendorId)) ||
+          (shortCode && vendorByShortCode.get(shortCode)) ||
+          vendorByName.get(name.toLowerCase().trim());
         let vendorId: number;
 
         if (existingVendor) {
           await db.update(mfrVendors).set(upsertData).where(eq(mfrVendors.id, existingVendor.id));
           vendorId = existingVendor.id;
           vendorsUpdated++;
+          vendorById.set(vendorId, { ...existingVendor, ...upsertData });
         } else {
           const [newVendor] = await db.insert(mfrVendors).values(upsertData).returning();
           vendorId = newVendor.id;
           vendorsCreated++;
+          vendorById.set(vendorId, newVendor);
           vendorByName.set(name.toLowerCase().trim(), newVendor);
         }
         if (shortCode) {
@@ -1449,10 +1484,11 @@ export function registerVendorDatabaseRoutes(app: Express) {
 
       // ---- Sheet 1: Manufacturers ----
       const mfrRows: any[][] = [
-        ["short_code", "name", "legal_name", "aliases", "scopes", "website", "primary_contact", "contact_email", "contact_phone", "address", "notes"],
+        ["id", "short_code", "name", "legal_name", "aliases", "scopes", "website", "primary_contact", "contact_email", "contact_phone", "address", "notes"],
       ];
       for (const m of allMfrs) {
         mfrRows.push([
+          m.id,
           m.shortCode || "",
           m.name,
           m.legalName || "",
@@ -1470,7 +1506,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
 
       // ---- Sheet 2: Vendors ----
       const vendorRows: any[][] = [
-        ["short_code", "name", "legal_name", "aliases", "category", "scopes",
+        ["id", "short_code", "name", "legal_name", "aliases", "category", "scopes",
           "manufacturer_short_codes", "manufacturer_direct", "website", "materials", "tags",
           "primary_contact_name", "primary_contact_role", "primary_contact_email",
           "primary_contact_phone", "primary_contact_territory", "notes", "manufacturer_full_names"],
@@ -1497,6 +1533,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
         const mfrFullNames = linkedMfrs.map((m) => m.name).join(", ");
 
         vendorRows.push([
+          v.id,
           v.shortCode || "",
           v.name,
           v.legalName || "",

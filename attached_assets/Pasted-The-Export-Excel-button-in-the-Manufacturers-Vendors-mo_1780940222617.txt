@@ -1,0 +1,22 @@
+The "Export Excel" button in the Manufacturers & Vendors module produces a file that Excel won't open — it says "file format or file extension is not valid." This means the downloaded bytes are not a real .xlsx (most likely the response is HTML, JSON, or CSV being saved with an .xlsx name). Fix it end to end. Do not guess — verify each step.
+1. Diagnose what's actually being returned. Add temporary logging (or test the endpoint directly) and report back what the first bytes of the export response are:
+
+PK = a real xlsx (corruption is elsewhere)
+<!DOCTYPE/<html = the route is returning the SPA page, not the file
+{ or [ = still returning JSON
+plain comma text = returning CSV
+Tell me which one it is before changing code.
+
+2. Fix the server route.
+
+Make sure the export API route is registered before the Vite/catch-all SPA handler in server/index.ts, so it isn't swallowed and returned as HTML.
+Generate a genuine workbook server-side using a real library (ExcelJS or SheetJS/xlsx). Write it to a binary Buffer.
+Send it with: Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, Content-Disposition: attachment; filename="Manufacturers_Vendors_<date>.xlsx", and send the raw Buffer (res.end(buffer) / res.send(buffer)) — not res.json(...) and not a stringified version.
+
+3. Fix the client download.
+
+Do not use fetch().then(r => r.text()) — that corrupts binary. Use responseType blob / await res.blob() (or arrayBuffer), build a Blob with the xlsx MIME type, and trigger a hidden <a> element download. Do not use window.location.href (it navigates and triggers the SPA 404).
+
+4. Make the export match the upload template exactly — same column headers, same order, so the exported file can be edited and reuploaded with no reshaping.
+5. Critical for the round-trip: the export must include each record's stable database ID as a column (e.g., a hidden or first id column). The upload/import handler must upsert on that ID — if the ID exists, update that record; if blank/new, insert. This is what lets me export, edit a few rows, and reupload to update only those rows instead of creating duplicates. Confirm the upload matches on ID, not on name.
+After the fix, verify by re-exporting and confirming the file's first bytes are PK and that it opens in Excel. Then show me the export route, the upload handler, and the column list.

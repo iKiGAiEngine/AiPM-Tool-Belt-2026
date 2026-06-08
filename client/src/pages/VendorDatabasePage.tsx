@@ -1249,14 +1249,30 @@ export default function VendorDatabasePage() {
     }
   };
 
-  const exportAll = () => {
-    const date = new Date().toISOString().slice(0, 10);
-    const a = document.createElement("a");
-    a.href = "/api/mfr/export-excel";
-    a.download = `Manufacturers_Vendors_${date}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const exportAll = async () => {
+    try {
+      const res = await fetch("/api/mfr/export-excel", { credentials: "include" });
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "Export failed");
+        throw new Error(msg);
+      }
+      const ab = await res.arrayBuffer();
+      const blob = new Blob([ab], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const date = new Date().toISOString().slice(0, 10);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Manufacturers_Vendors_${date}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast({ title: "Export downloaded", description: "Edit and re-upload to update records." });
+    } catch (e: any) {
+      toast({ title: "Export failed", description: e?.message || "Network error", variant: "destructive" });
+    }
   };
 
   const deleteAll = async () => {
