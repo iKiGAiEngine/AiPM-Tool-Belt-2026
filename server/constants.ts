@@ -4,9 +4,7 @@
 // Keep this list in sync with the status options available in ProjectLogPage.tsx.
 export const TERMINAL_ESTIMATE_STATUSES = [
   "Won",
-  "Awarded",
   "Lost",
   "Lost - Note Why in Comments",
   "No Bid",
-  "Declined",
 ];

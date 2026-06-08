@@ -1649,7 +1649,7 @@ export function registerBcSyncRoutes(app: Express) {
 
       const [updated] = await db.update(proposalLogEntries).set({
         isDraft: false,
-        estimateStatus: "Declined",
+        estimateStatus: "No Bid",
         deletedAt: new Date(),
         bcChangeLog: JSON.stringify(changeLog),
       }).where(eq(proposalLogEntries.id, id)).returning();

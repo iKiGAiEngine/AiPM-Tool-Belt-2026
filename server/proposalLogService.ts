@@ -155,7 +155,7 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   })();
 
-  const terminalStatuses = ['Awarded', 'Lost', 'Lost - Note Why in Comments'];
+  const terminalStatuses = ['Won', 'Lost', 'Lost - Note Why in Comments'];
 
   const allRegions = await db.select().from(regions);
 

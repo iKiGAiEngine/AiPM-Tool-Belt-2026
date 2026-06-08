@@ -751,7 +751,7 @@ export default function ProjectLogPage() {
                   data-testid="select-status-filter"
                 >
                   <option value="">All Statuses</option>
-                  {["Lead", "Estimating", "Submitted", "Revising", "Won", "Awarded", "Lost", "No Bid", "Undecided", "Declined"].map(s => (
+                  {["Lead", "Estimating", "Submitted", "Revising", "Won", "Lost", "No Bid"].map(s => (
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
@@ -1129,7 +1129,7 @@ export default function ProjectLogPage() {
                                   className="h-7 text-xs border-none px-2 py-0 w-auto min-w-[100px]"
                                   style={{
                                     background: "transparent",
-                                    color: entry.estimateStatus === "Awarded" || entry.estimateStatus === "Won" ? "var(--gold)" :
+                                    color: entry.estimateStatus === "Won" ? "var(--gold)" :
                                       entry.estimateStatus?.includes("Lost") || entry.estimateStatus === "No Bid" ? "var(--error, #ef4444)" : "var(--text)",
                                   }}
                                   data-testid={`select-status-${entry.id}`}
@@ -1137,7 +1137,7 @@ export default function ProjectLogPage() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {["Lead", "Estimating", "Submitted", "Revising", "Won", "Awarded", "Lost", "No Bid", "Undecided", "Declined"].map((s) => (
+                                  {["Lead", "Estimating", "Submitted", "Revising", "Won", "Lost", "No Bid"].map((s) => (
                                     <SelectItem key={s} value={s} data-testid={`option-status-${s.toLowerCase().replace(/\s/g, "-")}`}>{s}</SelectItem>
                                   ))}
                                 </SelectContent>

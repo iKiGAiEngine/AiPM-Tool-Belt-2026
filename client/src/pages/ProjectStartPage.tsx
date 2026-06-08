@@ -1100,7 +1100,7 @@ export default function ProjectStartPage() {
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    {["Estimating", "Submitted", "Won", "Lost - Note Why in Comments", "Undecided", "Declined"].map((s) => (
+                    {["Estimating", "Submitted", "Won", "Lost - Note Why in Comments"].map((s) => (
                       <SelectItem key={s} value={s}>{s}</SelectItem>
                     ))}
                   </SelectContent>

@@ -386,7 +386,7 @@ function extractProjectName(text: string): string | null {
   for (let i = 0; i < Math.min(lines.length, 15); i++) {
     const line = lines[i];
     if (line.length > 15 && line.length < 200 &&
-      !line.match(/^(Overview|Files|Messages|Bid Form|Client|Vendors|Status|Links|Search|Undecided|Accepted|Submitted|Won|Plan Room|Calendar|Leaderboard|Analytics|Reports|Settings|recently viewed)/i) &&
+      !line.match(/^(Overview|Files|Messages|Bid Form|Client|Vendors|Status|Links|Search|Accepted|Submitted|Won|Plan Room|Calendar|Leaderboard|Analytics|Reports|Settings|recently viewed)/i) &&
       !line.match(/^(Autodesk|BuildingConnected|Construction Cloud)/i) &&
       !line.match(/^\d+$/) && !line.match(/^[a-zA-Z0-9._%+-]+@/) && !line.match(/^https?:\/\//) &&
       (line.match(/\b(school|HS|high|elementary|middle|university|college|hospital|center|building|gym|gymnasium|library|remodel|renovation|construction|project|addition|phase|new|expansion|improvement|hall|tower|complex|facility|medical|office|residential|commercial|industrial|plaza|park|church|academy|institute|museum|arena|stadium|clinic|courthouse|fire\s*station|police)/i) ||
