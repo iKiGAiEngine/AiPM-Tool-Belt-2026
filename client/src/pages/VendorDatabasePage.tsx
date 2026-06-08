@@ -1250,7 +1250,13 @@ export default function VendorDatabasePage() {
   };
 
   const exportAll = () => {
-    window.location.href = "/api/mfr/export-excel";
+    const date = new Date().toISOString().slice(0, 10);
+    const a = document.createElement("a");
+    a.href = "/api/mfr/export-excel";
+    a.download = `Manufacturers_Vendors_${date}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const deleteAll = async () => {
