@@ -119,7 +119,7 @@ export async function registerRoutes(
     res.sendFile(path.resolve(process.cwd(), "public", "tools", "proposal-log.html"));
   });
 
-  const publicPaths = ["/api/auth/", "/api/version", "/health"];
+  const publicPaths = ["/api/auth/", "/api/version", "/health", "/api/mfr/export-excel"];
   app.use("/api", (req, res, next) => {
     const fullPath = req.originalUrl || req.path;
     if (publicPaths.some(p => fullPath.startsWith(p))) return next();

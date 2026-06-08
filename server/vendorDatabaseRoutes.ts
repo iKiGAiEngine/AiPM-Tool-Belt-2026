@@ -1456,6 +1456,8 @@ export function registerVendorDatabaseRoutes(app: Express) {
   // ---- EXPORT EXCEL (round-trip compatible with upload-manufacturers-excel + upload-vendors-excel) ----
 
   app.get("/api/mfr/export-excel", async (req: Request, res: Response) => {
+    const userId = (req.session as any)?.userId;
+    if (!userId) return res.status(401).json({ message: "Authentication required" });
     try {
       // Fetch all data up front
       const allMfrs = await db.select().from(mfrManufacturers).orderBy(mfrManufacturers.name);
