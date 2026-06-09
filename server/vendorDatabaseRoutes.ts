@@ -1599,30 +1599,34 @@ export function registerVendorDatabaseRoutes(app: Express) {
   });
 
   // ---- ESTIMATE CONTACTS REPORT ----
+  // Driven by vendor scope TAGS (v.scopes stores the tag IDs set by ScopeTagPicker).
+  // Switched from: legacy underscore code mapping table (had wrong keys: fec/wall_protection/wire_partitions/etc.)
+  // Switched to:   exact CONTACT_SCOPE_OPTIONS id→label mapping (matches what the vendor edit UI stores).
   app.get("/api/mfr/contacts-report", async (req: Request, res: Response) => {
     const userId = (req.session as any)?.userId;
     if (!userId) return res.status(401).json({ message: "Authentication required" });
     try {
+      // Exact IDs stored by ScopeTagPicker in v.scopes → display labels
       const SCOPE_LABELS: Record<string, string> = {
         accessories:       "Toilet Accessories",
         partitions:        "Toilet Compartments",
-        wire_partitions:   "Wire Mesh Partitions",
-        lockers:           "Lockers",
-        appliances:        "Appliances",
-        fec:               "FEC",
-        wall_protection:   "Wall Protection",
-        visual_display:    "Visual Displays",
-        bike_racks:        "Bike Racks",
-        expansion_joints:  "Expansion Joints",
-        flagpoles:         "Flagpole",
-        entrance_mats:     "Entrance Mats",
-        cubicle_curtains:  "Cubicle Curtains",
-        window_shades:     "Window Shades",
-        postal:            "Mailbox",
-        hand_dryers:       "Toilet Accessories",
-        projection_screens:"Visual Displays",
-        aed:               "Med Equipment",
+        fire_ext:          "FEC",
         corner_guards:     "Wall Protection",
+        appliances:        "Appliances",
+        lockers:           "Lockers",
+        display_boards:    "Visual Displays",
+        bike_racks:        "Bike Racks",
+        wire_mesh:         "Wire Mesh Partitions",
+        cubicle_curtains:  "Cubicle Curtains",
+        med_equipment:     "Med Equipment",
+        expansion_joints:  "Expansion Joints",
+        storage_units:     "Shelving",
+        equipment:         "Equipment",
+        entrance_mats:     "Entrance Mats",
+        mailboxes:         "Mailbox",
+        flagpoles:         "Flagpole",
+        knox_box:          "Knox Box",
+        site_furnishing:   "Site Furnishing",
       };
 
       const allVendors  = await db.select().from(mfrVendors);
@@ -1639,9 +1643,10 @@ export function registerVendorDatabaseRoutes(app: Express) {
         }
       }
 
-      // Expand: one row per vendor per scope
+      // Expand: one row per vendor per scope tag; skip unknown tag IDs
       type ReportRow = { scopeLabel: string; brands: string; vendorName: string; contactName: string; email: string };
       const rows: ReportRow[] = [];
+      const seen = new Set<string>();
 
       for (const v of allVendors) {
         const scopeCodes = (v.scopes ?? []).filter(Boolean);
@@ -1653,15 +1658,19 @@ export function registerVendorDatabaseRoutes(app: Express) {
           .join(", ");
 
         const primary = primaryByVendor.get(v.id);
+        const contactName = primary?.name ?? "";
+        const email       = primary?.email ?? "";
 
         for (const code of scopeCodes) {
-          rows.push({
-            scopeLabel:  SCOPE_LABELS[code] ?? code,
-            brands,
-            vendorName:  v.name,
-            contactName: primary?.name ?? "",
-            email:       primary?.email ?? "",
-          });
+          const scopeLabel = SCOPE_LABELS[code];
+          if (!scopeLabel) continue; // skip legacy/unknown codes
+
+          // De-duplicate on (Scope, Vendor Name, Email)
+          const dedupeKey = `${scopeLabel}|${v.name}|${email}`;
+          if (seen.has(dedupeKey)) continue;
+          seen.add(dedupeKey);
+
+          rows.push({ scopeLabel, brands, vendorName: v.name, contactName, email });
         }
       }
 

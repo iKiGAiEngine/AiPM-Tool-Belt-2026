@@ -1,0 +1,15 @@
+Fix the Estimate Contacts Report so it is driven entirely by the vendor SCOPE TAGS (the ones selectable in the vendor edit UI: Toilet Accessories, Toilet Compartments, FEC, Wall Protection, Appliances, Lockers, Visual Displays, Bike Racks, Wire Mesh Partitions, Cubicle Curtains, Med Equipment, Expansion Joints, Shelving, Equipment, Entrance Mats, Mailbox, Flagpole, Knox Box, Site Furnishing) — NOT the legacy scopes underscore codes.
+1. Data source. The report's Scope column must read the vendor's selected scope tags and output each tag's exact display label (e.g., "Wall Protection"). Do not read or output the legacy underscore codes (accessories, wall_protection, corner_guards, photolum, signage, etc.). If the tags and the legacy scopes field are currently separate stores, switch the report to the tag store. Report which field you switched from and to.
+2. One row per scope tag (explode). For each vendor, output one row for every scope tag they have selected. A vendor tagged with 3 scopes produces 3 rows. Example: InPro tagged Wall Protection + Cubicle Curtains + Expansion Joints → three rows: "Wall Protection · InPro …", "Cubicle Curtains · InPro …", "Expansion Joints · InPro …".
+3. Exactly these 5 columns, in order: Scope, Brands Priced, Vendor Name, Contact Name, Email.
+
+Scope ← the tag's display label
+Brands Priced ← manufacturer_full_names
+Vendor Name ← name (the Name field — not legal_name, not aliases)
+Contact Name ← primary_contact_name (leave blank if none)
+Email ← primary_contact_email
+
+4. De-duplicate on (Scope, Vendor Name, Email) so a vendor never appears twice within the same scope.
+5. Sort by Scope, then Vendor Name.
+6. Delivery (keep the working fixes): respond with real .xlsx binary (first bytes PK), single sheet named "Estimate Contacts"; client uses fetch + credentials:"include" + arrayBuffer(). Verify at the HTTP layer that the first bytes are PK.
+Because the scope labels now equal the estimate tab names exactly, the report needs no mapping table and produces no orphan codes (corner_guards/photolum/signage disappear). Do not change vendor data — just change what the report reads and how it explodes.
