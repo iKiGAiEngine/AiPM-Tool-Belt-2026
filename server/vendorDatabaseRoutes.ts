@@ -1599,14 +1599,15 @@ export function registerVendorDatabaseRoutes(app: Express) {
   });
 
   // ---- ESTIMATE CONTACTS REPORT ----
-  // Driven by vendor scope TAGS (v.scopes stores the tag IDs set by ScopeTagPicker).
-  // Switched from: legacy underscore code mapping table (had wrong keys: fec/wall_protection/wire_partitions/etc.)
-  // Switched to:   exact CONTACT_SCOPE_OPTIONS id→label mapping (matches what the vendor edit UI stores).
+  // Driven by vendor scope TAGS (v.scopes — the tag IDs written by ScopeTagPicker).
+  // Rows: one per (scope tag × contact). Columns: Scope, Brands Priced, Vendor Name,
+  //   Contact Name, Role, Territory, Email.
+  // Sheet 2 "Re-Tag Notes": vendors carrying unrecognised scope codes + orphaned mfrs.
   app.get("/api/mfr/contacts-report", async (req: Request, res: Response) => {
     const userId = (req.session as any)?.userId;
     if (!userId) return res.status(401).json({ message: "Authentication required" });
     try {
-      // Exact IDs stored by ScopeTagPicker in v.scopes → display labels
+      // Canonical scope tag IDs stored by ScopeTagPicker → display labels
       const SCOPE_LABELS: Record<string, string> = {
         accessories:       "Toilet Accessories",
         partitions:        "Toilet Compartments",
@@ -1629,64 +1630,119 @@ export function registerVendorDatabaseRoutes(app: Express) {
         site_furnishing:   "Site Furnishing",
       };
 
-      const allVendors  = await db.select().from(mfrVendors);
-      const allMfrs     = await db.select().from(mfrManufacturers);
-      const allContacts = await db.select().from(mfrContacts);
+      const [allVendors, allMfrs, allContacts] = await Promise.all([
+        db.select().from(mfrVendors),
+        db.select().from(mfrManufacturers),
+        db.select().from(mfrContacts),
+      ]);
 
       const mfrNameById = new Map(allMfrs.map((m) => [m.id, m.name]));
 
-      // primary contact per vendor
-      const primaryByVendor = new Map<number, { name: string; email: string }>();
+      // Group contacts by vendorId; flag which is primary
+      const contactsByVendor = new Map<number, typeof allContacts>();
       for (const c of allContacts) {
-        if (c.isPrimary) {
-          primaryByVendor.set(c.vendorId, { name: c.name || "", email: c.email || "" });
-        }
+        if (!contactsByVendor.has(c.vendorId)) contactsByVendor.set(c.vendorId, []);
+        contactsByVendor.get(c.vendorId)!.push(c);
       }
 
-      // Expand: one row per vendor per scope tag; skip unknown tag IDs
-      type ReportRow = { scopeLabel: string; brands: string; vendorName: string; contactName: string; email: string };
+      // ── Sheet 1: Estimate Contacts ──────────────────────────────────────────
+      type ReportRow = {
+        scopeLabel:  string;
+        brands:      string;
+        vendorName:  string;
+        isPrimary:   boolean;
+        contactName: string;
+        role:        string;
+        territory:   string;
+        email:       string;
+      };
       const rows: ReportRow[] = [];
       const seen = new Set<string>();
+
+      // Track vendors with unrecognised scope codes for Sheet 2
+      const retag: { vendorName: string; unknownCodes: string }[] = [];
 
       for (const v of allVendors) {
         const scopeCodes = (v.scopes ?? []).filter(Boolean);
         if (scopeCodes.length === 0) continue;
+
+        const validCodes   = scopeCodes.filter((c) => SCOPE_LABELS[c]);
+        const unknownCodes = scopeCodes.filter((c) => !SCOPE_LABELS[c]);
+        if (unknownCodes.length > 0) {
+          retag.push({ vendorName: v.name, unknownCodes: unknownCodes.join(", ") });
+        }
+        if (validCodes.length === 0) continue;
 
         const brands = (v.manufacturerIds ?? [])
           .map((id) => mfrNameById.get(id) ?? "")
           .filter(Boolean)
           .join(", ");
 
-        const primary = primaryByVendor.get(v.id);
-        const contactName = primary?.name ?? "";
-        const email       = primary?.email ?? "";
+        const contacts = contactsByVendor.get(v.id) ?? [];
+        // If no contacts at all, emit a blank-contact row so the vendor still appears
+        const contactList = contacts.length > 0
+          ? contacts
+          : [{ id: -1, vendorId: v.id, name: "", role: "", email: "", territory: "", isPrimary: true, notes: null, createdAt: new Date() }];
 
-        for (const code of scopeCodes) {
-          const scopeLabel = SCOPE_LABELS[code];
-          if (!scopeLabel) continue; // skip legacy/unknown codes
+        for (const scopeCode of validCodes) {
+          const scopeLabel = SCOPE_LABELS[scopeCode]!;
 
-          // De-duplicate on (Scope, Vendor Name, Email)
-          const dedupeKey = `${scopeLabel}|${v.name}|${email}`;
-          if (seen.has(dedupeKey)) continue;
-          seen.add(dedupeKey);
+          for (const c of contactList) {
+            const dedupeKey = `${scopeLabel}|${v.name}|${c.name ?? ""}|${c.email ?? ""}`;
+            if (seen.has(dedupeKey)) continue;
+            seen.add(dedupeKey);
 
-          rows.push({ scopeLabel, brands, vendorName: v.name, contactName, email });
+            rows.push({
+              scopeLabel,
+              brands,
+              vendorName:  v.name,
+              isPrimary:   c.isPrimary ?? false,
+              contactName: c.name      ?? "",
+              role:        c.role      ?? "",
+              territory:   c.territory ?? "",
+              email:       c.email     ?? "",
+            });
+          }
         }
       }
 
-      // Sort: scope label asc, then vendor name asc
+      // Sort: Scope asc → Vendor Name asc → primary first → Contact Name asc
       rows.sort((a, b) => {
         const s = a.scopeLabel.localeCompare(b.scopeLabel);
-        return s !== 0 ? s : a.vendorName.localeCompare(b.vendorName);
+        if (s !== 0) return s;
+        const v = a.vendorName.localeCompare(b.vendorName);
+        if (v !== 0) return v;
+        if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+        return a.contactName.localeCompare(b.contactName);
       });
 
-      const sheetData: any[][] = [
-        ["Scope", "Brands Priced", "Vendor Name", "Contact Name", "Email"],
-        ...rows.map((r) => [r.scopeLabel, r.brands, r.vendorName, r.contactName, r.email]),
+      const contactsSheetData: any[][] = [
+        ["Scope", "Brands Priced", "Vendor Name", "Contact Name", "Role", "Territory", "Email"],
+        ...rows.map((r) => [r.scopeLabel, r.brands, r.vendorName, r.contactName, r.role, r.territory, r.email]),
       ];
 
+      // ── Sheet 2: Re-Tag Notes ───────────────────────────────────────────────
+      // Section A: vendors with unrecognised scope codes
+      // Section B: manufacturers with a contact email but no matching vendor record
+      const vendorNamesSet = new Set(allVendors.map((v) => v.name.toLowerCase().trim()));
+      const orphanedMfrs = allMfrs.filter(
+        (m) => m.contactEmail && !vendorNamesSet.has(m.name.toLowerCase().trim()),
+      );
+
+      const retagSheetData: any[][] = [
+        ["=== VENDORS WITH UNRECOGNISED SCOPE CODES (need re-tagging) ==="],
+        ["Vendor Name", "Unknown Codes"],
+        ...retag.map((r) => [r.vendorName, r.unknownCodes]),
+        [],
+        ["=== MANUFACTURERS WITH CONTACTS BUT NO VENDOR RECORD (orphaned) ==="],
+        ["Manufacturer Name", "Contact Email"],
+        ...orphanedMfrs.map((m) => [m.name, m.contactEmail ?? ""]),
+      ];
+
+      // ── Build workbook ──────────────────────────────────────────────────────
       const wb = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet(sheetData), "Estimate Contacts");
+      xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet(contactsSheetData), "Estimate Contacts");
+      xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet(retagSheetData),    "Re-Tag Notes");
 
       const buffer: Buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
       const date = new Date().toISOString().slice(0, 10);
