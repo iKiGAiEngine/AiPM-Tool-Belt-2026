@@ -1607,28 +1607,50 @@ export function registerVendorDatabaseRoutes(app: Express) {
     const userId = (req.session as any)?.userId;
     if (!userId) return res.status(401).json({ message: "Authentication required" });
     try {
-      // Canonical scope tag IDs stored by ScopeTagPicker → display labels
+      // Maps EVERY code (canonical new + legacy still in DB) → display label.
+      // Canonical new IDs come from ScopeTagPicker (CONTACT_SCOPE_OPTIONS).
+      // Legacy codes (wall_protection, fec, etc.) are still in the DB — they produce
+      // rows AND get flagged in the Re-Tag Notes sheet so vendors can be re-tagged in the UI.
       const SCOPE_LABELS: Record<string, string> = {
-        accessories:       "Toilet Accessories",
-        partitions:        "Toilet Compartments",
-        fire_ext:          "FEC",
-        corner_guards:     "Wall Protection",
-        appliances:        "Appliances",
-        lockers:           "Lockers",
-        display_boards:    "Visual Displays",
-        bike_racks:        "Bike Racks",
-        wire_mesh:         "Wire Mesh Partitions",
-        cubicle_curtains:  "Cubicle Curtains",
-        med_equipment:     "Med Equipment",
-        expansion_joints:  "Expansion Joints",
-        storage_units:     "Shelving",
-        equipment:         "Equipment",
-        entrance_mats:     "Entrance Mats",
-        mailboxes:         "Mailbox",
-        flagpoles:         "Flagpole",
-        knox_box:          "Knox Box",
-        site_furnishing:   "Site Furnishing",
+        // ── Canonical new tag IDs (ScopeTagPicker) ───────────────────────────
+        accessories:        "Toilet Accessories",
+        partitions:         "Toilet Compartments",
+        fire_ext:           "FEC",
+        corner_guards:      "Wall Protection",
+        appliances:         "Appliances",
+        lockers:            "Lockers",
+        display_boards:     "Visual Displays",
+        bike_racks:         "Bike Racks",
+        wire_mesh:          "Wire Mesh Partitions",
+        cubicle_curtains:   "Cubicle Curtains",
+        med_equipment:      "Med Equipment",
+        expansion_joints:   "Expansion Joints",
+        storage_units:      "Shelving",
+        equipment:          "Equipment",
+        entrance_mats:      "Entrance Mats",
+        mailboxes:          "Mailbox",
+        flagpoles:          "Flagpole",
+        knox_box:           "Knox Box",
+        site_furnishing:    "Site Furnishing",
+        // ── Legacy codes still stored in vendor records (need re-tagging) ────
+        wall_protection:    "Wall Protection",
+        fec:                "FEC",
+        visual_display:     "Visual Displays",
+        wire_partitions:    "Wire Mesh Partitions",
+        postal:             "Mailbox",
+        aed:                "Med Equipment",
+        hand_dryers:        "Toilet Accessories",
+        projection_screens: "Visual Displays",
+        // window_shades / photolum / signage have no canonical scope — excluded
       };
+
+      // Canonical IDs — used to flag legacy codes in the Re-Tag Notes sheet
+      const CANONICAL_IDS = new Set([
+        "accessories","partitions","fire_ext","corner_guards","appliances","lockers",
+        "display_boards","bike_racks","wire_mesh","cubicle_curtains","med_equipment",
+        "expansion_joints","storage_units","equipment","entrance_mats","mailboxes",
+        "flagpoles","knox_box","site_furnishing",
+      ]);
 
       const [allVendors, allMfrs, allContacts] = await Promise.all([
         db.select().from(mfrVendors),
@@ -1659,17 +1681,19 @@ export function registerVendorDatabaseRoutes(app: Express) {
       const rows: ReportRow[] = [];
       const seen = new Set<string>();
 
-      // Track vendors with unrecognised scope codes for Sheet 2
-      const retag: { vendorName: string; unknownCodes: string }[] = [];
+      // Track vendors that need re-tagging for Sheet 2:
+      //   - legacy codes (in SCOPE_LABELS but not in CANONICAL_IDS) → still produce rows
+      //   - unrecognised codes (not in SCOPE_LABELS at all) → excluded from rows
+      const retag: { vendorName: string; codesNeedingUpdate: string }[] = [];
 
       for (const v of allVendors) {
         const scopeCodes = (v.scopes ?? []).filter(Boolean);
         if (scopeCodes.length === 0) continue;
 
-        const validCodes   = scopeCodes.filter((c) => SCOPE_LABELS[c]);
-        const unknownCodes = scopeCodes.filter((c) => !SCOPE_LABELS[c]);
-        if (unknownCodes.length > 0) {
-          retag.push({ vendorName: v.name, unknownCodes: unknownCodes.join(", ") });
+        const validCodes      = scopeCodes.filter((c) => SCOPE_LABELS[c]);
+        const nonCanonical    = scopeCodes.filter((c) => !CANONICAL_IDS.has(c));
+        if (nonCanonical.length > 0) {
+          retag.push({ vendorName: v.name, codesNeedingUpdate: nonCanonical.join(", ") });
         }
         if (validCodes.length === 0) continue;
 
@@ -1730,9 +1754,9 @@ export function registerVendorDatabaseRoutes(app: Express) {
       );
 
       const retagSheetData: any[][] = [
-        ["=== VENDORS WITH UNRECOGNISED SCOPE CODES (need re-tagging) ==="],
-        ["Vendor Name", "Unknown Codes"],
-        ...retag.map((r) => [r.vendorName, r.unknownCodes]),
+        ["=== VENDORS WITH LEGACY OR UNRECOGNISED SCOPE CODES (need re-tagging in the Vendor edit UI) ==="],
+        ["Vendor Name", "Codes Needing Update"],
+        ...retag.map((r) => [r.vendorName, r.codesNeedingUpdate]),
         [],
         ["=== MANUFACTURERS WITH CONTACTS BUT NO VENDOR RECORD (orphaned) ==="],
         ["Manufacturer Name", "Contact Email"],
