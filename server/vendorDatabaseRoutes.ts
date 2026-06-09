@@ -1604,6 +1604,8 @@ export function registerVendorDatabaseRoutes(app: Express) {
   //   Contact Name, Role, Territory, Email.
   // Sheet 2 "Re-Tag Notes": vendors carrying unrecognised scope codes + orphaned mfrs.
   app.get("/api/mfr/contacts-report", async (req: Request, res: Response) => {
+    // BUILD_V3 — stamp visible in response header AND as a sheet in the xlsx
+    res.setHeader("X-Contacts-Build", "V3");
     const userId = (req.session as any)?.userId;
     if (!userId) return res.status(401).json({ message: "Authentication required" });
     try {
@@ -1767,6 +1769,12 @@ export function registerVendorDatabaseRoutes(app: Express) {
       const wb = xlsx.utils.book_new();
       xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet(contactsSheetData), "Estimate Contacts");
       xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet(retagSheetData),    "Re-Tag Notes");
+      xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet([
+        ["BUILD_V3"],
+        ["Generated", new Date().toISOString()],
+        ["Rows", rows.length],
+        ["Columns", "Scope | Brands Priced | Vendor Name | Contact Name | Role | Territory | Email"],
+      ]), "BUILD_V3");
 
       const buffer: Buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
       const date = new Date().toISOString().slice(0, 10);
