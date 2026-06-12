@@ -108,7 +108,7 @@ export default function ProjectLogPage() {
   const [changeDateFrom, setChangeDateFrom] = useState("");
   const [changeDateTo, setChangeDateTo] = useState("");
   const [regionFilter, setRegionFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string[]>(["Estimating", "Revising", "Draft"]);
 
   interface ChangeLogRecord {
     id: number;
@@ -544,8 +544,11 @@ export default function ProjectLogPage() {
       filtered = filtered.filter(e => e.region === regionFilter);
     }
 
-    if (statusFilter) {
-      filtered = filtered.filter(e => (e.estimateStatus || "Estimating") === statusFilter);
+    if (statusFilter.length > 0) {
+      filtered = filtered.filter(e => {
+        if ((e as any).isDraft) return statusFilter.includes("Draft");
+        return statusFilter.includes(e.estimateStatus || "Estimating");
+      });
     }
 
     if (searchQuery) {
@@ -743,18 +746,37 @@ export default function ProjectLogPage() {
                     <option key={r} value={r}>{r}</option>
                   ))}
                 </select>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="text-xs h-8 rounded-md px-2 border"
-                  style={{ background: "var(--bg-input)", borderColor: "var(--border-ds)", color: "var(--text)" }}
-                  data-testid="select-status-filter"
-                >
-                  <option value="">All Statuses</option>
-                  {["Lead", "Estimating", "Submitted", "Revising", "Won", "Lost", "No Bid"].map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-1 flex-wrap" data-testid="status-filter-chips">
+                  {["Lead", "Estimating", "Submitted", "Revising", "Won", "Lost", "No Bid", "Draft"].map(s => {
+                    const active = statusFilter.includes(s);
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => setStatusFilter(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}
+                        className="text-xs h-7 px-2 rounded-md border transition-colors"
+                        style={{
+                          background: active ? "var(--gold)" : "var(--bg-input)",
+                          borderColor: active ? "var(--gold)" : "var(--border-ds)",
+                          color: active ? "#fff" : "var(--text-dim)",
+                          fontWeight: active ? 600 : 400,
+                        }}
+                        data-testid={`filter-status-${s.toLowerCase().replace(/\s/g, "-")}`}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
+                  {statusFilter.length > 0 && (
+                    <button
+                      onClick={() => setStatusFilter([])}
+                      className="text-xs h-7 px-2 rounded-md border transition-colors"
+                      style={{ background: "var(--bg-input)", borderColor: "var(--border-ds)", color: "var(--text-muted)" }}
+                      data-testid="filter-status-clear"
+                    >
+                      All
+                    </button>
+                  )}
+                </div>
               </div>
             )}
             <div className="flex items-center gap-4 flex-wrap">
