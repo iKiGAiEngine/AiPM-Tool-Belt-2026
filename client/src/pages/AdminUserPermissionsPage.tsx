@@ -20,7 +20,7 @@ interface UserWithPermissions {
 }
 
 const FEATURE_LABELS: Record<string, string> = {
-  "proposal-log": "BC Sync Table",
+  "proposal-log": "Proposal Log",
   "vendor-database": "Vendor / Manufacturer Database",
   "submittal-builder": "Submittal Builder",
   "schedule-converter": "Schedule Converter",

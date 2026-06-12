@@ -487,7 +487,7 @@ export default function ProjectStartPage() {
     if (!projectName || !regionCode || !dueDate) return;
     setDupCheckLoading(true);
     try {
-      const res = await fetch("/api/bc-sync-table/check-duplicate", {
+      const res = await fetch("/api/proposal-log/check-duplicate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

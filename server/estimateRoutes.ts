@@ -504,8 +504,8 @@ export function registerEstimateRoutes(app: Express) {
     }
   });
 
-  // GET /api/bc-sync-table/entry/:id — get a single proposal log entry
-  app.get("/api/bc-sync-table/entry/:id", async (req: Request, res: Response) => {
+  // GET /api/proposal-log/entry/:id — get a single proposal log entry
+  app.get("/api/proposal-log/entry/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
@@ -513,7 +513,7 @@ export function registerEstimateRoutes(app: Express) {
       if (!entry) return res.status(404).json({ message: "Entry not found" });
       res.json(entry);
     } catch (err) {
-      console.error("GET /api/bc-sync-table/entry/:id error:", err);
+      console.error("GET /api/proposal-log/entry/:id error:", err);
       res.status(500).json({ message: "Failed to fetch entry" });
     }
   });

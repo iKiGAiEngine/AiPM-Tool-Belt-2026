@@ -33,10 +33,10 @@ interface ToolTile {
 const tools: ToolTile[] = [
   {
     id: "proposallog",
-    title: "BC Sync Table",
+    title: "Proposal Log Dashboard",
     description: "NBS bid tracking, pipeline analytics & estimating workflow",
     icon: FileBarChart,
-    href: "/tools/bc-sync-table",
+    href: "/tools/proposal-log",
     available: true,
     isExternal: true,
     feature: "proposal-log",
@@ -376,14 +376,14 @@ export default function HomePage() {
   // default — data stays fresh until invalidated; a 2-min background interval keeps
   // the HUD current without re-fetching on every focus/route change.
   const { data: rawProposals, isLoading: proposalsLoading } = useQuery<any[]>({
-    queryKey: ["/api/bc-sync-table/entries"],
+    queryKey: ["/api/proposal-log/entries"],
     staleTime: Infinity,
     refetchInterval: 2 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
   const { data: ackData } = useQuery<{ entryIds: number[] }>({
-    queryKey: ["/api/bc-sync-table/acknowledgements"],
+    queryKey: ["/api/proposal-log/acknowledgements"],
     staleTime: Infinity,
     refetchInterval: 2 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -481,7 +481,7 @@ export default function HomePage() {
   // without waiting for a refetch.
   const patchAckCache = useCallback((entryId: number, add: boolean) => {
     queryClient.setQueryData<{ entryIds: number[] }>(
-      ["/api/bc-sync-table/acknowledgements"],
+      ["/api/proposal-log/acknowledgements"],
       (old) => {
         const ids = old?.entryIds ?? [];
         return {
@@ -514,7 +514,7 @@ export default function HomePage() {
       patchAckCache(entryId, true);
 
       try {
-        const res = await fetch(`/api/bc-sync-table/acknowledge/${entryId}`, {
+        const res = await fetch(`/api/proposal-log/acknowledge/${entryId}`, {
           method: "POST",
           credentials: "include",
         });
@@ -611,7 +611,7 @@ export default function HomePage() {
         <div className="hud-col">
           <div
             className="pl-card"
-            onClick={() => { window.location.href = "/tools/bc-sync-table"; }}
+            onClick={() => { window.location.href = "/tools/proposal-log"; }}
             data-testid="card-proposal-log-hud"
           >
             <div className="pl-glow" />

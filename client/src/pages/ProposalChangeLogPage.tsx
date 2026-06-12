@@ -114,9 +114,9 @@ export default function ProposalChangeLogPage() {
   params.set("limit", String(limit));
 
   const { data: rows = [], isLoading, refetch } = useQuery<ChangeRecord[]>({
-    queryKey: ["/api/bc-sync-table/change-history", search, filterUser, filterField, fromDate, toDate, limit],
+    queryKey: ["/api/proposal-log/change-history", search, filterUser, filterField, fromDate, toDate, limit],
     queryFn: async () => {
-      const res = await fetch(`/api/bc-sync-table/change-history?${params.toString()}`, { credentials: "include" });
+      const res = await fetch(`/api/proposal-log/change-history?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
