@@ -12,7 +12,7 @@ export default function NewProject({ onBack, onCreate }: Props) {
   const [search, setSearch] = useState("");
 
   const { data: allEntries = [], isLoading } = useQuery<ProposalLogEntry[]>({
-    queryKey: ["/api/proposal-log/entries"],
+    queryKey: ["/api/bc-sync-table/entries"],
   });
 
   const wonEntries = (allEntries as any[])

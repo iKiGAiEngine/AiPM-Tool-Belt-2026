@@ -18,7 +18,7 @@ import CentralSettingsPage from "@/pages/CentralSettingsPage";
 import QuoteParserPage from "@/pages/QuoteParserPage";
 import ProjectStartPage from "@/pages/ProjectStartPage";
 import ProjectDetailPage from "@/pages/ProjectDetailPage";
-import ProjectLogPage from "@/pages/ProjectLogPage";
+import BcSyncTablePage from "@/pages/BcSyncTablePage";
 import ScheduleConverterPage from "@/pages/ScheduleConverterPage";
 import SpecExtractorPage from "@/pages/SpecExtractorPage";
 import LoginPage from "@/pages/LoginPage";
@@ -97,8 +97,7 @@ function Router() {
       <Route path="/settings">{() => <SettingsRoute component={CentralSettingsPage} />}</Route>
       <Route path="/project-start" component={ProjectStartPage} />
       <Route path="/projects/:id" component={ProjectDetailPage} />
-      <Route path="/tools/bc-sync-table">{() => <BcSyncRoute component={ProjectLogPage} />}</Route>
-      <Route path="/project-log">{() => { const [, nav] = useLocation(); useEffect(() => { nav("/tools/bc-sync-table"); }, []); return <RouteSpinner />; }}</Route>
+      <Route path="/tools/bc-sync-table">{() => <BcSyncRoute component={BcSyncTablePage} />}</Route>
       <Route path="/schedule-converter" component={ScheduleConverterPage} />
       <Route path="/spec-extractor" component={SpecExtractorPage} />
       <Route path="/admin">{() => <AdminDashboardRoute component={AdminDashboardPage} />}</Route>

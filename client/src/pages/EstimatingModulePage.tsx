@@ -954,9 +954,9 @@ function EstimatingModuleInner() {
 
   // ── Fetch proposal log entry ──
   const { data: proposalEntry } = useQuery<any>({
-    queryKey: ["/api/proposal-log/entry", proposalLogId],
+    queryKey: ["/api/bc-sync-table/entry", proposalLogId],
     queryFn: async () => {
-      const r = await fetch(`/api/proposal-log/entry/${proposalLogId}`);
+      const r = await fetch(`/api/bc-sync-table/entry/${proposalLogId}`);
       if (!r.ok) throw new Error("Not found");
       return r.json();
     },
@@ -1347,13 +1347,13 @@ function EstimatingModuleInner() {
         .map(id => ALL_SCOPES.find(s => s.id === id)?.label)
         .filter(Boolean) as string[];
       const { nbsEstimator: _skip, estimateStatus: _skipStatus, ...projInfoPatch } = projInfo;
-      await apiRequest("PATCH", `/api/proposal-log/entry/${proposalLogId}`, {
+      await apiRequest("PATCH", `/api/bc-sync-table/entry/${proposalLogId}`, {
         ...projInfoPatch,
         nbsSelectedScopes: JSON.stringify(scopeLabels),
       });
-      qc.invalidateQueries({ queryKey: ["/api/proposal-log/entry", proposalLogId] });
-      qc.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
-      qc.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
+      qc.invalidateQueries({ queryKey: ["/api/bc-sync-table/entry", proposalLogId] });
+      qc.invalidateQueries({ queryKey: ["/api/bc-sync-table/all-entries"] });
+      qc.invalidateQueries({ queryKey: ["/api/bc-sync-table/entries"] });
     } catch { /* project info patch failure is non-critical — log entry sync already succeeded */ }
 
     qc.invalidateQueries({ queryKey: ["/api/estimates/by-proposal", proposalLogId] });
@@ -2736,7 +2736,7 @@ ${html}
       <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-page)" }}>
         <div className="text-center">
           <p style={{ color: "var(--text-secondary)" }}>Proposal log entry not found.</p>
-          <Button onClick={() => { window.location.href = "/tools/proposal-log"; }} className="mt-4">Back to Proposal Log Dashboard</Button>
+          <Button onClick={() => { window.location.href = "/tools/bc-sync-table"; }} className="mt-4">Back to Proposal Log Dashboard</Button>
         </div>
       </div>
     );
@@ -2849,7 +2849,7 @@ ${html}
                       <button
                         onClick={() => {
                           if (isDirty && !window.confirm("You have unsaved changes. Leave without saving?")) return;
-                          window.location.href = "/tools/proposal-log";
+                          window.location.href = "/tools/bc-sync-table";
                         }}
                         className="text-xs px-2 py-1.5 rounded"
                         style={{ background: "transparent", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}

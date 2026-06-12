@@ -77,8 +77,8 @@ export function BCSyncPreview({ onClose }: BCSyncPreviewProps) {
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/bc/sync-status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       const parts: string[] = [];

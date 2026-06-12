@@ -72,7 +72,7 @@ type SortField = "projectName" | "region" | "dueDate" | "estimateStatus" | "nbsE
 type SortDir = "asc" | "desc";
 type ViewTab = "all" | "active" | "drafts" | "deleted" | "changes";
 
-export default function ProjectLogPage() {
+export default function BcSyncTablePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewTab, setViewTab] = useState<ViewTab>("all");
   const [sortField, setSortField] = useState<SortField>("createdAt");
@@ -132,9 +132,9 @@ export default function ProjectLogPage() {
   }, [changeFieldFilter, changeUserFilter, changeDateFrom, changeDateTo]);
 
   const { data: changeHistory = [], isLoading: isLoadingChanges, isError: isChangesError } = useQuery<ChangeLogRecord[]>({
-    queryKey: ["/api/proposal-log/change-history", changeQueryParams],
+    queryKey: ["/api/bc-sync-table/change-history", changeQueryParams],
     queryFn: async () => {
-      const url = `/api/proposal-log/change-history${changeQueryParams ? `?${changeQueryParams}` : ""}`;
+      const url = `/api/bc-sync-table/change-history${changeQueryParams ? `?${changeQueryParams}` : ""}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load change history");
       return res.json();
@@ -222,9 +222,9 @@ export default function ProjectLogPage() {
   };
 
   const { data: entries = [], isLoading } = useQuery<ProposalLogEntry[]>({
-    queryKey: ["/api/proposal-log/all-entries"],
+    queryKey: ["/api/bc-sync-table/all-entries"],
     queryFn: async () => {
-      const res = await fetch("/api/proposal-log/all-entries", { credentials: "include" });
+      const res = await fetch("/api/bc-sync-table/all-entries", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch project log entries");
       return res.json();
     },
@@ -233,7 +233,7 @@ export default function ProjectLogPage() {
 
   const recreateFolderMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/proposal-log/${id}/recreate-folder`);
+      const res = await apiRequest("POST", `/api/bc-sync-table/${id}/recreate-folder`);
       return res as unknown as { folderName: string; folderAlreadyExists: boolean; filesAdded: number; estimateStamped: boolean };
     },
     onSuccess: (data) => {
@@ -253,8 +253,8 @@ export default function ProjectLogPage() {
       await apiRequest("POST", `/api/bc/drafts/${id}/reject`, { reason });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       toast({ title: "Draft rejected", description: "The draft has been rejected." });
       setRejectingDraftId(null);
@@ -270,8 +270,8 @@ export default function ProjectLogPage() {
       await apiRequest("PATCH", `/api/bc/drafts/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/entries"] });
       toast({ title: "Draft updated", description: "The draft has been updated." });
       setEditingDraft(null);
     },
@@ -300,8 +300,8 @@ export default function ProjectLogPage() {
       return res.json();
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       setApproveResult({
         projectId: result.project.projectId,
@@ -336,8 +336,8 @@ export default function ProjectLogPage() {
       return res.json();
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       setDupBlockedDraft(null);
       setDupBlockedData(null);
@@ -366,8 +366,8 @@ export default function ProjectLogPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       setDupBlockedDraft(null);
       setDupBlockedData(null);
@@ -389,11 +389,11 @@ export default function ProjectLogPage() {
 
   const inlineUpdateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, string> }) => {
-      await apiRequest("PATCH", `/api/proposal-log/entry/${id}`, data);
+      await apiRequest("PATCH", `/api/bc-sync-table/entry/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bc-sync-table/entries"] });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update entry.", variant: "destructive" });
@@ -1311,7 +1311,7 @@ export default function ProjectLogPage() {
                             <div className="flex flex-col gap-1.5">
                               {entry.screenshotPath && entry.estimateNumber && (
                                 <a
-                                  href={`/api/proposal-log/screenshot/${entry.estimateNumber}`}
+                                  href={`/api/bc-sync-table/screenshot/${entry.estimateNumber}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   title="View source screenshot"
@@ -1484,7 +1484,7 @@ export default function ProjectLogPage() {
                         </a>
                       )}
                       {editingDraft.screenshotPath && editingDraft.estimateNumber && (
-                        <a href={`/api/proposal-log/screenshot/${editingDraft.estimateNumber}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:opacity-80" style={{ color: "var(--gold)" }} data-testid="link-modal-screenshot">
+                        <a href={`/api/bc-sync-table/screenshot/${editingDraft.estimateNumber}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:opacity-80" style={{ color: "var(--gold)" }} data-testid="link-modal-screenshot">
                           <Camera className="w-3.5 h-3.5 flex-shrink-0" />
                           View Screenshot
                         </a>

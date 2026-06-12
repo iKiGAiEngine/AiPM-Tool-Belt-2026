@@ -40,7 +40,7 @@ const toolRoutes: ToolRoute[] = [
   { path: "/quoteparser", label: "Quote Parser", icon: Receipt },
   { path: "/schedule-converter", label: "Schedule Converter", icon: TableProperties },
   { path: "/spec-extractor", label: "Spec Extractor", icon: ClipboardList },
-  { path: "/tools/proposal-log", label: "Proposal Log Dashboard", icon: ClipboardList },
+  { path: "/tools/bc-sync-table", label: "BC Sync Table", icon: ClipboardList },
   { path: "/estimates", label: "Estimator", icon: Calculator },
   { path: "/settings", label: "Settings", icon: Settings },
   { path: "/admin", label: "Admin", icon: Shield },

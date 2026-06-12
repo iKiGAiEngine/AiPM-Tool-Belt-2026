@@ -141,7 +141,7 @@ export function NotificationBell() {
                   onClick={() => {
                     if (!item.isRead) markReadMutation.mutate(item.id);
                     setOpen(false);
-                    navigate("/tools/proposal-log");
+                    navigate("/tools/bc-sync-table");
                   }}
                   data-testid={`notification-item-${item.id}`}
                 >

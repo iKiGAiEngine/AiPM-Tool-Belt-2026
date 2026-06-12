@@ -37,7 +37,7 @@ export default function ProjectNameComboBox({
   const listRef = useRef<HTMLUListElement>(null);
 
   const { data: projects = [] } = useQuery<EstimatingProject[]>({
-    queryKey: ["/api/proposal-log/estimating-projects"],
+    queryKey: ["/api/bc-sync-table/estimating-projects"],
   });
 
   const filtered = projects.filter((p) =>

@@ -1778,7 +1778,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.get("/api/proposal-log/all-entries", async (req: Request, res: Response) => {
+  app.get("/api/bc-sync-table/all-entries", async (req: Request, res: Response) => {
     try {
       const entries = await getAllProposalLogEntries();
       res.json(entries);
@@ -1788,7 +1788,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.get("/api/proposal-log/entries", async (req: Request, res: Response) => {
+  app.get("/api/bc-sync-table/entries", async (req: Request, res: Response) => {
     try {
       const entries = await getActiveProposalLogEntries();
       res.json(entries);
@@ -1798,8 +1798,8 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  // POST /api/proposal-log/check-duplicate — fuzzy match a project name against existing entries
-  app.post("/api/proposal-log/check-duplicate", async (req: Request, res: Response) => {
+  // POST /api/bc-sync-table/check-duplicate — fuzzy match a project name against existing entries
+  app.post("/api/bc-sync-table/check-duplicate", async (req: Request, res: Response) => {
     try {
       const { projectName } = req.body;
       if (!projectName || typeof projectName !== "string") {
@@ -1813,8 +1813,8 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  // POST /api/proposal-log/entries/:id/add-bid-round — append a bid round to an existing entry
-  app.post("/api/proposal-log/entries/:id/add-bid-round", async (req: Request, res: Response) => {
+  // POST /api/bc-sync-table/entries/:id/add-bid-round — append a bid round to an existing entry
+  app.post("/api/bc-sync-table/entries/:id/add-bid-round", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
@@ -1852,7 +1852,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.post("/api/proposal-log/entries/bulk", async (req: Request, res: Response) => {
+  app.post("/api/bc-sync-table/entries/bulk", async (req: Request, res: Response) => {
     try {
       const { entries, checkDuplicates } = req.body;
       if (!Array.isArray(entries) || entries.length === 0) {
@@ -1894,7 +1894,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.get("/api/proposal-log/unsynced", async (req: Request, res: Response) => {
+  app.get("/api/bc-sync-table/unsynced", async (req: Request, res: Response) => {
     try {
       const entries = await getUnsyncedEntries();
       res.json(entries);
@@ -1904,7 +1904,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.post("/api/proposal-log/mark-synced", async (req: Request, res: Response) => {
+  app.post("/api/bc-sync-table/mark-synced", async (req: Request, res: Response) => {
     try {
       const { ids } = req.body;
       if (!Array.isArray(ids)) return res.status(400).json({ message: "ids array required" });
@@ -1916,7 +1916,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.get("/api/proposal-log/estimating-projects", async (_req: Request, res: Response) => {
+  app.get("/api/bc-sync-table/estimating-projects", async (_req: Request, res: Response) => {
     try {
       const entries = await getActiveProposalLogEntries();
       const estimating = entries
@@ -1934,7 +1934,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.patch("/api/proposal-log/entry/:id", async (req: Request, res: Response) => {
+  app.patch("/api/bc-sync-table/entry/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
@@ -2222,7 +2222,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/proposal-log/entry/:id", async (req: Request, res: Response) => {
+  app.delete("/api/bc-sync-table/entry/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
@@ -2253,7 +2253,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.post("/api/proposal-log/delete-bulk", async (req: Request, res: Response) => {
+  app.post("/api/bc-sync-table/delete-bulk", async (req: Request, res: Response) => {
     try {
       const { ids } = req.body;
       if (!Array.isArray(ids) || !ids.length) {
@@ -2289,7 +2289,7 @@ export function registerProjectRoutes(app: Express) {
   });
 
   // Request deletion (any authenticated user)
-  app.post("/api/proposal-log/entry/:id/request-delete", async (req: Request, res: Response) => {
+  app.post("/api/bc-sync-table/entry/:id/request-delete", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
@@ -2326,7 +2326,7 @@ export function registerProjectRoutes(app: Express) {
   });
 
   // Cancel deletion request (requester or admin)
-  app.post("/api/proposal-log/entry/:id/cancel-delete", async (req: Request, res: Response) => {
+  app.post("/api/bc-sync-table/entry/:id/cancel-delete", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
@@ -2360,7 +2360,7 @@ export function registerProjectRoutes(app: Express) {
   });
 
   // Approve deletion (admin only)
-  app.post("/api/proposal-log/entry/:id/approve-delete", async (req: Request, res: Response) => {
+  app.post("/api/bc-sync-table/entry/:id/approve-delete", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
@@ -2389,7 +2389,7 @@ export function registerProjectRoutes(app: Express) {
   });
 
   // Reject deletion (admin only)
-  app.post("/api/proposal-log/entry/:id/reject-delete", async (req: Request, res: Response) => {
+  app.post("/api/bc-sync-table/entry/:id/reject-delete", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
@@ -2417,7 +2417,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.get("/api/proposal-log/screenshot/:projectId", async (req: Request, res: Response) => {
+  app.get("/api/bc-sync-table/screenshot/:projectId", async (req: Request, res: Response) => {
     try {
       const projectId = req.params.projectId;
 
@@ -2447,7 +2447,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.get("/api/proposal-log/sheet-url", async (req: Request, res: Response) => {
+  app.get("/api/bc-sync-table/sheet-url", async (req: Request, res: Response) => {
     try {
       const url = getSheetUrl();
       const configured = isGoogleSheetConfigured();
@@ -2458,7 +2458,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.post("/api/proposal-log/force-sync", async (req: Request, res: Response) => {
+  app.post("/api/bc-sync-table/force-sync", async (req: Request, res: Response) => {
     try {
       const userId = (req.session as any)?.userId;
       if (userId) {
@@ -2479,7 +2479,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.post("/api/proposal-log/google-sheet/import", async (req: Request, res: Response) => {
+  app.post("/api/bc-sync-table/google-sheet/import", async (req: Request, res: Response) => {
     try {
       if (!isGoogleSheetConfigured()) {
         return res.status(400).json({ message: "Google Sheets integration not configured" });
@@ -2492,7 +2492,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.get("/api/proposal-log/acknowledgements", async (req: Request, res: Response) => {
+  app.get("/api/bc-sync-table/acknowledgements", async (req: Request, res: Response) => {
     try {
       const userId = (req.session as any)?.userId;
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
@@ -2504,7 +2504,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.post("/api/proposal-log/acknowledge/:entryId", async (req: Request, res: Response) => {
+  app.post("/api/bc-sync-table/acknowledge/:entryId", async (req: Request, res: Response) => {
     try {
       const userId = (req.session as any)?.userId;
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
@@ -2518,7 +2518,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/proposal-log/acknowledge/:entryId", async (req: Request, res: Response) => {
+  app.delete("/api/bc-sync-table/acknowledge/:entryId", async (req: Request, res: Response) => {
     try {
       const userId = (req.session as any)?.userId;
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
@@ -2549,7 +2549,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.get("/api/proposal-log/change-history", async (req: Request, res: Response) => {
+  app.get("/api/bc-sync-table/change-history", async (req: Request, res: Response) => {
     try {
       const userId = (req.session as any)?.userId;
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
@@ -2673,7 +2673,7 @@ export function registerProjectRoutes(app: Express) {
   // Re-create project bid folder for an existing proposal log entry.
   // Builds the standard folder structure + stamped estimate template in memory
   // and streams the result back as a downloadable .zip file.
-  app.post("/api/proposal-log/:id/recreate-folder", async (req: Request, res: Response) => {
+  app.post("/api/bc-sync-table/:id/recreate-folder", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid proposal log id" });
