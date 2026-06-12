@@ -1,0 +1,60 @@
+PRE-BUILD DISCOVERY — Meeting Transcriber module for AiPM
+
+I'm about to add a new Meeting Transcriber + Report module to AiPM. Before any
+building, I need you to document the CURRENT state of the app so the new module
+fits in cleanly. DO NOT change, refactor, "improve," or build anything yet —
+this is a report only.
+
+Please answer all of the following clearly:
+
+1. DATABASE
+- What file holds the database schema, and what ORM/setup is used (Drizzle)?
+- Show me how tables and relationships are defined (one short example table).
+- Naming conventions you use for tables and columns.
+- Is there an existing "projects" table (for AiPM projects)? If so, its exact
+  name and primary key — I want to optionally link meetings to a project.
+
+2. ECHOLOG (existing recording + transcription) — MOST IMPORTANT
+- Which files make up EchoLog (full paths)?
+- How does it record or accept audio? What audio format(s) and where are the
+  audio files stored (local disk, cloud bucket, database, OneDrive)?
+- How does it currently turn audio into text — what transcription service or
+  API does it call, and which model? Where is that configured?
+- What can I reuse directly versus what would I need to add?
+
+3. BACKEND
+- Where do API routes live (file paths) and how are new routes registered?
+- How is authentication/permissions handled for routes?
+- What port does the server run on?
+
+4. FRONTEND
+- Where do pages/components live (file paths)?
+- How is routing handled, and how does a new tool/page get added to the app
+  (e.g., the tool belt / home page tiles / nav)?
+- What state management is used and how does the frontend call the backend
+  (fetch, axios, React Query, etc.)?
+- Is there a shared layout/header/nav component I should plug into?
+
+5. DESIGN SYSTEM / THEME (so the new screens match exactly)
+- Exact colors (hex codes), including any CSS variables / design tokens.
+- Fonts (names) for headings and body, and where they're loaded.
+- Spacing/sizing conventions and any shared UI components (buttons, cards,
+  tables, inputs) I should reuse instead of making new ones.
+- Is there a light/dark theme toggle, and how is it handled?
+
+6. ENVIRONMENT & CONFIG
+- List the KEY NAMES of current Replit Secrets / environment variables only
+  (NOT the values).
+- Is there already an OpenAI or Anthropic API key configured? Under what name?
+- Any other third-party integrations already in place?
+
+7. EXPORT (for the meeting report)
+- Is there already any PDF or Word (.docx) generation in the app (for example
+  the estimate proposal printout)? If so, which file/library handles it, so I
+  can reuse the same approach for exporting meeting reports.
+
+8. ANYTHING ELSE
+- Any known issues, TODOs, or conventions I should respect when adding a module.
+
+Present this as a clear report. Again: DO NOT change or build anything yet —
+I'll review your answers and then send the build instructions.
