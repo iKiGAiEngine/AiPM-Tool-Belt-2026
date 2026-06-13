@@ -49,6 +49,7 @@ import {
   ClipboardList,
   Trash2,
   Mail,
+  Link2,
 } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -389,7 +390,16 @@ export function AdminUsersSection() {
                 <History className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
                 <div>
                   <div className="font-medium text-sm font-heading group-hover:text-foreground">Proposal Log</div>
-                  <div className="text-xs text-muted-foreground">Bid tracking, pipeline & BC Bid Log audit trail</div>
+                  <div className="text-xs text-muted-foreground">Bid tracking, pipeline & estimating workflow</div>
+                </div>
+              </div>
+            </Link>
+            <Link href="/tools/bc-sync-table" data-testid="link-bc-sync-table">
+              <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
+                <Link2 className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
+                <div>
+                  <div className="font-medium text-sm font-heading group-hover:text-foreground">BC Sync Table</div>
+                  <div className="text-xs text-muted-foreground">BuildingConnected draft review, approval & change history</div>
                 </div>
               </div>
             </Link>

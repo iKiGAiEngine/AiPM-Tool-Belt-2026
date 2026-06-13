@@ -42,6 +42,16 @@ const tools: ToolTile[] = [
     feature: "proposal-log",
   },
   {
+    id: "bcsynctable",
+    title: "BC Sync Table",
+    description: "BuildingConnected draft review, approval & change history",
+    icon: Link2,
+    href: "/tools/bc-sync-table",
+    available: true,
+    adminOnly: true,
+    feature: "bc-sync",
+  },
+  {
     id: "projectstart",
     title: "Project Start",
     description: "Create a new project with plans and specs",
