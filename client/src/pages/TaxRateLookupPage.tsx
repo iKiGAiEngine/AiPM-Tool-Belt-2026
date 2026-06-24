@@ -116,7 +116,7 @@ export default function TaxRateLookupPage() {
           {results.map((r) => (
             <Card key={r.id} className="border-l-4 border-l-primary">
               <CardHeader className="pb-2 pt-4 px-5">
-                <CardTitle className="text-base">
+                <CardTitle className="text-base font-heading">
                   {[r.city, r.county, r.state].filter(Boolean).join(", ") || "Unknown location"}
                 </CardTitle>
               </CardHeader>
