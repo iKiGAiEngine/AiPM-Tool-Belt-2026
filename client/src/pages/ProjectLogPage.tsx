@@ -747,7 +747,7 @@ export default function ProjectLogPage() {
                   ))}
                 </select>
                 <div className="flex items-center gap-1 flex-wrap" data-testid="status-filter-chips">
-                  {["Lead", "Estimating", "Submitted", "Revising", "Won", "Lost", "No Bid", "Draft"].map(s => {
+                  {["Estimating", "Submitted", "Revising", "Won", "Lost", "No Bid", "Draft"].map(s => {
                     const active = statusFilter.includes(s);
                     return (
                       <button
@@ -1091,7 +1091,7 @@ export default function ProjectLogPage() {
                                   DELETED
                                 </Badge>
                               )}
-                              {!isDeleted && !isDraft && viewTab !== "changes" && hasFeature("estimating-module") && (entry.estimateStatus === null || entry.estimateStatus === "Lead" || entry.estimateStatus === "Estimating") && (
+                              {!isDeleted && !isDraft && viewTab !== "changes" && hasFeature("estimating-module") && (entry.estimateStatus === null || entry.estimateStatus === "Estimating") && (
                                 <Link href={`/estimates/${entry.id}`}>
                                   <span
                                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer hover:opacity-80"
@@ -1159,7 +1159,7 @@ export default function ProjectLogPage() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {["Lead", "Estimating", "Submitted", "Revising", "Won", "Lost", "No Bid"].map((s) => (
+                                  {["Estimating", "Submitted", "Revising", "Won", "Lost", "No Bid"].map((s) => (
                                     <SelectItem key={s} value={s} data-testid={`option-status-${s.toLowerCase().replace(/\s/g, "-")}`}>{s}</SelectItem>
                                   ))}
                                 </SelectContent>
