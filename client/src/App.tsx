@@ -39,6 +39,7 @@ import EstimatingModulePage from "@/pages/EstimatingModulePage";
 import AdminEstimatorAnalyticsPage from "@/pages/AdminEstimatorAnalyticsPage";
 import AdminPortfolioVisitsPage from "@/pages/AdminPortfolioVisitsPage";
 import HelpCenterPage from "@/pages/HelpCenterPage";
+import TaxRateLookupPage from "@/pages/TaxRateLookupPage";
 import NotFound from "@/pages/not-found";
 
 const PUBLIC_PATHS = ["/forgot-password", "/reset-password"];
@@ -127,6 +128,7 @@ function Router() {
       <Route path="/estimates/:id" component={EstimatingModulePage} />
       <Route path="/help-center" component={HelpCenterPage} />
       <Route path="/help-center/:sop" component={HelpCenterPage} />
+      <Route path="/tools/tax-rate-lookup" component={TaxRateLookupPage} />
       <Route component={NotFound} />
     </Switch>
   );

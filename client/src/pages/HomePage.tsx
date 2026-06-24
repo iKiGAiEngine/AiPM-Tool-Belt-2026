@@ -125,6 +125,15 @@ const tools: ToolTile[] = [
     feature: "settings-regions",
   },
   {
+    id: "taxratelookup",
+    title: "Tax Rate Lookup",
+    description: "Look up Avalara use tax rates by zip code",
+    icon: Calculator,
+    href: "/tools/tax-rate-lookup",
+    available: true,
+    feature: "tax-rate-lookup",
+  },
+  {
     id: "helpcenter",
     title: "Help Center",
     description: "Step-by-step SOPs for the team — how to use each tool",

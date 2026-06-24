@@ -1675,3 +1675,16 @@ export const portfolioVisits = pgTable("portfolio_visits", {
   path: text("path"),
 });
 export type PortfolioVisit = typeof portfolioVisits.$inferSelect;
+
+export const taxRates = pgTable("tax_rates", {
+  id: serial("id").primaryKey(),
+  zipCode: varchar("zip_code", { length: 10 }).notNull(),
+  state: text("state"),
+  county: text("county"),
+  city: text("city"),
+  totalUseTax: numeric("total_use_tax", { precision: 10, scale: 4 }),
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+}, (table) => ({
+  zipIdx: index("idx_tax_rates_zip").on(table.zipCode),
+}));
+export type TaxRate = typeof taxRates.$inferSelect;

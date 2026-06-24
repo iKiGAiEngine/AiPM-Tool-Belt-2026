@@ -89,6 +89,10 @@ export default function CentralSettingsPage() {
             <Mail className="w-4 h-4" />
             Email Templates{lockIcon}
           </TabsTrigger>
+          <TabsTrigger value="tax-rates" className={`gap-2 ${regionsOnly ? "opacity-50 cursor-not-allowed" : ""}`} data-testid="tab-tax-rates" title={regionsOnly ? "Restricted to admins" : undefined}>
+            <Tag className="w-4 h-4" />
+            Tax Rates{lockIcon}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="vendors">
@@ -121,6 +125,10 @@ export default function CentralSettingsPage() {
 
         <TabsContent value="email-templates">
           <EmailTemplateSection />
+        </TabsContent>
+
+        <TabsContent value="tax-rates">
+          <TaxRatesSection />
         </TabsContent>
       </Tabs>
     </div>
@@ -3218,6 +3226,93 @@ function ProjectWonTemplateEditor() {
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+function TaxRatesSection() {
+  const { toast } = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const { data: status, refetch: refetchStatus } = useQuery<{ rowCount: number; lastUploadedAt: string | null }>({
+    queryKey: ["/api/tax-rates/status"],
+    queryFn: async () => {
+      const res = await fetch("/api/tax-rates/status");
+      if (!res.ok) throw new Error("Status failed");
+      return res.json();
+    },
+  });
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/tax-rates/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      toast({ title: "Tax rates uploaded", description: `${data.rowCount.toLocaleString()} records loaded successfully.` });
+      refetchStatus();
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Avalara Tax Rate Spreadsheet</CardTitle>
+          <CardDescription>
+            Upload the Avalara tax rate Excel file. All existing records will be replaced. Columns used: A (Zip), B (State), C (County), D (City), O (Total Use Tax %).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {status && (
+            <div className="text-sm text-muted-foreground">
+              {status.rowCount > 0 ? (
+                <>
+                  <span className="font-medium text-foreground">{status.rowCount.toLocaleString()}</span> records currently loaded.
+                  {status.lastUploadedAt && (
+                    <span className="ml-2">Last uploaded: {new Date(status.lastUploadedAt).toLocaleDateString()}</span>
+                  )}
+                </>
+              ) : (
+                "No tax rate data loaded yet."
+              )}
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleUpload}
+            />
+            <Button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="gap-2"
+              variant="outline"
+            >
+              <FileUp className="w-4 h-4" />
+              {uploading ? "Uploading…" : "Upload Spreadsheet"}
+            </Button>
+            {status && status.rowCount > 0 && (
+              <a href="/tools/tax-rate-lookup" className="text-sm text-primary underline">
+                Open Tax Rate Lookup →
+              </a>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
