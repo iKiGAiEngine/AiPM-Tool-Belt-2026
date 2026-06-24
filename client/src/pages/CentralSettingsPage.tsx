@@ -3268,7 +3268,7 @@ function TaxRatesSection() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Avalara Tax Rate Spreadsheet</CardTitle>
+          <CardTitle className="text-base font-heading">Avalara Tax Rate Spreadsheet</CardTitle>
           <CardDescription>
             Upload the Avalara tax rate Excel file. All existing records will be replaced. Columns used: A (Zip), B (State), C (County), D (City), O (Total Use Tax %).
           </CardDescription>
