@@ -1677,6 +1677,19 @@ export const portfolioVisits = pgTable("portfolio_visits", {
 });
 export type PortfolioVisit = typeof portfolioVisits.$inferSelect;
 
+export const quoteParserFeedback = pgTable("quote_parser_feedback", {
+  id: serial("id").primaryKey(),
+  vendorName: text("vendor_name"),
+  quoteNumber: text("quote_number"),
+  issueDescription: text("issue_description").notNull(),
+  rawTextSnippet: text("raw_text_snippet"),
+  status: varchar("status", { length: 20 }).notNull().default("open"), // open | reviewed | applied
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  reviewedAt: timestamp("reviewed_at"),
+  appliedNote: text("applied_note"),
+});
+export type QuoteParserFeedback = typeof quoteParserFeedback.$inferSelect;
+
 export const taxRates = pgTable("tax_rates", {
   id: serial("id").primaryKey(),
   zipCode: varchar("zip_code", { length: 10 }).notNull(),
