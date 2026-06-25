@@ -23,7 +23,7 @@ import {
   type BuyoutScope, type QuoteResponse, type LineItem,
   combinedAwardedTotal, awardedVariance, coverageReport, computeReleaseBy,
   clockUrgency, isQuoteStale, canAward, fmtMoney, fmtSignedMoney, genId,
-  SCOPE_STATUS_LABEL, DEFAULT_VALIDITY_DAYS,
+  parseJsonOrThrow, SCOPE_STATUS_LABEL, DEFAULT_VALIDITY_DAYS,
 } from "./helpers";
 import type { AiQuoteExtraction } from "@shared/buyout/types";
 
@@ -63,8 +63,7 @@ export function ScopeCard({
     queryKey: ["/api/mfr/vendors/by-scope", scope.name],
     queryFn: async () => {
       const res = await fetch(`/api/mfr/vendors/by-scope?scope=${encodeURIComponent(scope.name)}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load vendors");
-      return res.json();
+      return parseJsonOrThrow(res, "Load vendors");
     },
     enabled: expanded,
   });

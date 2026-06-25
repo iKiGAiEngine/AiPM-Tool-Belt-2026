@@ -11,7 +11,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Upload, Loader2, Trash2, CheckCircle2, FileSpreadsheet, PackageCheck } from "lucide-react";
-import { boardFromParsed, fmtMoney } from "./helpers";
+import { boardFromParsed, fmtMoney, parseJsonOrThrow } from "./helpers";
 import type { ParsedEstimate } from "@shared/buyout/estimateParser";
 
 interface BuyoutProjectRow {
@@ -51,8 +51,7 @@ export function ProjectLog({ onOpen }: { onOpen: (id: number) => void }) {
         const fd = new FormData();
         fd.append("file", file);
         const parseRes = await fetch("/api/buyout/parse", { method: "POST", body: fd, credentials: "include" });
-        if (!parseRes.ok) throw new Error((await parseRes.text()) || "Parse failed");
-        const parsed: ParsedEstimate = await parseRes.json();
+        const parsed: ParsedEstimate = await parseJsonOrThrow(parseRes, "Estimate parse");
         if (!parsed.scopes || parsed.scopes.length === 0) {
           toast({ title: "No priced scopes found", description: "The parser found no scopes with a grand total. Check the workbook.", variant: "destructive" });
           setIngesting(false);
@@ -65,7 +64,7 @@ export function ProjectLog({ onOpen }: { onOpen: (id: number) => void }) {
           sourceFilename: file.name,
           board,
         });
-        const created = await createRes.json();
+        const created = await parseJsonOrThrow(createRes, "Create project");
         qc.invalidateQueries({ queryKey: ["/api/buyout/projects"] });
         toast({
           title: "Estimate parsed",

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Loader2, CheckCircle2, CloudUpload, Cloud } from "lucide-react";
 import { useBuyoutBoard } from "./useBuyoutBoard";
 import { ScopeCard } from "./ScopeCard";
-import { boardTotals, fmtMoney, fmtSignedMoney, type BuyoutBoard as Board, type BuyoutScope } from "./helpers";
+import { boardTotals, fmtMoney, fmtSignedMoney, parseJsonOrThrow, type BuyoutBoard as Board, type BuyoutScope } from "./helpers";
 
 interface BuyoutProjectFull {
   id: number;
@@ -22,8 +22,7 @@ export function BuyoutBoardView({ projectId, onBack }: { projectId: number; onBa
     queryKey: ["/api/buyout/projects", projectId],
     queryFn: async () => {
       const res = await fetch(`/api/buyout/projects/${projectId}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load project");
-      return res.json();
+      return parseJsonOrThrow(res, "Load project");
     },
   });
 
