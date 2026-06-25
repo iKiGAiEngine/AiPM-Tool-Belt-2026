@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -31,6 +32,7 @@ interface ParsedRow {
   confidence?: number;
   confidenceNote?: string;
   lineType?: string;
+  defaultChecked?: boolean;
 }
 
 interface SpecCheck {
@@ -65,6 +67,7 @@ export default function QuoteParserPage() {
 
   // Result
   const [result, setResult] = useState<ParseResult | null>(null);
+  const [checkedRows, setCheckedRows] = useState<Set<number>>(new Set());
   const [specExpanded, setSpecExpanded] = useState(true);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
@@ -131,6 +134,13 @@ export default function QuoteParserPage() {
     },
     onSuccess: (data) => {
       setResult(data);
+      // Pre-select main material pieces (defaultChecked); leave accessories/tags unchecked.
+      // The summary row is always included on copy/download, so it is excluded here.
+      const initial = new Set<number>();
+      data.rows.forEach((row, idx) => {
+        if (row.lineType !== "summary" && row.defaultChecked !== false) initial.add(idx);
+      });
+      setCheckedRows(initial);
       setFeedbackOpen(false);
       setFeedbackText("");
       toast({ title: "Quote Parsed", description: "Review results below" });
@@ -164,27 +174,50 @@ export default function QuoteParserPage() {
 
   const canParse = quoteFile !== null || pastedImage !== null || quoteText.trim() !== "";
 
+  // Build the rows to export: checked line items + the always-included summary row.
+  const exportRows = useCallback(() => {
+    if (!result) return [];
+    return result.rows.filter((r, idx) => r.lineType === "summary" || checkedRows.has(idx));
+  }, [result, checkedRows]);
+
+  const toggleRow = useCallback((idx: number) => {
+    setCheckedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  }, []);
+
+  // Indexes of all selectable (non-summary) rows
+  const selectableIdxs = result ? result.rows.map((r, i) => ({ r, i })).filter(x => x.r.lineType !== "summary").map(x => x.i) : [];
+  const allChecked = selectableIdxs.length > 0 && selectableIdxs.every(i => checkedRows.has(i));
+  const someChecked = selectableIdxs.some(i => checkedRows.has(i));
+
+  const toggleAll = useCallback(() => {
+    setCheckedRows(allChecked ? new Set() : new Set(selectableIdxs));
+  }, [allChecked, selectableIdxs]);
+
   // Copy to clipboard
   const copyToClipboard = useCallback(() => {
     if (!result) return;
     const headers = ["PLAN CALLOUT", "DESCRIPTION", "MODEL NUMBER", "ITEM QUANTITY", "MATERIAL", "FREIGHT"];
-    const rows = result.rows.map(r => [r.planCallout || "", r.description || "", r.modelNumber || "", r.qty || "", r.material || "", r.freight || ""]);
+    const rows = exportRows().map(r => [r.planCallout || "", r.description || "", r.modelNumber || "", r.qty || "", r.material || "", r.freight || ""]);
     copyTsvWithFormatting(headers, rows);
-    toast({ title: "Copied!", description: "Table copied to clipboard as TSV" });
-  }, [result, toast]);
+    toast({ title: "Copied!", description: `${rows.length} ${rows.length === 1 ? "row" : "rows"} copied to clipboard` });
+  }, [result, exportRows, toast]);
 
   // Download CSV
   const downloadCSV = useCallback(() => {
     if (!result) return;
     const headers = ["PLAN CALLOUT", "DESCRIPTION", "MODEL NUMBER", "ITEM QUANTITY", "MATERIAL", "FREIGHT"];
     const esc = (v: string) => v.includes(",") || v.includes('"') || v.includes("\n") ? `"${v.replace(/"/g, '""')}"` : v;
-    const csv = [headers.join(","), ...result.rows.map(r => [r.planCallout || "", r.description || "", r.modelNumber || "", r.qty || "", r.material || "", r.freight || ""].map(esc).join(","))].join("\n");
+    const csv = [headers.join(","), ...exportRows().map(r => [r.planCallout || "", r.description || "", r.modelNumber || "", r.qty || "", r.material || "", r.freight || ""].map(esc).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = "quote_estimate.csv"; a.click();
     URL.revokeObjectURL(url);
-  }, [result]);
+  }, [result, exportRows]);
 
   const confidenceBadge = (confidence: number | undefined, note: string | undefined) => {
     if (!confidence || confidence >= 95) return null;
@@ -372,6 +405,14 @@ export default function QuoteParserPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[44px]">
+                        <Checkbox
+                          checked={allChecked ? true : someChecked ? "indeterminate" : false}
+                          onCheckedChange={toggleAll}
+                          aria-label="Select all line items"
+                          data-testid="checkbox-select-all"
+                        />
+                      </TableHead>
                       <TableHead className="min-w-[100px]">PLAN CALLOUT</TableHead>
                       <TableHead className="min-w-[100px]">DESCRIPTION</TableHead>
                       <TableHead className="min-w-[200px]">MODEL NUMBER</TableHead>
@@ -390,6 +431,16 @@ export default function QuoteParserPage() {
                           className={`${isSummary ? "font-semibold border-t-2 border-border bg-muted/20" : ""} ${isLowConfidence ? "bg-yellow-500/5" : ""}`}
                           data-testid={`row-result-${idx}`}
                         >
+                          <TableCell>
+                            {!isSummary && (
+                              <Checkbox
+                                checked={checkedRows.has(idx)}
+                                onCheckedChange={() => toggleRow(idx)}
+                                aria-label="Include line item"
+                                data-testid={`checkbox-row-${idx}`}
+                              />
+                            )}
+                          </TableCell>
                           <TableCell className="font-mono">{row.planCallout || ""}</TableCell>
                           <TableCell>
                             {row.description}
