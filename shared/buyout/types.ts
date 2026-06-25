@@ -80,6 +80,24 @@ export interface BuyoutBoard {
   version: number;
 }
 
+/** Structured result of AI quote reading (server → client contract). */
+export interface AiQuoteLine {
+  description: string;
+  model?: string;
+  qty?: number;
+  unitPrice?: number;
+  extendedPrice?: number;
+}
+export interface AiQuoteExtraction {
+  vendor: string | null;
+  quoteAmount: number | null;
+  leadTimeWeeks: number | null;
+  exclusions: string[];
+  coveredLines: string[];
+  lines: AiQuoteLine[];
+  note: string | null;
+}
+
 export const BUYOUT_BOARD_VERSION = 1;
 export const DEFAULT_SUBMITTAL_WEEKS = 3;
 export const DEFAULT_VALIDITY_DAYS = 45;
@@ -146,7 +164,7 @@ export function computeReleaseBy(scope: BuyoutScope): { releaseBy: string; daysU
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const daysUntil = Math.round((release.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const daysUntil = Math.ceil((release.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   const yyyy = release.getFullYear();
   const mm = String(release.getMonth() + 1).padStart(2, "0");
@@ -190,7 +208,13 @@ export function boughtOutCount(board: BuyoutBoard): number {
 export interface BoardTotals {
   budgetTotal: number;
   awardedTotal: number;
+  /** Budget of only the scopes that have ≥1 award — what awarded $ compares against. */
+  awardedBudget: number;
+  /** awardedTotal − awardedBudget (negative = under budget). */
   variance: number;
+  /** awardedBudget − awardedTotal (positive = savings). */
+  savings: number;
+  awardedScopeCount: number;
   boughtOut: number;
   scopeCount: number;
   complete: boolean;
@@ -199,14 +223,23 @@ export interface BoardTotals {
 export function boardTotals(board: BuyoutBoard): BoardTotals {
   let budgetTotal = 0;
   let awardedTotal = 0;
+  let awardedBudget = 0;
+  let awardedScopeCount = 0;
   for (const s of board.scopes) {
     budgetTotal += s.budget.total;
     awardedTotal += combinedAwardedTotal(s);
+    if (s.awardedVendorIds.length > 0) {
+      awardedBudget += s.budget.total;
+      awardedScopeCount += 1;
+    }
   }
   return {
     budgetTotal,
     awardedTotal,
-    variance: awardedTotal - budgetTotal,
+    awardedBudget,
+    variance: awardedTotal - awardedBudget,
+    savings: awardedBudget - awardedTotal,
+    awardedScopeCount,
     boughtOut: boughtOutCount(board),
     scopeCount: board.scopes.length,
     complete: isBoardComplete(board),

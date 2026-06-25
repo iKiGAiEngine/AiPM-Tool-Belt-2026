@@ -1723,6 +1723,7 @@ export const buyoutProjects = pgTable("buyout_projects", {
   boughtOutCount: integer("bought_out_count").notNull().default(0),
   budgetTotal: numeric("budget_total", { precision: 14, scale: 2 }).notNull().default("0"),
   awardedTotal: numeric("awarded_total", { precision: 14, scale: 2 }).notNull().default("0"),
+  awardedBudget: numeric("awarded_budget", { precision: 14, scale: 2 }).notNull().default("0"),
   boardData: jsonb("board_data").$type<BuyoutBoard>().notNull(),
   isTest: boolean("is_test").default(false).notNull(),
   createdBy: varchar("created_by", { length: 100 }),

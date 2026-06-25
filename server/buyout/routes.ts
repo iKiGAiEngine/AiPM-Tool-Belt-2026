@@ -28,6 +28,7 @@ function cacheFields(board: BuyoutBoard) {
     boughtOutCount: t.boughtOut,
     budgetTotal: String(t.budgetTotal),
     awardedTotal: String(t.awardedTotal),
+    awardedBudget: String(t.awardedBudget),
   };
 }
 
@@ -64,6 +65,7 @@ export function registerBuyoutRoutes(app: Express) {
           boughtOutCount: buyoutProjects.boughtOutCount,
           budgetTotal: buyoutProjects.budgetTotal,
           awardedTotal: buyoutProjects.awardedTotal,
+          awardedBudget: buyoutProjects.awardedBudget,
           isTest: buyoutProjects.isTest,
           createdBy: buyoutProjects.createdBy,
           createdAt: buyoutProjects.createdAt,
@@ -203,6 +205,60 @@ export function registerBuyoutRoutes(app: Express) {
       res.json({ results, sent: results.filter((x) => x.ok).length, failed: results.filter((x) => !x.ok).length });
     } catch (err: any) {
       console.error("[Buyout] rfq error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- AI vendor gap-fill — suggest Division 10 vendors for a scope that has
+  // zero tagged vendors. Never auto-adds; the client offers to add them. --------
+  app.post("/api/buyout/suggest-vendors", async (req: Request, res: Response) => {
+    try {
+      const { scopeName, sampleItems } = req.body || {};
+      if (!scopeName) return res.status(400).json({ error: "scopeName required" });
+      if (!process.env.OPENAI_API_KEY) return res.json({ suggestions: [] });
+      const { default: OpenAI } = await import("openai");
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const items = Array.isArray(sampleItems) ? sampleItems.slice(0, 6).join("; ") : "";
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content:
+              `You are a Division 10 specialty-construction procurement assistant. ` +
+              `Respond ONLY with JSON: {"suggestions":[{"name":string,"note":string}]} — ` +
+              `the 2-3 manufacturers/vendors a subcontractor would actually send an RFQ to for the given scope.`,
+          },
+          { role: "user", content: `Scope: "${scopeName}". Line items: ${items || "(none provided)"}.` },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 400,
+      });
+      const parsed = JSON.parse(response.choices[0].message.content || "{}");
+      const suggestions = Array.isArray(parsed?.suggestions)
+        ? parsed.suggestions.filter((s: any) => s?.name).map((s: any) => ({ name: String(s.name), note: String(s.note || "") }))
+        : [];
+      res.json({ suggestions });
+    } catch (err: any) {
+      console.error("[Buyout] suggest-vendors error:", err);
+      res.json({ suggestions: [] });
+    }
+  });
+
+  // ---- Add a suggested vendor to the central Vendor Database (with the scope
+  // tag) — the only write into the vendor store, gated by an explicit click. ----
+  app.post("/api/buyout/add-vendor", async (req: Request, res: Response) => {
+    try {
+      const { name, scopeName } = req.body || {};
+      const clean = String(name || "").trim();
+      if (!clean || !scopeName) return res.status(400).json({ error: "name and scopeName required" });
+      const { mfrVendors } = await import("@shared/schema");
+      const [vendor] = await db
+        .insert(mfrVendors)
+        .values({ name: clean, legalName: clean, scopes: [String(scopeName)], tags: [] as any })
+        .returning();
+      res.json(vendor);
+    } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });

@@ -80,11 +80,16 @@ function normHeader(v: unknown): string {
   return cellText(v).toLowerCase().replace(/\s+/g, " ");
 }
 
-/** Find the last column index left of `limit` whose header contains `needle`. */
-function lastColContaining(header: unknown[], needle: string, limit: number): number {
+/**
+ * Find the last column index left of `limit` whose header contains `needle`
+ * (the extended-$ column, not the unit/helper column). `exclude` skips helper
+ * columns like "Material Cost" or "Labor Factor" per the prototype's rules.
+ */
+function lastColContaining(header: unknown[], needle: string, limit: number, exclude?: string): number {
   let found = -1;
   for (let c = 0; c < header.length && c < limit; c++) {
-    if (normHeader(header[c]).includes(needle)) found = c;
+    const h = normHeader(header[c]);
+    if (h.includes(needle) && (!exclude || !h.includes(exclude))) found = c;
   }
   return found;
 }
@@ -162,10 +167,11 @@ function parseSheet(
   const calloutCol = firstColContaining(header, "callout");
 
   // Material / Freight / Labor = the LAST header of each name left of Total
-  // (the extended $ columns). Labor may be absent.
-  const materialCol = lastColContaining(header, "material", totalLimit);
+  // (the extended $ columns). Skip helper columns ("...cost", "...factor")
+  // exactly as the prototype does. Labor may be absent.
+  const materialCol = lastColContaining(header, "material", totalLimit, "cost");
   const freightCol = lastColContaining(header, "freight", totalLimit);
-  const laborCol = lastColContaining(header, "labor", totalLimit);
+  const laborCol = lastColContaining(header, "labor", totalLimit, "factor");
 
   if (specCol === -1 || descCol === -1) return { skip: "missing spec/description columns" };
 
@@ -214,9 +220,12 @@ function parseSheet(
     if (!specNo || !description) continue; // skips padding/markup/lump-sum rows
 
     const model = modelCol !== -1 ? cellText(row[modelCol]) : "";
-    const callout = calloutCol !== -1 ? cellText(row[calloutCol]) : "";
-    const isAllowance =
-      ALLOWANCE_RE.test(description) || ALLOWANCE_RE.test(model) || ALLOWANCE_RE.test(sheetName);
+    // Callout falls back to column D (index 3) when there's no labelled header,
+    // matching the prototype's `txt(row[3])` fallback.
+    const callout = calloutCol !== -1 ? cellText(row[calloutCol]) : cellText(row[3]);
+    // isAllowance = /allowance/i against description/model/specTitle at parse
+    // time (specTitle is not carried in the workbook, so description + model).
+    const isAllowance = ALLOWANCE_RE.test(description) || ALLOWANCE_RE.test(model);
 
     items.push({
       specNo,

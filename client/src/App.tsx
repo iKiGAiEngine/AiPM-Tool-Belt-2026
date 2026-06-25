@@ -36,6 +36,7 @@ import { AdminUserPermissionsPage } from "@/pages/AdminUserPermissionsPage";
 import ChangelogPage from "@/pages/ChangelogPage";
 import ProposalChangeLogPage from "@/pages/ProposalChangeLogPage";
 import EstimatingModulePage from "@/pages/EstimatingModulePage";
+import BuyoutBotPage from "@/pages/BuyoutBotPage";
 import AdminEstimatorAnalyticsPage from "@/pages/AdminEstimatorAnalyticsPage";
 import AdminPortfolioVisitsPage from "@/pages/AdminPortfolioVisitsPage";
 import HelpCenterPage from "@/pages/HelpCenterPage";
@@ -125,6 +126,7 @@ function Router() {
       <Route path="/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
       <Route path="/submittal-builder" component={SubmittalBuilderPage} />
       <Route path="/vendor-database" component={VendorDatabasePage} />
+      <Route path="/buyout-bot" component={BuyoutBotPage} />
       <Route path="/estimates/:id" component={EstimatingModulePage} />
       <Route path="/help-center" component={HelpCenterPage} />
       <Route path="/help-center/:sop" component={HelpCenterPage} />
