@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import multer from "multer";
 import ExcelJS from "exceljs";
+import pg from "pg";
 import { db } from "./db";
 import { taxRates } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
@@ -18,31 +19,53 @@ export function registerTaxRateRoutes(app: Express) {
       await workbook.xlsx.load(req.file.buffer);
       const sheet = workbook.worksheets[0];
 
-      const rows: { zipCode: string; state: string | null; county: string | null; city: string | null; totalUseTax: string | null }[] = [];
+      const zips: string[] = [];
+      const states: (string | null)[] = [];
+      const counties: (string | null)[] = [];
+      const cities: (string | null)[] = [];
+      const taxes: (string | null)[] = [];
 
       sheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return; // skip header
         const zip = String(row.getCell(1).value ?? "").trim();
         if (!zip) return;
-        const state = String(row.getCell(2).value ?? "").trim() || null;
-        const county = String(row.getCell(3).value ?? "").trim() || null;
-        const city = String(row.getCell(4).value ?? "").trim() || null;
-        const rawTax = row.getCell(15).value; // column O
+        zips.push(zip);
+        states.push(String(row.getCell(2).value ?? "").trim() || null);
+        counties.push(String(row.getCell(3).value ?? "").trim() || null);
+        cities.push(String(row.getCell(4).value ?? "").trim() || null);
+        const rawTax = row.getCell(15).value;
         let totalUseTax: string | null = null;
         if (rawTax !== null && rawTax !== undefined && rawTax !== "") {
           const num = parseFloat(String(rawTax));
           if (!isNaN(num)) totalUseTax = String(num);
         }
-        rows.push({ zipCode: zip, state, county, city, totalUseTax });
+        taxes.push(totalUseTax);
       });
 
-      if (rows.length === 0) return res.status(400).json({ error: "No data rows found in spreadsheet" });
+      if (zips.length === 0) return res.status(400).json({ error: "No data rows found in spreadsheet" });
 
-      // Replace all existing records
-      await db.delete(taxRates);
-      await db.insert(taxRates).values(rows);
+      // Use raw pg with unnest() — sends data as arrays, Postgres expands server-side
+      // This avoids any JS call-stack issues with large datasets
+      const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+      const pgClient = await pool.connect();
+      try {
+        await pgClient.query("BEGIN");
+        await pgClient.query("DELETE FROM tax_rates");
+        await pgClient.query(
+          `INSERT INTO tax_rates (zip_code, state, county, city, total_use_tax)
+           SELECT * FROM unnest($1::varchar[], $2::text[], $3::text[], $4::text[], $5::numeric[])`,
+          [zips, states, counties, cities, taxes]
+        );
+        await pgClient.query("COMMIT");
+      } catch (e) {
+        await pgClient.query("ROLLBACK");
+        throw e;
+      } finally {
+        pgClient.release();
+        await pool.end();
+      }
 
-      res.json({ success: true, rowCount: rows.length });
+      res.json({ success: true, rowCount: zips.length });
     } catch (err: any) {
       console.error("Tax rate upload error:", err);
       res.status(500).json({ error: err.message || "Failed to parse file" });
