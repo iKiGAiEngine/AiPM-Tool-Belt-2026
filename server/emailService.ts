@@ -487,3 +487,50 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
     console.log(`========================================\n`);
   }
 }
+
+// =====================================================
+// BUYOUT BOT — RFQ email
+// =====================================================
+// Sends ONE individual RFQ email per vendor (never a shared BCC). Returns a
+// per-recipient result so the caller can report partial failures. Honors the
+// same SendGrid / console-fallback path as every other email in this service.
+
+export interface RfqEmailInput {
+  to: string;
+  vendorName: string;
+  projectName: string;
+  scopeName: string;
+  subject: string;
+  /** Pre-rendered HTML body (built from parsed line items by the caller). */
+  html: string;
+  /** Plain-text fallback. */
+  text: string;
+  /** Optional reply-to (the requesting PM). */
+  replyTo?: string;
+}
+
+export async function sendRfqEmail(input: RfqEmailInput): Promise<{ ok: boolean; error?: string }> {
+  const { to, subject, html, text, replyTo } = input;
+  if (!to || !/.+@.+\..+/.test(to)) {
+    return { ok: false, error: "Missing or invalid recipient email" };
+  }
+  if (EMAIL_PROVIDER === "sendgrid") {
+    try {
+      await sgMail.send({ to, from: EMAIL_FROM, subject, text, html, ...(replyTo ? { replyTo } : {}) });
+      console.log(`[Email] RFQ sent to ${to} (${input.vendorName}) for ${input.scopeName} via SendGrid`);
+      return { ok: true };
+    } catch (error: any) {
+      const msg = error?.response?.body ? JSON.stringify(error.response.body) : error.message;
+      console.error(`[Email] SendGrid error sending RFQ to ${to}:`, msg);
+      return { ok: false, error: String(error.message || "SendGrid send failed") };
+    }
+  }
+  console.log(`\n========================================`);
+  console.log(`[Email-DEV] RFQ to ${input.vendorName} <${to}>`);
+  console.log(`Project: ${input.projectName}  ·  Scope: ${input.scopeName}`);
+  console.log(`Subject: ${subject}`);
+  console.log(`----------------------------------------`);
+  console.log(text);
+  console.log(`========================================\n`);
+  return { ok: true };
+}

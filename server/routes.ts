@@ -28,6 +28,7 @@ import { registerBackupRoutes } from "./backupRestore";
 import { registerVendorDatabaseRoutes } from "./vendorDatabaseRoutes";
 import { registerEstimateRoutes } from "./estimateRoutes";
 import { registerEstimateAnalyticsRoutes } from "./estimateAnalyticsRoutes";
+import { registerBuyoutRoutes } from "./buyout/routes";
 import { registerScopeManufacturerRoutes } from "./scopeManufacturerRoutes";
 import { registerErrorRoutes } from "./errorRoutes";
 import { registerChatRoutes } from "./chatRoutes";
@@ -322,7 +323,8 @@ export async function registerRoutes(
   registerBackupRoutes(app);
   registerEstimateRoutes(app);
   registerEstimateAnalyticsRoutes(app);
-  
+  registerBuyoutRoutes(app);
+
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {
       if (!req.file) {
