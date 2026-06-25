@@ -12,6 +12,33 @@ import {
 
 export * from "@shared/buyout/types";
 
+/**
+ * Parse a fetch Response as JSON, with a clear error when the server returns
+ * HTML instead of data. That happens when the running server process is stale
+ * (older code) and an unknown `/api/buyout/*` route falls through to the SPA
+ * `index.html` fallback — the raw failure ("Unexpected token '<'") is cryptic,
+ * so translate it into an actionable message.
+ */
+export async function parseJsonOrThrow(res: Response, context = "Request"): Promise<any> {
+  const ct = res.headers.get("content-type") || "";
+  const isJson = ct.includes("application/json");
+  if (!res.ok || !isJson) {
+    const body = await res.text().catch(() => "");
+    if (!isJson && body.trimStart().startsWith("<")) {
+      throw new Error(
+        "The Buyout API didn't respond as expected (it returned a web page, not data). " +
+          "The server is likely running older code — rebuild and restart it after pulling the latest, then try again."
+      );
+    }
+    let msg = body;
+    if (isJson) {
+      try { msg = JSON.parse(body)?.error || body; } catch { /* keep raw body */ }
+    }
+    throw new Error(msg || `${context} failed (HTTP ${res.status})`);
+  }
+  return res.json();
+}
+
 let idCounter = 0;
 export function genId(prefix = "id"): string {
   idCounter += 1;
