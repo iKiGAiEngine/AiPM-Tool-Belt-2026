@@ -186,6 +186,9 @@ export const CANONICAL_SCOPE_NAMES: string[] = CANONICAL_SCOPE_DEFS.map((s) => s
 // Build lookup maps once at module load.
 const ALIAS_MAP = new Map<string, string>();
 const CSI_MAP = new Map<string, string>();
+// Parallel array of [normalizedAlias, canonicalName] for substring scanning
+// (avoids iterating the Map directly — keeps tsc happy without downlevelIteration).
+const ALIAS_ENTRIES: [string, string][] = [];
 
 function normalize(raw: string): string {
   return raw
@@ -202,8 +205,14 @@ function normalizeCsi(raw: string): string {
 }
 
 for (const def of CANONICAL_SCOPE_DEFS) {
-  ALIAS_MAP.set(normalize(def.name), def.name);
-  for (const a of def.aliases) ALIAS_MAP.set(normalize(a), def.name);
+  const nName = normalize(def.name);
+  ALIAS_MAP.set(nName, def.name);
+  ALIAS_ENTRIES.push([nName, def.name]);
+  for (const a of def.aliases) {
+    const na = normalize(a);
+    ALIAS_MAP.set(na, def.name);
+    ALIAS_ENTRIES.push([na, def.name]);
+  }
   for (const c of def.csi) {
     const n = normalizeCsi(c);
     if (n) CSI_MAP.set(n, def.name);
@@ -237,7 +246,7 @@ export function resolveScope(raw: string | null | undefined): string | null {
   }
 
   // 3. Substring match against any alias (handles "10 28 00 toilet accessory schedule").
-  for (const [alias, name] of ALIAS_MAP) {
+  for (const [alias, name] of ALIAS_ENTRIES) {
     if (alias.length >= 4 && norm.includes(alias)) return name;
   }
 

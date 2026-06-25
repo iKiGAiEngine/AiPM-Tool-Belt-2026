@@ -351,7 +351,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
 
   app.post("/api/mfr/vendors", async (req: Request, res: Response) => {
     try {
-      const { name, category, website, notes, tags, scopes, manufacturerIds, manufacturerDirect, legalName, shortCode, aliases } = req.body;
+      const { name, category, website, notes, tags, scopes, preferredForTrades, manufacturerIds, manufacturerDirect, legalName, shortCode, aliases } = req.body;
       const cleanName = String(name || "").trim();
       if (!cleanName) return res.status(400).json({ error: "Name required" });
       const cleanLegal = String(legalName || cleanName).trim() || cleanName;
@@ -371,6 +371,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
         aliases: cleanAliases,
         tags: tags || [],
         scopes: Array.isArray(scopes) ? scopes : null,
+        preferredForTrades: Array.isArray(preferredForTrades) ? preferredForTrades : null,
         manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
         manufacturerDirect: !!manufacturerDirect,
       }).returning();
@@ -383,7 +384,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
   app.put("/api/mfr/vendors/:id", async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const { name, category, website, notes, tags, scopes, manufacturerIds, manufacturerDirect, legalName, shortCode, aliases } = req.body;
+      const { name, category, website, notes, tags, scopes, preferredForTrades, manufacturerIds, manufacturerDirect, legalName, shortCode, aliases } = req.body;
       const updates: Record<string, any> = {
         category, website, notes,
         tags: tags || [],
@@ -392,6 +393,9 @@ export function registerVendorDatabaseRoutes(app: Express) {
         manufacturerDirect: !!manufacturerDirect,
         updatedAt: new Date(),
       };
+      if (preferredForTrades !== undefined) {
+        updates.preferredForTrades = Array.isArray(preferredForTrades) ? preferredForTrades : null;
+      }
       // Name: only update if provided; trim and require non-empty
       if (name !== undefined) {
         const cleanName = String(name ?? "").trim();

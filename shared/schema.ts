@@ -2,6 +2,7 @@ import { z } from "zod";
 import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar, unique, customType, numeric, json, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
+import type { BuyoutBoard } from "./buyout/types";
 
 // External tables not owned by this schema file but present in the database.
 // These stubs exist so `db:push` does NOT propose dropping them. Do not remove.
@@ -1083,7 +1084,10 @@ export const mfrVendors = pgTable("mfr_vendors", {
   materials: text("materials"), // Comma-separated material types (e.g., "Solid Plastic, Phenolic, Metal")
   notes: text("notes"),
   tags: jsonb("tags").$type<string[]>().default([]),
-  scopes: text("scopes").array(),
+  scopes: text("scopes").array(), // trade tags — canonical Div 10 scopes this vendor covers
+  // Buyout Bot: subset of `scopes` for which this vendor is pre-checked when
+  // building an RFQ. Stored as canonical scope names (see shared/buyout/canonicalScopes).
+  preferredForTrades: text("preferred_for_trades").array(),
   manufacturerIds: integer("manufacturer_ids").array(),
   manufacturerDirect: boolean("manufacturer_direct").default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -1255,6 +1259,7 @@ export const FEATURES = {
   RFQ_VENDOR_LOOKUP: "rfq-vendor-lookup",
   PROCUREMENT_PROCESS: "procurement-process",
   SETTINGS_REGIONS: "settings-regions",
+  BUYOUT_BOT: "buyout-bot",
 } as const;
 
 export type Feature = typeof FEATURES[keyof typeof FEATURES];
@@ -1274,6 +1279,7 @@ export const DEFAULT_ROLE_FEATURES: Record<string, Feature[]> = {
     FEATURES.SPEC_EXTRACTOR,
     FEATURES.QUOTE_PARSER,
     FEATURES.PROJECT_START,
+    FEATURES.BUYOUT_BOT,
   ],
   user: [FEATURES.PROPOSAL_LOG],
 };
@@ -1675,3 +1681,40 @@ export const portfolioVisits = pgTable("portfolio_visits", {
   path: text("path"),
 });
 export type PortfolioVisit = typeof portfolioVisits.$inferSelect;
+
+// =====================================================
+// BUYOUT BOT MODULE
+// =====================================================
+// A buyout project = one dropped NBS estimate workbook. The full trackable
+// board (scopes / line items / quotes / awards) is stored as a single JSONB
+// document (`boardData`) so auto-save is one PATCH and resume is one GET.
+// Header columns are cached for the project-log list view.
+
+export const buyoutProjects = pgTable("buyout_projects", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 500 }).notNull(), // derived from the file name
+  sourceFilename: varchar("source_filename", { length: 500 }),
+  // Optional link to an AiPM project / estimate so buyout ties to the real job.
+  projectId: integer("project_id"),
+  estimateId: integer("estimate_id"),
+  // Cached list-view fields (kept in sync on save; board is source of truth).
+  status: varchar("status", { length: 20 }).notNull().default("in_progress"), // in_progress | complete
+  scopeCount: integer("scope_count").notNull().default(0),
+  boughtOutCount: integer("bought_out_count").notNull().default(0),
+  budgetTotal: numeric("budget_total", { precision: 14, scale: 2 }).notNull().default("0"),
+  awardedTotal: numeric("awarded_total", { precision: 14, scale: 2 }).notNull().default("0"),
+  // The whole board document.
+  boardData: jsonb("board_data").$type<BuyoutBoard>().notNull(),
+  isTest: boolean("is_test").default(false).notNull(),
+  createdBy: varchar("created_by", { length: 100 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export type BuyoutProject = typeof buyoutProjects.$inferSelect;
+export type InsertBuyoutProject = typeof buyoutProjects.$inferInsert;
+export const insertBuyoutProjectSchema = createInsertSchema(buyoutProjects).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertBuyoutProjectInput = z.infer<typeof insertBuyoutProjectSchema>;
