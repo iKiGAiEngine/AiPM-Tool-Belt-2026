@@ -16,6 +16,7 @@ const LineItemSchema = z.object({
   lineType: z.enum(["product", "tag", "decal", "freight", "other"]).default("product"),
   confidence: z.number().min(0).max(100).default(90),
   confidenceNote: z.string().default(""),
+  defaultChecked: z.boolean().default(true),
 });
 
 const QuoteResultSchema = z.object({
@@ -34,6 +35,7 @@ export interface ParsedLineItem {
   lineType: "product" | "tag" | "decal" | "freight" | "other";
   confidence: number;
   confidenceNote: string;
+  defaultChecked: boolean;
 }
 
 export interface QuoteParseResult {
@@ -75,7 +77,8 @@ OUTPUT SCHEMA:
       "qty": string,            // quantity as a string
       "lineType": "product" | "tag" | "decal" | "freight" | "other",
       "confidence": number,     // 0-100 confidence this line was read correctly
-      "confidenceNote": string  // brief note if confidence < 95, otherwise ""
+      "confidenceNote": string, // brief note if confidence < 95, otherwise ""
+      "defaultChecked": boolean // true if this is a main material piece, false if accessory/incidental
     }
   ],
   "warnings": string[]          // any issues or ambiguities you encountered
@@ -104,6 +107,14 @@ CONFIDENCE SCORING:
 - 80-94: minor uncertainty (e.g. OCR artifact, slightly blurry text)
 - 60-79: significant uncertainty, reviewer should verify
 - Below 60: could not read reliably
+
+DEFAULT SELECTION (defaultChecked):
+Set defaultChecked to indicate whether a line should be pre-selected for copying into an estimate. The estimator wants MAIN material pieces pre-checked and INCIDENTAL accessories left unchecked.
+- defaultChecked = true for the primary/main material piece of any scope. Examples: locker frames/units, fire extinguishers, fire extinguisher cabinets, toilet partition panels/doors/pilasters, the principal product being purchased.
+- defaultChecked = false for incidental or add-on accessory lines. Examples: locker filler panels, spacers, end panels, sloped tops, trim, base/leg kits, number plates, mounting hardware, brackets, and any item that is an accessory to a main piece.
+- defaultChecked = false ALWAYS for lineType "tag", "decal", and "freight".
+- When unsure whether a product is a main piece or an accessory, lean toward true (checked) only if it is clearly a primary deliverable; otherwise false.
+- Apply this same primary-vs-accessory logic to ALL material types, not only the examples above.
 
 VENDOR-SPECIFIC RULES:
 (Additional rules for specific vendors will appear here as they are learned)`;

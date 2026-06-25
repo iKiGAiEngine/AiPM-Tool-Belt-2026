@@ -30,6 +30,7 @@ interface OutputRow {
   confidence?: number;
   confidenceNote?: string;
   lineType?: string;
+  defaultChecked?: boolean;
 }
 
 const quoteParserRouter = Router();
@@ -95,6 +96,7 @@ quoteParserRouter.post(
           confidence: item.confidence,
           confidenceNote: item.confidenceNote,
           lineType: item.lineType,
+          defaultChecked: item.defaultChecked,
         });
       }
 
