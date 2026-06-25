@@ -7,27 +7,11 @@
 
 import OpenAI from "openai";
 import { extractPdfText } from "../pdfUtils";
+import type { AiQuoteExtraction } from "@shared/buyout/types";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export interface AiQuoteLine {
-  description: string;
-  model?: string;
-  qty?: number;
-  unitPrice?: number;
-  extendedPrice?: number;
-}
-
-export interface AiQuoteExtraction {
-  vendor: string | null;
-  quoteAmount: number | null;
-  leadTimeWeeks: number | null;
-  exclusions: string[];
-  /** Free-text descriptions of which lines/scope the quote covers. */
-  coveredLines: string[];
-  lines: AiQuoteLine[];
-  note: string | null;
-}
+export type { AiQuoteExtraction };
 
 const SYSTEM_PROMPT = `You read a vendor quote for Division 10 construction materials and extract structured data.
 Respond ONLY with valid JSON matching this shape:

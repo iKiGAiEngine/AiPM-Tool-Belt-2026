@@ -97,6 +97,15 @@ const tools: ToolTile[] = [
     feature: "vendor-database",
   },
   {
+    id: "buyoutbot",
+    title: "Buyout Bot",
+    description: "Parse an NBS estimate into a trackable buyout: RFQs, quotes, awards & POs",
+    icon: PackageCheck,
+    href: "/buyout-bot",
+    available: true,
+    feature: "buyout-bot",
+  },
+  {
     id: "procurementprocess",
     title: "Procurement Process",
     description: "Reference docs: how it works, how it's organized, reporting",

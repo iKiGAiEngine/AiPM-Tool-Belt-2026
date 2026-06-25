@@ -1703,6 +1703,8 @@ export const buyoutProjects = pgTable("buyout_projects", {
   boughtOutCount: integer("bought_out_count").notNull().default(0),
   budgetTotal: numeric("budget_total", { precision: 14, scale: 2 }).notNull().default("0"),
   awardedTotal: numeric("awarded_total", { precision: 14, scale: 2 }).notNull().default("0"),
+  // Budget of only the awarded scopes — savings/variance compare against this.
+  awardedBudget: numeric("awarded_budget", { precision: 14, scale: 2 }).notNull().default("0"),
   // The whole board document.
   boardData: jsonb("board_data").$type<BuyoutBoard>().notNull(),
   isTest: boolean("is_test").default(false).notNull(),

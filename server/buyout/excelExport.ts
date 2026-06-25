@@ -86,7 +86,7 @@ export async function buildBuyoutWorkbook(projectName: string, board: BuyoutBoar
   exec.getCell("D5").font = { bold: true, color: { argb: totals.complete ? WIN : GOLD_DARK } };
 
   const hdr = exec.getRow(6);
-  hdr.values = ["Scope", "Budget", "Awarded", "Variance", "Status", "Awarded To"];
+  hdr.values = ["Scope", "Budget", "Awarded", "Variance", "Over/Under", "Status", "Awarded To"];
   headerRow(exec, hdr);
 
   let allowanceCount = 0;
@@ -96,27 +96,28 @@ export async function buildBuyoutWorkbook(projectName: string, board: BuyoutBoar
     const hasAward = s.awardedVendorIds.length > 0;
     const scopeAllowances = s.items.filter((it) => it.isAllowance).length;
     allowanceCount += scopeAllowances;
+    const overUnder = !hasAward ? "Pending" : variance > 0 ? "OVER" : variance < 0 ? "UNDER" : "AT BUDGET";
     const row = exec.addRow([
       s.name,
       s.budget.total,
       hasAward ? awarded : null,
       hasAward ? variance : null,
+      overUnder,
       scopeStatusLabel(s),
       awardedVendorNames(s),
     ]);
     moneyFmt(row.getCell(2));
     moneyFmt(row.getCell(3));
     moneyFmt(row.getCell(4));
-    // Variance / over-under-pending color.
-    const statusCell = row.getCell(5);
+    // Over/Under + variance color.
+    const ouCell = row.getCell(5);
     if (!hasAward) {
-      statusCell.font = { color: { argb: GOLD_DARK } };
-    } else if (variance <= 0) {
-      row.getCell(4).font = { color: { argb: WIN }, bold: true };
+      ouCell.font = { color: { argb: GOLD_DARK } };
     } else {
-      row.getCell(4).font = { color: { argb: LOSS }, bold: true };
+      row.getCell(4).font = { color: { argb: variance <= 0 ? WIN : LOSS }, bold: true };
+      ouCell.font = { color: { argb: variance <= 0 ? WIN : LOSS }, bold: true };
     }
-    if (s.status === "po") row.getCell(5).font = { color: { argb: WIN }, bold: true };
+    if (s.status === "po") row.getCell(6).font = { color: { argb: WIN }, bold: true };
     if (i % 2 === 1) {
       row.eachCell((c) => {
         if (!c.fill || (c.fill as any).pattern !== "solid") {
@@ -131,7 +132,7 @@ export async function buildBuyoutWorkbook(projectName: string, board: BuyoutBoar
     note.getCell(1).font = { italic: true, color: { argb: GOLD_DARK } };
   }
 
-  exec.columns.forEach((c, i) => (c.width = i === 0 ? 30 : i === 5 ? 34 : 16));
+  exec.columns.forEach((c, i) => (c.width = i === 0 ? 30 : i === 6 ? 34 : 16));
 
   // ---- Sheet 2: Buyout Detail ---------------------------------------------
   const detail = wb.addWorksheet("Buyout Detail");
