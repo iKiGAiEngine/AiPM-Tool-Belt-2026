@@ -38,9 +38,12 @@ export function registerTaxRateRoutes(app: Express) {
 
       if (rows.length === 0) return res.status(400).json({ error: "No data rows found in spreadsheet" });
 
-      // Replace all existing records
+      // Replace all existing records — insert in chunks to avoid call stack limits
       await db.delete(taxRates);
-      await db.insert(taxRates).values(rows);
+      const CHUNK = 500;
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        await db.insert(taxRates).values(rows.slice(i, i + CHUNK));
+      }
 
       res.json({ success: true, rowCount: rows.length });
     } catch (err: any) {
