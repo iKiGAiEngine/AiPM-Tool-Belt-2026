@@ -43,7 +43,10 @@ export default function TaxRateLookupPage() {
   const formatRate = (rate: string | null) => {
     if (rate === null || rate === undefined) return "—";
     const n = parseFloat(rate);
-    return isNaN(n) ? "—" : `${n.toFixed(4)}%`;
+    if (isNaN(n)) return "—";
+    // Show as clean percentage: "6%", "6.5%", "8.25%" — no trailing zeros
+    const formatted = parseFloat(n.toFixed(4)).toString();
+    return `${formatted}%`;
   };
 
   const hasResults = results && results.length > 0;
