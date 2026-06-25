@@ -43,7 +43,7 @@ export default function BuyoutBotPage() {
             <PackageCheck className="w-5 h-5" style={{ color: "var(--gold)" }} />
           </div>
           <div>
-            <h1 className="font-heading text-2xl font-bold text-foreground leading-tight">Buyout Bot</h1>
+            <h1 className="font-heading text-2xl font-bold text-foreground leading-tight">Buyout Tracker</h1>
             <p className="text-sm text-muted-foreground">Drop an NBS estimate to track buyout — RFQs, quotes, awards & POs</p>
           </div>
         </div>

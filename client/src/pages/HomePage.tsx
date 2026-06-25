@@ -117,12 +117,11 @@ const tools: ToolTile[] = [
   },
   {
     id: "buyoutbot",
-    title: "Buyout Bot",
+    title: "Buyout Tracker",
     description: "Parse an NBS estimate into a trackable buyout: RFQs, quotes, awards & POs",
     icon: PackageCheck,
     href: "/buyout-bot",
     available: true,
-    feature: "buyout-bot",
   },
   {
     id: "procurementprocess",
