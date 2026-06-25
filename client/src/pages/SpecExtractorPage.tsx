@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import ProjectNameComboBox from "@/components/ProjectNameComboBox";
 import type { SpecExtractorSession, SpecExtractorSection } from "@shared/schema";
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@shared/uploadLimits";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL, UPLOAD_CHUNK_BYTES } from "@shared/uploadLimits";
 
 type ViewState = "upload" | "processing" | "results";
 
@@ -57,6 +57,7 @@ export default function SpecExtractorPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [sessionData, setSessionData] = useState<{ status: string; progress: number; message: string } | null>(null);
@@ -178,8 +179,10 @@ export default function SpecExtractorPage() {
       setFileError("This file appears to be empty");
       return false;
     }
+    // No hard cap any more — large files are uploaded in chunks. Keep only a
+    // generous sanity ceiling to catch obviously-wrong selections.
     if (file.size > MAX_UPLOAD_BYTES) {
-      setFileError(`File must be under ${MAX_UPLOAD_LABEL}`);
+      setFileError(`File is unusually large (over ${MAX_UPLOAD_LABEL}). Please confirm it's the right PDF.`);
       return false;
     }
     return true;
@@ -211,64 +214,114 @@ export default function SpecExtractorPage() {
     }
   };
 
-  const handleUpload = async () => {
-    if (guardViewer(isViewer, toast)) return;
-    if (!selectedFile) return;
+  // Small files go in a single request; larger files are split into chunks so
+  // each request stays under the production proxy's ~32 MiB body limit.
+  const uploadSingleShot = async (file: File): Promise<any> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (projectName.trim()) formData.append("projectName", projectName.trim());
+    if (selectedAccessories.size > 0) formData.append("selectedAccessories", JSON.stringify(Array.from(selectedAccessories)));
+    if (tocHints.trim()) formData.append("tocHints", tocHints.trim());
 
-    // Pre-flight: production (Autoscale) proxy rejects bodies over ~32 MiB
-    // with HTTP 413, so we cap user uploads at MAX_UPLOAD_LABEL. Catch it
-    // here so the user gets a clear, actionable message instead of a vague
-    // "Upload Failed".
-    if (selectedFile.size > MAX_UPLOAD_BYTES) {
-      const sizeMB = (selectedFile.size / (1024 * 1024)).toFixed(1);
-      toast({
-        title: "File Too Large",
-        description: `This PDF is ${sizeMB} MB. The maximum upload size is ${MAX_UPLOAD_LABEL}. Please split the spec book (Division 10 only is fine), or compress / "Reduce File Size" the PDF in Acrobat or Preview, then try again.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsUploading(true);
-
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 600000);
     try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      if (projectName.trim()) {
-        formData.append("projectName", projectName.trim());
-      }
-      if (selectedAccessories.size > 0) {
-        formData.append("selectedAccessories", JSON.stringify(Array.from(selectedAccessories)));
-      }
-      if (tocHints.trim()) {
-        formData.append("tocHints", tocHints.trim());
-      }
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 600000);
-
       const response = await fetch("/api/spec-extractor/upload", {
         method: "POST",
         body: formData,
         signal: controller.signal,
       });
-      clearTimeout(timeoutId);
-
       if (!response.ok) {
-        // 413 = Content Too Large. The deployment proxy rejected the body
-        // before our server even saw it, so the response body may not be JSON.
-        if (response.status === 413) {
-          const sizeMB = (selectedFile.size / (1024 * 1024)).toFixed(1);
-          const e: any = new Error(`This PDF is ${sizeMB} MB, which exceeds the upload size limit. Please split the spec book or compress the PDF and try again.`);
-          e.title = "File Too Large";
-          throw e;
-        }
         let msg = "Upload failed";
         try { const err = await response.json(); msg = err.message || msg; } catch {}
         throw new Error(msg);
       }
+      return await response.json();
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
 
-      const session = await response.json();
+  const uploadChunked = async (file: File): Promise<any> => {
+    const totalChunks = Math.ceil(file.size / UPLOAD_CHUNK_BYTES);
+
+    // 1. init
+    setUploadProgress("Preparing upload…");
+    const initRes = await fetch("/api/spec-extractor/upload/init", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: file.name,
+        projectName: projectName.trim(),
+        selectedAccessories: JSON.stringify(Array.from(selectedAccessories)),
+        tocHints: tocHints.trim(),
+        totalSize: file.size,
+        totalChunks,
+      }),
+    });
+    if (!initRes.ok) {
+      let msg = "Upload failed to start";
+      try { const err = await initRes.json(); msg = err.message || msg; } catch {}
+      throw new Error(msg);
+    }
+    const { sessionId: uploadSessionId } = await initRes.json();
+
+    // 2. chunks (sequential keeps server-side reassembly simple and ordered)
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * UPLOAD_CHUNK_BYTES;
+      const blob = file.slice(start, Math.min(start + UPLOAD_CHUNK_BYTES, file.size));
+      const fd = new FormData();
+      fd.append("sessionId", uploadSessionId);
+      fd.append("chunkIndex", String(i));
+      fd.append("chunk", blob);
+
+      let lastErr: any = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const r = await fetch("/api/spec-extractor/upload/chunk", { method: "POST", body: fd });
+          if (!r.ok) {
+            let msg = "Chunk upload failed";
+            try { const err = await r.json(); msg = err.message || msg; } catch {}
+            throw new Error(msg);
+          }
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          await new Promise(res => setTimeout(res, 1000 * (attempt + 1)));
+        }
+      }
+      if (lastErr) throw lastErr;
+      setUploadProgress(`Uploading… ${Math.round(((i + 1) / totalChunks) * 100)}% (part ${i + 1}/${totalChunks})`);
+    }
+
+    // 3. complete -> assemble + start extraction
+    setUploadProgress("Assembling file…");
+    const completeRes = await fetch("/api/spec-extractor/upload/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: uploadSessionId }),
+    });
+    if (!completeRes.ok) {
+      let msg = "Upload completion failed";
+      try { const err = await completeRes.json(); msg = err.message || msg; } catch {}
+      throw new Error(msg);
+    }
+    return await completeRes.json();
+  };
+
+  const handleUpload = async () => {
+    if (guardViewer(isViewer, toast)) return;
+    if (!selectedFile) return;
+
+    setIsUploading(true);
+    setUploadProgress(null);
+
+    try {
+      const session = selectedFile.size <= UPLOAD_CHUNK_BYTES
+        ? await uploadSingleShot(selectedFile)
+        : await uploadChunked(selectedFile);
+
       setSessionId(session.id);
       setResultsProjectName(projectName.trim());
       setSessionData({ status: "processing", progress: 0, message: "Starting extraction..." });
@@ -287,6 +340,7 @@ export default function SpecExtractorPage() {
       }
     } finally {
       setIsUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -663,7 +717,7 @@ export default function SpecExtractorPage() {
                         {isUploading ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Uploading...
+                            {uploadProgress || "Uploading..."}
                           </>
                         ) : (
                           <>
@@ -696,7 +750,7 @@ export default function SpecExtractorPage() {
                         {isDragging ? "Drop your spec PDF here" : "Drop your specification PDF here"}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {isDragging ? "Release to begin extraction" : `or click to browse (PDF, up to ${MAX_UPLOAD_LABEL})`}
+                        {isDragging ? "Release to begin extraction" : "or click to browse (PDF — any size)"}
                       </p>
                     </div>
                   </div>
