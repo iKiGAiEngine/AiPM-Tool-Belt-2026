@@ -30,7 +30,9 @@ export function useBuyoutBoard(projectId: number, initial: BuyoutBoard) {
     try {
       await apiRequest("PATCH", `/api/buyout/projects/${projectId}`, { board: toSave });
       setSaveState("saved");
-      qc.invalidateQueries({ queryKey: ["/api/buyout/projects"] });
+      // exact:true so we refresh ONLY the project-log list — a prefix match would
+      // also refetch this open board on every save (redundant round-trip).
+      qc.invalidateQueries({ queryKey: ["/api/buyout/projects"], exact: true });
     } catch {
       setSaveState("error");
     }

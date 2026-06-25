@@ -469,6 +469,23 @@ export function registerVendorDatabaseRoutes(app: Express) {
     }
   });
 
+  // Buyout Bot: toggle a vendor's preferred-for-trade set WITHOUT touching any
+  // other field (the full PUT would reset tags/manufacturerIds/etc).
+  app.patch("/api/mfr/vendors/:id/preferred-trades", async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const { preferredForTrades } = req.body;
+      const [updated] = await db.update(mfrVendors)
+        .set({ preferredForTrades: Array.isArray(preferredForTrades) ? preferredForTrades : null, updatedAt: new Date() })
+        .where(eq(mfrVendors.id, id))
+        .returning();
+      if (!updated) return res.status(404).json({ error: "Vendor not found" });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.delete("/api/mfr/vendors/:id", async (req: Request, res: Response) => {
     try {
       await db.delete(mfrVendors).where(eq(mfrVendors.id, Number(req.params.id)));

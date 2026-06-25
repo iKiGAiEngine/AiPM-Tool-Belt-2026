@@ -2,7 +2,7 @@
 // (typed or AI-read+verify), multi-vendor line-level awards + coverage, RFQ
 // send, and the PO step. All edits flow through `updateScope` → board autosave.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -93,27 +93,29 @@ export function ScopeCard({
     });
   }, [vendors, scope.awardedVendorIds, scope.name]);
 
-  // Pre-check preferred vendors once vendors load.
-  useMemo(() => {
-    if (!vendors) return;
-    setSelectedVendorIds((prev) => {
-      if (prev.size > 0) return prev;
-      const next = new Set<number>();
-      for (const v of vendors) {
-        if ((v.preferredForTrades || []).includes(scope.name) && v.email) next.add(v.id);
-      }
-      return next;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendors]);
+  // Pre-check preferred vendors once, the first time vendors load.
+  const didInitSelection = useRef(false);
+  useEffect(() => {
+    if (!vendors || didInitSelection.current) return;
+    didInitSelection.current = true;
+    const next = new Set<number>();
+    for (const v of vendors) {
+      if ((v.preferredForTrades || []).includes(scope.name) && v.email) next.add(v.id);
+    }
+    if (next.size > 0) setSelectedVendorIds(next);
+  }, [vendors, scope.name]);
 
   const getQuote = (vendorId: number) => scope.quotes.find((q) => q.vendorId === String(vendorId));
 
   function recomputeStatus(s: BuyoutScope): BuyoutScope {
     if (s.status === "po") return s;
+    if (s.awardedVendorIds.length > 0) return { ...s, status: "awarded" };
+    // No awards: derive from whether any real (priced) quote exists.
+    const hasPricedQuote = s.quotes.some((q) => q.quoteAmount > 0);
     let status = s.status;
-    if (s.awardedVendorIds.length > 0) status = "awarded";
-    else if (s.quotes.length > 0) status = s.status === "rfq_sent" ? "quotes_in" : (s.status === "not_started" ? "quotes_in" : s.status);
+    if (status === "awarded") status = hasPricedQuote ? "quotes_in" : "rfq_sent";
+    else if (status === "not_started" && s.quotes.length > 0) status = hasPricedQuote ? "quotes_in" : "rfq_sent";
+    else if (status === "rfq_sent" && hasPricedQuote) status = "quotes_in";
     return { ...s, status };
   }
 
@@ -123,7 +125,10 @@ export function ScopeCard({
       const existing = s.quotes.find((q) => q.vendorId === String(vendor.id));
       let quotes: QuoteResponse[];
       if (existing) {
-        quotes = s.quotes.map((q) => (q.vendorId === String(vendor.id) ? { ...q, ...patch } : q));
+        // A human editing a quote field is a confirmation — mark it verified
+        // (AI updates pass fromAi=true and stay unverified until a human acts).
+        const verifyPatch = fromAi ? {} : { verified: true, aiSuggested: false };
+        quotes = s.quotes.map((q) => (q.vendorId === String(vendor.id) ? { ...q, ...patch, ...verifyPatch } : q));
       } else {
         const q: QuoteResponse = {
           id: genId("q"),
@@ -175,13 +180,14 @@ export function ScopeCard({
     const next = isPref
       ? (vendor.preferredForTrades || []).filter((t) => t !== scope.name)
       : [...(vendor.preferredForTrades || []), scope.name];
-    // Optimistic: persist to the vendor record (single source of truth).
-    apiRequest("PUT", `/api/mfr/vendors/${vendor.id}`, {
-      name: vendor.name, scopes: vendor.scopes, preferredForTrades: next,
-    }).then(() => {
-      vendor.preferredForTrades = next; // mutate cached object for immediate UI
-      toast({ title: isPref ? "Removed preferred" : "Marked preferred", description: `${vendor.name} · ${scope.name}` });
-    }).catch((e) => toast({ title: "Couldn't update vendor", description: e?.message, variant: "destructive" }));
+    // Dedicated endpoint — only touches preferredForTrades (the full PUT would
+    // reset tags/manufacturer links). Refetch so the star + sort update.
+    apiRequest("PATCH", `/api/mfr/vendors/${vendor.id}/preferred-trades`, { preferredForTrades: next })
+      .then(() => {
+        toast({ title: isPref ? "Removed preferred" : "Marked preferred", description: `${vendor.name} · ${scope.name}` });
+        refetchVendors();
+      })
+      .catch((e) => toast({ title: "Couldn't update vendor", description: e?.message, variant: "destructive" }));
   }
 
   // ---- RFQ send (one email per vendor, confirmation-gated) -----------------
