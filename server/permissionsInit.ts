@@ -229,6 +229,28 @@ export async function initializePermissions() {
       console.log(`[Permissions] Granted procurement-process to ${grantedProcurementCount} Admin user(s)`);
     }
 
+    // Top-up: ensure all admins have buyout-bot and tax-rate-lookup
+    for (const feature of ["buyout-bot", "tax-rate-lookup"] as const) {
+      let grantedCount = 0;
+      for (const au of allAdmins) {
+        const existing = await db.execute(sql`
+          SELECT id FROM user_feature_access
+          WHERE user_id = ${au.id} AND feature = ${feature}
+          LIMIT 1
+        `);
+        if (existing.rows.length === 0) {
+          await db.execute(sql`
+            INSERT INTO user_feature_access (user_id, feature)
+            VALUES (${au.id}, ${feature})
+          `);
+          grantedCount++;
+        }
+      }
+      if (grantedCount > 0) {
+        console.log(`[Permissions] Granted ${feature} to ${grantedCount} Admin user(s)`);
+      }
+    }
+
     // One-time migration: revoke estimating-module from non-admin users who may have
     // received it via old catch-all defaults. Tracked by a flag in system_settings so
     // subsequent startups do not disturb Permissions UI grants.

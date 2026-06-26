@@ -1261,6 +1261,7 @@ export const FEATURES = {
   PROCUREMENT_PROCESS: "procurement-process",
   SETTINGS_REGIONS: "settings-regions",
   BUYOUT_BOT: "buyout-bot",
+  TAX_RATE_LOOKUP: "tax-rate-lookup",
 } as const;
 
 export type Feature = typeof FEATURES[keyof typeof FEATURES];
