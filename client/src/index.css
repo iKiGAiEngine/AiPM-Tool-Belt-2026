@@ -607,10 +607,116 @@
 
 /* ===== LEFT COLUMN — TOOL TILES ===== */
 .tools-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  height: calc(100vh - 3.5rem - 80px - 28px);
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201,168,76,0.3) transparent;
+}
+.tools-col::-webkit-scrollbar { width: 3px; }
+.tools-col::-webkit-scrollbar-track { background: transparent; }
+.tools-col::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.35); }
+
+/* Shared 4-column tile grid used by both the Favorites grid and category bodies */
+.tool-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   align-content: start;
+}
+.cs-grid { margin-top: 2px; }
+
+/* Favorites heading */
+.fav-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gold);
+  flex-shrink: 0;
+}
+.fav-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(201,168,76,0.35), transparent);
+}
+.fav-empty {
+  grid-column: 1 / -1;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 10px 4px;
+}
+
+/* Category accordions */
+.cat-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cat-section { display: flex; flex-direction: column; }
+.cat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 6px 2px;
+  cursor: pointer;
+  color: var(--text-dim);
+  text-align: left;
+}
+.cat-head:hover { color: var(--text); }
+.cat-chevron {
+  color: var(--gold);
+  transition: transform .25s ease;
+  flex-shrink: 0;
+}
+.cat-chevron.collapsed { transform: rotate(-90deg); }
+.cat-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.cat-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border-ds);
+}
+.cat-count {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(201,168,76,0.1);
+  border: 1px solid rgba(201,168,76,0.25);
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+  padding: 1px 6px;
+}
+.cat-body {
+  overflow: hidden;
+  max-height: 1500px;
+  opacity: 1;
+  transition: max-height .3s ease, opacity .25s ease, margin .25s ease;
+  margin-top: 6px;
+}
+.cat-body.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
 }
 
 .tool-card {
@@ -655,6 +761,33 @@
   transform: none;
   box-shadow: none;
   border-color: var(--border-ds);
+}
+
+/* Pin/favorite toggle — top-right corner, revealed on hover or when active */
+.tile-pin {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(20,20,24,0.55);
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .18s, color .18s, background .18s, transform .12s;
+}
+.tool-card:hover .tile-pin { opacity: 1; }
+.tile-pin:hover { color: var(--gold); background: rgba(20,20,24,0.8); }
+.tile-pin:active { transform: scale(0.9); }
+.tile-pin.active {
+  opacity: 1;
+  color: var(--gold);
 }
 
 .tool-icon {
@@ -1123,5 +1256,6 @@
   }
   .hud-col { height: auto; min-height: 0; }
   .pl-hud { max-height: 360px; height: auto; }
-  .tools-col { grid-template-columns: repeat(3, 1fr); }
+  .tools-col { height: auto; overflow: visible; }
+  .tool-grid { grid-template-columns: repeat(3, 1fr); }
 }
