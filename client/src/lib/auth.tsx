@@ -12,7 +12,6 @@ interface AuthUser {
   mustChangePassword?: boolean;
   is_admin?: boolean;
   homeFavorites?: string | null; // JSON array of pinned homepage tile IDs
-  homeToolOrder?: string | null; // JSON array of homepage tile IDs in custom drag order
 }
 
 interface AuthContextType {

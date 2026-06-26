@@ -621,10 +621,10 @@
 .tools-col::-webkit-scrollbar-track { background: transparent; }
 .tools-col::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.35); }
 
-/* Two-column grid of compact row tiles, used by Favorites and All Tools */
+/* Shared 4-column tile grid used by both the Favorites grid and category bodies */
 .tool-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   align-content: start;
 }
@@ -656,64 +656,103 @@
   padding: 10px 4px;
 }
 
-/* "All Tools" heading (reuses .fav-head; dimmed, with top spacing) */
-.all-tools-head {
+/* Category accordions */
+.cat-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cat-section { display: flex; flex-direction: column; }
+.cat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 6px 2px;
+  cursor: pointer;
   color: var(--text-dim);
-  margin-top: 4px;
+  text-align: left;
 }
-.all-tools-head .fav-rule {
-  background: linear-gradient(90deg, var(--border-ds), transparent);
+.cat-head:hover { color: var(--text); }
+.cat-chevron {
+  color: var(--gold);
+  transition: transform .25s ease;
+  flex-shrink: 0;
+}
+.cat-chevron.collapsed { transform: rotate(-90deg); }
+.cat-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.cat-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border-ds);
+}
+.cat-count {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(201,168,76,0.1);
+  border: 1px solid rgba(201,168,76,0.25);
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+  padding: 1px 6px;
+}
+.cat-body {
+  overflow: hidden;
+  max-height: 1500px;
+  opacity: 1;
+  transition: max-height .3s ease, opacity .25s ease, margin .25s ease;
+  margin-top: 6px;
+}
+.cat-body.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
 }
 
-/* Sortable wrapper = the grid cell that dnd-kit translates while dragging */
-.tool-sortable {
-  cursor: grab;
-  touch-action: manipulation;
-}
-.tool-sortable:active { cursor: grabbing; }
-.tool-sortable.dragging { cursor: grabbing; }
-.tool-sortable.dragging .tool-card {
-  border-color: rgba(201,168,76,0.5);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-  transform: scale(1.02);
-}
-
-/* ===== Compact horizontal row tile ===== */
 .tool-card {
   position: relative;
   overflow: hidden;
   background: var(--bg2);
   border: 1px solid var(--border-ds);
   border-radius: 8px;
-  padding: 8px 12px;
-  min-height: 46px;
+  padding: 12px 8px 10px;
   cursor: pointer;
   text-decoration: none;
   color: inherit;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
-  gap: 11px;
-  text-align: left;
-  transition: border-color .18s, transform .18s, box-shadow .18s;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  aspect-ratio: 1 / 1;
+  transition: border-color .2s, transform .2s, box-shadow .2s;
 }
-/* gold accent bar on the left edge, revealed on hover */
 .tool-card::before {
   content: '';
   position: absolute;
-  top: 0; bottom: 0; left: 0;
-  width: 2px;
-  background: linear-gradient(180deg, var(--gold-dim), var(--gold), var(--gold-dim));
-  opacity: 0;
-  transition: opacity .18s;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold), var(--gold-dim));
 }
 .tool-card:hover:not(.disabled) {
-  border-color: rgba(201,168,76,0.35);
-  transform: translateX(2px);
-  box-shadow: 0 3px 16px rgba(0,0,0,0.35);
+  border-color: rgba(201,168,76,0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
-.tool-card:hover:not(.disabled)::before { opacity: 1; }
-.tool-card.tool-card-coming { opacity: 0.5; }
+.tool-card.tool-card-coming {
+  opacity: 0.5;
+}
 .tool-card.disabled {
   opacity: .5;
   cursor: default;
@@ -724,36 +763,12 @@
   border-color: var(--border-ds);
 }
 
-.tool-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  background: rgba(201,168,76,0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background .18s;
-  flex-shrink: 0;
-}
-.tool-card:hover:not(.disabled) .tool-icon {
-  background: rgba(201,168,76,0.2);
-}
-.tool-name {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 14.5px;
-  font-weight: 600;
-  letter-spacing: .3px;
-  color: var(--text);
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Pin/favorite toggle — last item in the row, revealed on hover or when active */
+/* Pin/favorite toggle — top-right corner, revealed on hover or when active */
 .tile-pin {
-  flex-shrink: 0;
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -761,20 +776,48 @@
   height: 24px;
   border: none;
   border-radius: 6px;
-  background: transparent;
+  background: rgba(20,20,24,0.55);
   color: var(--text-dim);
   cursor: pointer;
   opacity: 0;
-  transition: opacity .18s, color .18s, transform .12s;
+  transition: opacity .18s, color .18s, background .18s, transform .12s;
 }
 .tool-card:hover .tile-pin { opacity: 1; }
-.tile-pin:hover { color: var(--gold); }
+.tile-pin:hover { color: var(--gold); background: rgba(20,20,24,0.8); }
 .tile-pin:active { transform: scale(0.9); }
 .tile-pin.active {
   opacity: 1;
   color: var(--gold);
 }
 
+.tool-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(201,168,76,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: background .2s;
+  flex-shrink: 0;
+}
+.tool-card:hover:not(.disabled) .tool-icon {
+  background: rgba(201,168,76,0.2);
+}
+.tool-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.tool-desc {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
 .csb {
   font-family: 'Rajdhani', sans-serif;
   font-size: 8px;
@@ -785,19 +828,17 @@
   border: 1px solid rgba(201,168,76,0.4);
   border-radius: 3px;
   padding: 2px 5px;
+  margin-bottom: 2px;
   display: inline-block;
-  flex-shrink: 0;
 }
 
-/* Buttery entrance for the row tiles (fade only — no transform, so it never
-   competes with the drag transform applied by dnd-kit on the wrapper). */
+/* Staggered tool card animations — uniform, buttery entrance.
+   Stagger driven by --i CSS var set inline from React (rendered index),
+   so feature-flag filtering keeps timing tight (no gaps). */
 .tool-card {
-  animation: rowEnter 360ms ease both;
-  animation-delay: 40ms;
-}
-@keyframes rowEnter {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  animation: tileEnter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 55ms + 40ms);
+  will-change: transform, opacity;
 }
 
 /* ===== RIGHT COLUMN — PROPOSAL LOG HUD ===== */
@@ -1216,5 +1257,5 @@
   .hud-col { height: auto; min-height: 0; }
   .pl-hud { max-height: 360px; height: auto; }
   .tools-col { height: auto; overflow: visible; }
-  .tool-grid { grid-template-columns: 1fr; }
+  .tool-grid { grid-template-columns: repeat(3, 1fr); }
 }

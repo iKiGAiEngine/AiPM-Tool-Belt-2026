@@ -115,7 +115,7 @@ export function registerAuthRoutes(app: Express) {
       });
 
       res.json({
-        user: { id: user.id, email: user.email, role: user.role, initials: user.initials, displayName: user.displayName, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, homeFavorites: user.homeFavorites, homeToolOrder: user.homeToolOrder, assignedRegion: user.assignedRegion, mustChangePassword: user.mustChangePassword },
+        user: { id: user.id, email: user.email, role: user.role, initials: user.initials, displayName: user.displayName, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, homeFavorites: user.homeFavorites, assignedRegion: user.assignedRegion, mustChangePassword: user.mustChangePassword },
       });
     } catch (error: any) {
       console.error("[Auth] Login error:", error);
@@ -264,7 +264,7 @@ export function registerAuthRoutes(app: Express) {
         return res.json({ user: null });
       }
 
-      res.json({ user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName, initials: user.initials, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, homeFavorites: user.homeFavorites, homeToolOrder: user.homeToolOrder, assignedRegion: user.assignedRegion, mustChangePassword: user.mustChangePassword, is_admin: user.isAdmin === true } });
+      res.json({ user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName, initials: user.initials, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, homeFavorites: user.homeFavorites, assignedRegion: user.assignedRegion, mustChangePassword: user.mustChangePassword, is_admin: user.isAdmin === true } });
     } catch (error) {
       res.status(500).json({ message: "Failed to get user info" });
     }
@@ -284,23 +284,6 @@ export function registerAuthRoutes(app: Express) {
       res.json({ favorites: cleaned });
     } catch (error) {
       res.status(500).json({ message: "Failed to save favorites" });
-    }
-  });
-
-  // Save the current user's custom homepage tile order (array of tile IDs).
-  app.patch("/api/user/home-tool-order", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const userId = (req.session as any)?.userId;
-      const { order } = req.body;
-      if (!Array.isArray(order) || !order.every((id) => typeof id === "string")) {
-        return res.status(400).json({ message: "order must be an array of tile IDs" });
-      }
-      // De-dupe and cap to a sane size to avoid unbounded payloads.
-      const cleaned = Array.from(new Set(order)).slice(0, 50);
-      await db.update(users).set({ homeToolOrder: JSON.stringify(cleaned) }).where(eq(users.id, userId));
-      res.json({ order: cleaned });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to save tool order" });
     }
   });
 
