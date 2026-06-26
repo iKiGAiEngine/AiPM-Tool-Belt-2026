@@ -502,33 +502,37 @@ export default function HomePage() {
 
   const toggleFavorite = useCallback((toolId: string) => {
     if (guardViewer(isViewer, toast)) return;
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(toolId)) next.delete(toolId);
-      else next.add(toolId);
-      const arr = Array.from(next);
-      // Optimistic: persist to localStorage immediately, then sync to the server.
-      try { window.localStorage.setItem(FAVORITES_LS_KEY, JSON.stringify(arr)); } catch { /* quota */ }
-      fetch("/api/user/home-favorites", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ favorites: arr }),
-      })
-        .then((res) => { if (!res.ok) throw new Error(`Server error (${res.status})`); })
-        .catch((err) => {
-          // Revert both state and cache on failure.
-          setFavorites(prev);
-          try { window.localStorage.setItem(FAVORITES_LS_KEY, JSON.stringify(Array.from(prev))); } catch { /* quota */ }
-          toast({
-            title: "Couldn't update favorites",
-            description: err?.message || "Network error — please try again.",
-            variant: "destructive",
-          });
+    // Compute next/prev outside of any state updater so the side effects below
+    // (localStorage + network) run exactly once per click, never duplicated by a
+    // double-invoked reducer.
+    const prev = favorites;
+    const next = new Set(prev);
+    if (next.has(toolId)) next.delete(toolId);
+    else next.add(toolId);
+    const arr = Array.from(next);
+
+    // Optimistic: update state + localStorage immediately, then sync to the server.
+    setFavorites(next);
+    try { window.localStorage.setItem(FAVORITES_LS_KEY, JSON.stringify(arr)); } catch { /* quota */ }
+
+    fetch("/api/user/home-favorites", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ favorites: arr }),
+    })
+      .then((res) => { if (!res.ok) throw new Error(`Server error (${res.status})`); })
+      .catch((err) => {
+        // Revert both state and cache on failure.
+        setFavorites(prev);
+        try { window.localStorage.setItem(FAVORITES_LS_KEY, JSON.stringify(Array.from(prev))); } catch { /* quota */ }
+        toast({
+          title: "Couldn't update favorites",
+          description: err?.message || "Network error — please try again.",
+          variant: "destructive",
         });
-      return next;
-    });
-  }, [isViewer, toast]);
+      });
+  }, [favorites, isViewer, toast]);
 
   // ===== Collapsible category sections =====
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
