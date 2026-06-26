@@ -43,21 +43,24 @@ export function registerTaxRateRoutes(app: Express) {
       });
 
       if (zips.length === 0) return res.status(400).json({ error: "No data rows found in spreadsheet" });
+      console.log(`[tax-rates] Parsed ${zips.length} rows from Excel`);
 
       // Use raw pg with unnest() — sends data as arrays, Postgres expands server-side
       // This avoids any JS call-stack issues with large datasets
-      const client = await (db as any).session?.client ?? null;
       const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
       const pgClient = await pool.connect();
+      console.log(`[tax-rates] DB connected, starting transaction`);
       try {
         await pgClient.query("BEGIN");
         await pgClient.query("DELETE FROM tax_rates");
+        console.log(`[tax-rates] Deleted existing rows, inserting ${zips.length} rows via unnest`);
         await pgClient.query(
           `INSERT INTO tax_rates (zip_code, state, county, city, total_use_tax)
            SELECT * FROM unnest($1::varchar[], $2::text[], $3::text[], $4::text[], $5::numeric[])`,
           [zips, states, counties, cities, taxes]
         );
         await pgClient.query("COMMIT");
+        console.log(`[tax-rates] Insert complete`);
       } catch (e) {
         await pgClient.query("ROLLBACK");
         throw e;
