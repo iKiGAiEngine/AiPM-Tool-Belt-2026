@@ -849,6 +849,7 @@ export const users = pgTable("users", {
   dashboardScope: varchar("dashboard_scope", { length: 30 }).default("my_projects"),
   dashboardLayout: varchar("dashboard_layout", { length: 30 }).default("estimator"),
   homeFavorites: text("home_favorites"), // JSON array of homepage tile IDs the user has pinned as favorites
+  homeToolOrder: text("home_tool_order"), // JSON array of homepage tile IDs in the user's custom drag order
   assignedRegion: varchar("assigned_region", { length: 100 }),
   isAdmin: boolean("is_admin").notNull().default(false),
 });

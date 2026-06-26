@@ -6,8 +6,17 @@ import {
   Loader2, FlaskConical,
   TableProperties, Sparkles, Users, Activity, FileBarChart,
   FolderOpenDot, Check, PackageCheck, Shield, Calculator, Link2, Mail, Paperclip,
-  BookOpen, LifeBuoy, MapPin, Settings as SettingsIcon, Star, ChevronDown
+  BookOpen, LifeBuoy, MapPin, Settings as SettingsIcon, Star
 } from "lucide-react";
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, arrayMove, rectSortingStrategy, useSortable,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -19,14 +28,11 @@ import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 type ToolCategory = "Estimating" | "Project Setup" | "Extraction" | "Reference" | "Settings";
 
-// Order in which category accordion sections are rendered below the favorites grid.
-const CATEGORY_ORDER: ToolCategory[] = ["Estimating", "Project Setup", "Extraction", "Reference", "Settings"];
-
 // Tiles pinned as favorites by default, until the user customizes their own.
 const DEFAULT_FAVORITES = ["proposallog", "projectstart", "specextractor", "quoteparser"];
 
 const FAVORITES_LS_KEY = "aipm-home-favorites";
-const SECTIONS_LS_KEY = "aipm-home-sections-collapsed";
+const ORDER_LS_KEY = "aipm-home-order";
 
 interface ToolTile {
   id: string;
@@ -382,21 +388,16 @@ function BidSourceLink({
   );
 }
 
-function ToolCard({
-  tool,
-  index,
-  isAdmin,
-  isViewer,
-  isFavorite,
-  onToggleFavorite,
-}: {
+interface ToolCardProps {
   tool: ToolTile;
-  index: number;
   isAdmin: boolean;
   isViewer: boolean;
   isFavorite: boolean;
   onToggleFavorite: ((toolId: string) => void) | null;
-}) {
+}
+
+// Compact horizontal row: icon | name | (coming-soon badge) | pin star.
+function ToolCard({ tool, isAdmin, isViewer, isFavorite, onToggleFavorite }: ToolCardProps) {
   const Icon = tool.icon;
   const isDisabled = !tool.available;
   const isComingSoon = tool.comingSoon === true;
@@ -410,6 +411,7 @@ function ToolCard({
       className={`tile-pin ${isFavorite ? "active" : ""}`}
       title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
       aria-label={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+      onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -423,19 +425,12 @@ function ToolCard({
 
   if (isDisabled || (isComingSoon && isAdminRestricted)) {
     return (
-      <div
-        className="tool-card disabled"
-        style={{ ["--i" as any]: index }}
-        data-testid={`tile-${tool.id}`}
-      >
+      <div className="tool-card disabled" data-testid={`tile-${tool.id}`}>
         <div className="tool-icon">
-          <Icon style={{ width: 22, height: 22, color: "var(--text-dim)" }} />
+          <Icon style={{ width: 16, height: 16, color: "var(--text-dim)" }} />
         </div>
-        <div className="tool-text">
-          {(isComingSoon || isDisabled) && <div className="csb">Coming Soon</div>}
-          <div className="tool-name">{tool.title}</div>
-          <div className="tool-desc">{tool.description}</div>
-        </div>
+        <div className="tool-name">{tool.title}</div>
+        {(isComingSoon || isDisabled) && <div className="csb">Coming Soon</div>}
       </div>
     );
   }
@@ -446,19 +441,39 @@ function ToolCard({
     <Wrapper
       href={tool.href}
       className={`tool-card ${isComingSoon ? "tool-card-coming" : ""}`}
-      style={{ ["--i" as any]: index }}
       data-testid={`tile-${tool.id}`}
     >
-      {pinButton}
       <div className="tool-icon">
-        <Icon style={{ width: 22, height: 22, color: "var(--gold)" }} />
+        <Icon style={{ width: 16, height: 16, color: "var(--gold)" }} />
       </div>
-      <div className="tool-text">
-        {isComingSoon && <div className="csb">Coming Soon</div>}
-        <div className="tool-name">{tool.title}</div>
-        <div className="tool-desc">{tool.description}</div>
-      </div>
+      <div className="tool-name">{tool.title}</div>
+      {isComingSoon && <div className="csb">Coming Soon</div>}
+      {pinButton}
     </Wrapper>
+  );
+}
+
+// Draggable wrapper: the dnd-kit sortable node holds the drag listeners; the inner
+// ToolCard keeps its link so a tap still navigates (a drag only starts past the
+// activation distance configured on the sensors).
+function SortableToolCard(props: ToolCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: props.tool.id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 5 : undefined,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`tool-sortable${isDragging ? " dragging" : ""}`}
+      {...attributes}
+      {...listeners}
+    >
+      <ToolCard {...props} />
+    </div>
   );
 }
 
@@ -534,26 +549,61 @@ export default function HomePage() {
       });
   }, [favorites, isViewer, toast]);
 
-  // ===== Collapsible category sections =====
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+  // ===== Custom tile order (drag-to-reorder) =====
+  // A single ordered list of tile IDs is the user's arrangement; the favorites Set above
+  // decides which group each tile lands in. Same hydrate/persist pattern as favorites.
+  const [order, setOrder] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
       try {
-        const raw = window.localStorage.getItem(SECTIONS_LS_KEY);
-        if (raw) return new Set(JSON.parse(raw));
-      } catch { /* ignore */ }
+        const raw = window.localStorage.getItem(ORDER_LS_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch { /* ignore malformed cache */ }
     }
-    return new Set();
+    return [];
   });
 
-  const toggleSection = useCallback((category: string) => {
-    setCollapsedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(category)) next.delete(category);
-      else next.add(category);
-      try { window.localStorage.setItem(SECTIONS_LS_KEY, JSON.stringify(Array.from(next))); } catch { /* quota */ }
-      return next;
-    });
-  }, []);
+  useEffect(() => {
+    if (!user) return;
+    if (user.homeToolOrder) {
+      try {
+        const ids: string[] = JSON.parse(user.homeToolOrder);
+        if (Array.isArray(ids)) {
+          setOrder(ids);
+          window.localStorage.setItem(ORDER_LS_KEY, JSON.stringify(ids));
+        }
+      } catch { /* ignore malformed server value */ }
+    }
+  }, [user]);
+
+  const persistOrder = useCallback((nextOrder: string[]) => {
+    const prev = order;
+    setOrder(nextOrder);
+    try { window.localStorage.setItem(ORDER_LS_KEY, JSON.stringify(nextOrder)); } catch { /* quota */ }
+    fetch("/api/user/home-tool-order", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ order: nextOrder }),
+    })
+      .then((res) => { if (!res.ok) throw new Error(`Server error (${res.status})`); })
+      .catch((err) => {
+        setOrder(prev);
+        try { window.localStorage.setItem(ORDER_LS_KEY, JSON.stringify(prev)); } catch { /* quota */ }
+        toast({
+          title: "Couldn't save tile order",
+          description: err?.message || "Network error — please try again.",
+          variant: "destructive",
+        });
+      });
+  }, [order, toast]);
+
+  // Tap opens the tool; a drag only begins after the pointer moves ~6px (or a short
+  // touch hold), so reordering never swallows a normal click.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   // Whether the current user is allowed to see a given tile (mirrors the per-tile gate
   // that previously lived inline in the render). Admins see everything.
@@ -747,18 +797,41 @@ export default function HomePage() {
 
   const selectedToolTitle = tools.find((t) => t.id === selectedToolForStats)?.title || "";
 
-  // Partition visible, categorized tools into the Favorites grid and per-category accordions.
-  const { favoriteTools, categorized } = useMemo(() => {
+  // Partition visible, categorized tools into Favorites and All Tools, each sorted by the
+  // user's saved order. Tiles absent from `order` fall back to the natural tools[] order.
+  const { favoriteTools, otherTools } = useMemo(() => {
+    const orderIndex = (id: string) => {
+      const i = order.indexOf(id);
+      return i === -1 ? Number.POSITIVE_INFINITY : i;
+    };
     const visible = tools.filter((t) => t.category && canSeeTile(t));
-    const favs = visible.filter((t) => favorites.has(t.id));
-    const cats: Record<string, ToolTile[]> = {};
-    for (const cat of CATEGORY_ORDER) {
-      cats[cat] = visible.filter((t) => t.category === cat && !favorites.has(t.id));
-    }
-    return { favoriteTools: favs, categorized: cats };
-  }, [favorites, canSeeTile]);
+    const byOrder = (a: ToolTile, b: ToolTile) => orderIndex(a.id) - orderIndex(b.id);
+    const favs = visible.filter((t) => favorites.has(t.id)).sort(byOrder);
+    const others = visible.filter((t) => !favorites.has(t.id)).sort(byOrder);
+    return { favoriteTools: favs, otherTools: others };
+  }, [favorites, order, canSeeTile]);
 
   const comingSoonTool = tools.find((t) => t.id === "comingsoon");
+
+  // Reorder within one section, then rebuild the global order as [favorites…, others…]
+  // so the two lists never bleed into each other.
+  const handleReorder = useCallback((section: "fav" | "other", activeId: string, overId: string) => {
+    const list = (section === "fav" ? favoriteTools : otherTools).map((t) => t.id);
+    const from = list.indexOf(activeId);
+    const to = list.indexOf(overId);
+    if (from === -1 || to === -1 || from === to) return;
+    const reordered = arrayMove(list, from, to);
+    const favIds = section === "fav" ? reordered : favoriteTools.map((t) => t.id);
+    const otherIds = section === "other" ? reordered : otherTools.map((t) => t.id);
+    persistOrder([...favIds, ...otherIds]);
+  }, [favoriteTools, otherTools, persistOrder]);
+
+  const onDragEnd = (section: "fav" | "other") => (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (over && active.id !== over.id) {
+      handleReorder(section, String(active.id), String(over.id));
+    }
+  };
 
   return (
     <div className="hp-root" data-testid="homepage">
@@ -772,81 +845,68 @@ export default function HomePage() {
       <div className="main-layout">
         <ReadOnlyBanner />
         <div className="tools-col">
-          {/* ===== Favorites — always-visible pinned tiles ===== */}
+          {/* ===== Favorites — pinned tiles, drag to reorder ===== */}
           <div className="fav-head">
             <Star style={{ width: 13, height: 13, color: "var(--gold)", fill: "var(--gold)" }} />
             <span>Favorites</span>
             <div className="fav-rule" />
           </div>
-          <div className="tool-grid" data-testid="favorites-grid">
-            {favoriteTools.length === 0 ? (
+          {favoriteTools.length === 0 ? (
+            <div className="tool-grid" data-testid="favorites-grid">
               <div className="fav-empty">Pin tools below with the <Star style={{ width: 11, height: 11, verticalAlign: "-1px" }} /> icon to keep them here.</div>
-            ) : (
-              favoriteTools.map((tool, i) => (
-                <ToolCard
-                  key={tool.id}
-                  tool={tool}
-                  index={i}
-                  isAdmin={isAdmin}
-                  isViewer={isViewer}
-                  isFavorite={true}
-                  onToggleFavorite={toggleFavorite}
-                />
-              ))
-            )}
-          </div>
-
-          {/* ===== Category accordions — secondary tiles ===== */}
-          <div className="cat-stack">
-            {CATEGORY_ORDER.map((category) => {
-              const items = categorized[category];
-              if (!items || items.length === 0) return null;
-              const collapsed = collapsedSections.has(category);
-              return (
-                <div className="cat-section" key={category} data-testid={`cat-section-${category}`}>
-                  <button
-                    className="cat-head"
-                    onClick={() => toggleSection(category)}
-                    aria-expanded={!collapsed}
-                    data-testid={`cat-head-${category}`}
-                  >
-                    <ChevronDown className={`cat-chevron ${collapsed ? "collapsed" : ""}`} style={{ width: 15, height: 15 }} />
-                    <span className="cat-label">{category}</span>
-                    <div className="cat-rule" />
-                    <span className="cat-count">{items.length}</span>
-                  </button>
-                  <div className={`cat-body ${collapsed ? "collapsed" : ""}`}>
-                    <div className="tool-grid">
-                      {items.map((tool, i) => (
-                        <ToolCard
-                          key={tool.id}
-                          tool={tool}
-                          index={i}
-                          isAdmin={isAdmin}
-                          isViewer={isViewer}
-                          isFavorite={false}
-                          onToggleFavorite={toggleFavorite}
-                        />
-                      ))}
-                    </div>
-                  </div>
+            </div>
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd("fav")}>
+              <SortableContext items={favoriteTools.map((t) => t.id)} strategy={rectSortingStrategy}>
+                <div className="tool-grid" data-testid="favorites-grid">
+                  {favoriteTools.map((tool) => (
+                    <SortableToolCard
+                      key={tool.id}
+                      tool={tool}
+                      isAdmin={isAdmin}
+                      isViewer={isViewer}
+                      isFavorite={true}
+                      onToggleFavorite={toggleFavorite}
+                    />
+                  ))}
                 </div>
-              );
-            })}
+              </SortableContext>
+            </DndContext>
+          )}
 
-            {comingSoonTool && (
-              <div className="tool-grid cs-grid">
-                <ToolCard
-                  tool={comingSoonTool}
-                  index={0}
-                  isAdmin={isAdmin}
-                  isViewer={isViewer}
-                  isFavorite={false}
-                  onToggleFavorite={null}
-                />
-              </div>
-            )}
+          {/* ===== All Tools — everything else, drag to reorder ===== */}
+          <div className="fav-head all-tools-head">
+            <span>All Tools</span>
+            <div className="fav-rule" />
           </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd("other")}>
+            <SortableContext items={otherTools.map((t) => t.id)} strategy={rectSortingStrategy}>
+              <div className="tool-grid" data-testid="all-tools-grid">
+                {otherTools.map((tool) => (
+                  <SortableToolCard
+                    key={tool.id}
+                    tool={tool}
+                    isAdmin={isAdmin}
+                    isViewer={isViewer}
+                    isFavorite={false}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          {comingSoonTool && (
+            <div className="tool-grid cs-grid">
+              <ToolCard
+                tool={comingSoonTool}
+                isAdmin={isAdmin}
+                isViewer={isViewer}
+                isFavorite={false}
+                onToggleFavorite={null}
+              />
+            </div>
+          )}
         </div>
 
         <div className="hud-col">
