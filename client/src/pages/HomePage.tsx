@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -6,7 +6,7 @@ import {
   Loader2, FlaskConical,
   TableProperties, Sparkles, Users, Activity, FileBarChart,
   FolderOpenDot, Check, PackageCheck, Shield, Calculator, Link2, Mail, Paperclip,
-  BookOpen, LifeBuoy, MapPin, Settings as SettingsIcon, Star, ChevronDown
+  BookOpen, LifeBuoy, MapPin, Settings as SettingsIcon
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -17,17 +17,6 @@ import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
 import { guardViewer } from "@/lib/viewerGuard";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
 
-type ToolCategory = "Estimating" | "Project Setup" | "Extraction" | "Reference" | "Settings";
-
-// Order in which category accordion sections are rendered below the favorites grid.
-const CATEGORY_ORDER: ToolCategory[] = ["Estimating", "Project Setup", "Extraction", "Reference", "Settings"];
-
-// Tiles pinned as favorites by default, until the user customizes their own.
-const DEFAULT_FAVORITES = ["proposallog", "projectstart", "specextractor", "quoteparser"];
-
-const FAVORITES_LS_KEY = "aipm-home-favorites";
-const SECTIONS_LS_KEY = "aipm-home-sections-collapsed";
-
 interface ToolTile {
   id: string;
   title: string;
@@ -35,7 +24,6 @@ interface ToolTile {
   icon: typeof FolderPlus;
   href: string;
   available: boolean;
-  category?: ToolCategory;
   comingSoon?: boolean;
   adminOnly?: boolean;
   isExternal?: boolean;
@@ -52,7 +40,6 @@ const tools: ToolTile[] = [
     available: true,
     isExternal: true,
     feature: "proposal-log",
-    category: "Estimating",
   },
   {
     id: "bcsynctable",
@@ -63,7 +50,6 @@ const tools: ToolTile[] = [
     available: true,
     adminOnly: true,
     feature: "bc-sync",
-    category: "Estimating",
   },
   {
     id: "projectstart",
@@ -73,7 +59,6 @@ const tools: ToolTile[] = [
     href: "/project-start",
     available: true,
     feature: "project-start",
-    category: "Project Setup",
   },
   {
     id: "specextractor",
@@ -83,7 +68,6 @@ const tools: ToolTile[] = [
     href: "/spec-extractor",
     available: true,
     feature: "spec-extractor",
-    category: "Extraction",
   },
   {
     id: "quoteparser",
@@ -93,7 +77,6 @@ const tools: ToolTile[] = [
     href: "/quoteparser",
     available: true,
     feature: "quote-parser",
-    category: "Estimating",
   },
   {
     id: "scheduleconverter",
@@ -103,7 +86,6 @@ const tools: ToolTile[] = [
     href: "/schedule-converter",
     available: true,
     feature: "schedule-converter",
-    category: "Extraction",
   },
   {
     id: "vendordatabase",
@@ -113,7 +95,14 @@ const tools: ToolTile[] = [
     href: "/vendor-database",
     available: true,
     feature: "vendor-database",
-    category: "Reference",
+  },
+  {
+    id: "buyoutbot",
+    title: "Buyout Tracker",
+    description: "Parse an NBS estimate into a trackable buyout: RFQs, quotes, awards & POs",
+    icon: PackageCheck,
+    href: "/buyout-bot",
+    available: true,
   },
   {
     id: "procurementprocess",
@@ -124,7 +113,6 @@ const tools: ToolTile[] = [
     available: true,
     isExternal: true,
     feature: "procurement-process",
-    category: "Reference",
   },
   {
     id: "settings",
@@ -134,7 +122,6 @@ const tools: ToolTile[] = [
     href: "/settings",
     available: true,
     feature: "central-settings",
-    category: "Settings",
   },
   {
     id: "regions",
@@ -144,7 +131,15 @@ const tools: ToolTile[] = [
     href: "/settings",
     available: true,
     feature: "settings-regions",
-    category: "Settings",
+  },
+  {
+    id: "taxratelookup",
+    title: "Tax Rate Lookup",
+    description: "Look up Avalara use tax rates by zip code",
+    icon: Calculator,
+    href: "/tools/tax-rate-lookup",
+    available: true,
+    feature: "tax-rate-lookup",
   },
   {
     id: "helpcenter",
@@ -153,7 +148,6 @@ const tools: ToolTile[] = [
     icon: LifeBuoy,
     href: "/help-center",
     available: true,
-    category: "Reference",
   },
   {
     id: "planparser",
@@ -165,7 +159,6 @@ const tools: ToolTile[] = [
     comingSoon: true,
     adminOnly: true,
     feature: "plan-parser",
-    category: "Extraction",
   },
   {
     id: "submittalbuilder",
@@ -175,7 +168,6 @@ const tools: ToolTile[] = [
     href: "/submittal-builder",
     available: true,
     feature: "submittal-builder",
-    category: "Project Setup",
   },
   {
     id: "comingsoon",
@@ -382,86 +374,6 @@ function BidSourceLink({
   );
 }
 
-function ToolCard({
-  tool,
-  index,
-  isAdmin,
-  isViewer,
-  isFavorite,
-  onToggleFavorite,
-}: {
-  tool: ToolTile;
-  index: number;
-  isAdmin: boolean;
-  isViewer: boolean;
-  isFavorite: boolean;
-  onToggleFavorite: ((toolId: string) => void) | null;
-}) {
-  const Icon = tool.icon;
-  const isDisabled = !tool.available;
-  const isComingSoon = tool.comingSoon === true;
-  const isAdminRestricted = tool.adminOnly === true && !isAdmin;
-  // Pinning only applies to real, navigable tools — not the "Coming Soon" placeholder
-  // or admin-locked coming-soon tiles. Viewers can't change preferences.
-  const canPin = !!onToggleFavorite && !isViewer && !isDisabled && !(isComingSoon && isAdminRestricted);
-
-  const pinButton = canPin ? (
-    <button
-      className={`tile-pin ${isFavorite ? "active" : ""}`}
-      title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
-      aria-label={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onToggleFavorite!(tool.id);
-      }}
-      data-testid={`pin-${tool.id}`}
-    >
-      <Star style={{ width: 13, height: 13 }} fill={isFavorite ? "currentColor" : "none"} />
-    </button>
-  ) : null;
-
-  if (isDisabled || (isComingSoon && isAdminRestricted)) {
-    return (
-      <div
-        className="tool-card disabled"
-        style={{ ["--i" as any]: index }}
-        data-testid={`tile-${tool.id}`}
-      >
-        <div className="tool-icon">
-          <Icon style={{ width: 22, height: 22, color: "var(--text-dim)" }} />
-        </div>
-        <div className="tool-text">
-          {(isComingSoon || isDisabled) && <div className="csb">Coming Soon</div>}
-          <div className="tool-name">{tool.title}</div>
-          <div className="tool-desc">{tool.description}</div>
-        </div>
-      </div>
-    );
-  }
-
-  const Wrapper = tool.isExternal ? "a" : Link;
-
-  return (
-    <Wrapper
-      href={tool.href}
-      className={`tool-card ${isComingSoon ? "tool-card-coming" : ""}`}
-      style={{ ["--i" as any]: index }}
-      data-testid={`tile-${tool.id}`}
-    >
-      {pinButton}
-      <div className="tool-icon">
-        <Icon style={{ width: 22, height: 22, color: "var(--gold)" }} />
-      </div>
-      <div className="tool-text">
-        {isComingSoon && <div className="csb">Coming Soon</div>}
-        <div className="tool-name">{tool.title}</div>
-        <div className="tool-desc">{tool.description}</div>
-      </div>
-    </Wrapper>
-  );
-}
-
 export default function HomePage() {
   const { isTestMode } = useTestMode();
   const { isAdmin, isViewer, user } = useAuth();
@@ -470,98 +382,6 @@ export default function HomePage() {
   const queryClient = useQueryClient();
   const [selectedToolForStats, setSelectedToolForStats] = useState<string | null>(null);
   const effectiveTestMode = isAdmin && !isViewer && isTestMode;
-
-  // ===== Homepage favorites (pinned tiles) =====
-  // Initialize synchronously from localStorage (instant paint), then hydrate from the
-  // server (source of truth) once the authenticated user loads. Toggling writes through
-  // to both localStorage and the server, with optimistic revert on failure.
-  const [favorites, setFavorites] = useState<Set<string>>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const raw = window.localStorage.getItem(FAVORITES_LS_KEY);
-        if (raw) return new Set(JSON.parse(raw));
-      } catch { /* ignore malformed cache */ }
-    }
-    return new Set(DEFAULT_FAVORITES);
-  });
-  const hydratedFromServer = useRef(false);
-
-  useEffect(() => {
-    if (hydratedFromServer.current || !user) return;
-    hydratedFromServer.current = true;
-    if (user.homeFavorites) {
-      try {
-        const ids: string[] = JSON.parse(user.homeFavorites);
-        if (Array.isArray(ids)) {
-          setFavorites(new Set(ids));
-          window.localStorage.setItem(FAVORITES_LS_KEY, JSON.stringify(ids));
-        }
-      } catch { /* ignore malformed server value */ }
-    }
-  }, [user]);
-
-  const toggleFavorite = useCallback((toolId: string) => {
-    if (guardViewer(isViewer, toast)) return;
-    // Compute next/prev outside of any state updater so the side effects below
-    // (localStorage + network) run exactly once per click, never duplicated by a
-    // double-invoked reducer.
-    const prev = favorites;
-    const next = new Set(prev);
-    if (next.has(toolId)) next.delete(toolId);
-    else next.add(toolId);
-    const arr = Array.from(next);
-
-    // Optimistic: update state + localStorage immediately, then sync to the server.
-    setFavorites(next);
-    try { window.localStorage.setItem(FAVORITES_LS_KEY, JSON.stringify(arr)); } catch { /* quota */ }
-
-    fetch("/api/user/home-favorites", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ favorites: arr }),
-    })
-      .then((res) => { if (!res.ok) throw new Error(`Server error (${res.status})`); })
-      .catch((err) => {
-        // Revert both state and cache on failure.
-        setFavorites(prev);
-        try { window.localStorage.setItem(FAVORITES_LS_KEY, JSON.stringify(Array.from(prev))); } catch { /* quota */ }
-        toast({
-          title: "Couldn't update favorites",
-          description: err?.message || "Network error — please try again.",
-          variant: "destructive",
-        });
-      });
-  }, [favorites, isViewer, toast]);
-
-  // ===== Collapsible category sections =====
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const raw = window.localStorage.getItem(SECTIONS_LS_KEY);
-        if (raw) return new Set(JSON.parse(raw));
-      } catch { /* ignore */ }
-    }
-    return new Set();
-  });
-
-  const toggleSection = useCallback((category: string) => {
-    setCollapsedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(category)) next.delete(category);
-      else next.add(category);
-      try { window.localStorage.setItem(SECTIONS_LS_KEY, JSON.stringify(Array.from(next))); } catch { /* quota */ }
-      return next;
-    });
-  }, []);
-
-  // Whether the current user is allowed to see a given tile (mirrors the per-tile gate
-  // that previously lived inline in the render). Admins see everything.
-  const canSeeTile = useCallback((tool: ToolTile): boolean => {
-    if (!isAdmin && tool.feature && !hasFeature(tool.feature)) return false;
-    if (tool.id === "regions" && (isAdmin || hasFeature("central-settings"))) return false;
-    return true;
-  }, [isAdmin, hasFeature]);
 
   const { data: usageSummary } = useQuery<UsageSummary>({
     queryKey: ["/api/tool-usage/summary"],
@@ -747,19 +567,6 @@ export default function HomePage() {
 
   const selectedToolTitle = tools.find((t) => t.id === selectedToolForStats)?.title || "";
 
-  // Partition visible, categorized tools into the Favorites grid and per-category accordions.
-  const { favoriteTools, categorized } = useMemo(() => {
-    const visible = tools.filter((t) => t.category && canSeeTile(t));
-    const favs = visible.filter((t) => favorites.has(t.id));
-    const cats: Record<string, ToolTile[]> = {};
-    for (const cat of CATEGORY_ORDER) {
-      cats[cat] = visible.filter((t) => t.category === cat && !favorites.has(t.id));
-    }
-    return { favoriteTools: favs, categorized: cats };
-  }, [favorites, canSeeTile]);
-
-  const comingSoonTool = tools.find((t) => t.id === "comingsoon");
-
   return (
     <div className="hp-root" data-testid="homepage">
       <div className="page-hero">
@@ -772,81 +579,60 @@ export default function HomePage() {
       <div className="main-layout">
         <ReadOnlyBanner />
         <div className="tools-col">
-          {/* ===== Favorites — always-visible pinned tiles ===== */}
-          <div className="fav-head">
-            <Star style={{ width: 13, height: 13, color: "var(--gold)", fill: "var(--gold)" }} />
-            <span>Favorites</span>
-            <div className="fav-rule" />
-          </div>
-          <div className="tool-grid" data-testid="favorites-grid">
-            {favoriteTools.length === 0 ? (
-              <div className="fav-empty">Pin tools below with the <Star style={{ width: 11, height: 11, verticalAlign: "-1px" }} /> icon to keep them here.</div>
-            ) : (
-              favoriteTools.map((tool, i) => (
-                <ToolCard
-                  key={tool.id}
-                  tool={tool}
-                  index={i}
-                  isAdmin={isAdmin}
-                  isViewer={isViewer}
-                  isFavorite={true}
-                  onToggleFavorite={toggleFavorite}
-                />
-              ))
-            )}
-          </div>
+          {tools.map((tool, i) => {
+            const Icon = tool.icon;
+            const isDisabled = !tool.available;
+            const isComingSoon = tool.comingSoon === true;
+            const isAdminRestricted = tool.adminOnly === true && !isAdmin;
 
-          {/* ===== Category accordions — secondary tiles ===== */}
-          <div className="cat-stack">
-            {CATEGORY_ORDER.map((category) => {
-              const items = categorized[category];
-              if (!items || items.length === 0) return null;
-              const collapsed = collapsedSections.has(category);
+            // Hide tile entirely if the user lacks the required feature (admins always see everything)
+            if (!isAdmin && tool.feature && !hasFeature(tool.feature)) return null;
+            if (tool.id === "regions" && (isAdmin || hasFeature("central-settings"))) return null;
+
+            if (isDisabled || (isComingSoon && isAdminRestricted)) {
               return (
-                <div className="cat-section" key={category} data-testid={`cat-section-${category}`}>
-                  <button
-                    className="cat-head"
-                    onClick={() => toggleSection(category)}
-                    aria-expanded={!collapsed}
-                    data-testid={`cat-head-${category}`}
-                  >
-                    <ChevronDown className={`cat-chevron ${collapsed ? "collapsed" : ""}`} style={{ width: 15, height: 15 }} />
-                    <span className="cat-label">{category}</span>
-                    <div className="cat-rule" />
-                    <span className="cat-count">{items.length}</span>
-                  </button>
-                  <div className={`cat-body ${collapsed ? "collapsed" : ""}`}>
-                    <div className="tool-grid">
-                      {items.map((tool, i) => (
-                        <ToolCard
-                          key={tool.id}
-                          tool={tool}
-                          index={i}
-                          isAdmin={isAdmin}
-                          isViewer={isViewer}
-                          isFavorite={false}
-                          onToggleFavorite={toggleFavorite}
-                        />
-                      ))}
-                    </div>
+                <div
+                  key={tool.id}
+                  className="tool-card disabled"
+                  style={{ ["--i" as any]: i }}
+                  data-testid={`tile-${tool.id}`}
+                >
+                  <div className="tool-icon">
+                    <Icon style={{ width: 22, height: 22, color: "var(--text-dim)" }} />
+                  </div>
+                  <div className="tool-text">
+                    {(isComingSoon || isDisabled) && <div className="csb">Coming Soon</div>}
+                    <div className="tool-name">{tool.title}</div>
+                    <div className="tool-desc">{tool.description}</div>
                   </div>
                 </div>
               );
-            })}
+            }
 
-            {comingSoonTool && (
-              <div className="tool-grid cs-grid">
-                <ToolCard
-                  tool={comingSoonTool}
-                  index={0}
-                  isAdmin={isAdmin}
-                  isViewer={isViewer}
-                  isFavorite={false}
-                  onToggleFavorite={null}
-                />
-              </div>
-            )}
-          </div>
+            const Wrapper = tool.isExternal ? "a" : Link;
+            const wrapperProps = tool.isExternal
+              ? { href: tool.href }
+              : { href: tool.href };
+
+            return (
+              <Wrapper
+                key={tool.id}
+                {...wrapperProps}
+                className={`tool-card ${isComingSoon ? "tool-card-coming" : ""}`}
+                style={{ ["--i" as any]: i }}
+                data-testid={`tile-${tool.id}`}
+              >
+                <div className="tool-icon">
+                  <Icon style={{ width: 22, height: 22, color: "var(--gold)" }} />
+                </div>
+                <div className="tool-text">
+                  {isComingSoon && <div className="csb">Coming Soon</div>}
+                  <div className="tool-name">{tool.title}</div>
+                  <div className="tool-desc">{tool.description}</div>
+                </div>
+              </Wrapper>
+            );
+          })}
         </div>
 
         <div className="hud-col">

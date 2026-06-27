@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star, FileSearch, Save, History, RotateCcw, Tag, CheckCircle, ClipboardList, FileUp, AlertTriangle, Mail } from "lucide-react";
+import { Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star, FileSearch, Save, History, RotateCcw, Tag, CheckCircle, ClipboardList, FileUp, AlertTriangle, Mail, FileText, ShieldCheck, ShieldX, ThumbsDown } from "lucide-react";
 import { BackNav } from "@/components/BackNav";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
@@ -89,6 +89,14 @@ export default function CentralSettingsPage() {
             <Mail className="w-4 h-4" />
             Email Templates{lockIcon}
           </TabsTrigger>
+          <TabsTrigger value="tax-rates" className={`gap-2 ${regionsOnly ? "opacity-50 cursor-not-allowed" : ""}`} data-testid="tab-tax-rates" title={regionsOnly ? "Restricted to admins" : undefined}>
+            <Tag className="w-4 h-4" />
+            Tax Rates{lockIcon}
+          </TabsTrigger>
+          <TabsTrigger value="quote-parser" className={`gap-2 ${regionsOnly ? "opacity-50 cursor-not-allowed" : ""}`} data-testid="tab-quote-parser" title={regionsOnly ? "Restricted to admins" : undefined}>
+            <FileText className="w-4 h-4" />
+            Quote Parser{lockIcon}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="vendors">
@@ -121,6 +129,14 @@ export default function CentralSettingsPage() {
 
         <TabsContent value="email-templates">
           <EmailTemplateSection />
+        </TabsContent>
+
+        <TabsContent value="tax-rates">
+          <TaxRatesSection />
+        </TabsContent>
+
+        <TabsContent value="quote-parser">
+          <QuoteParserSettingsSection />
         </TabsContent>
       </Tabs>
     </div>
@@ -3218,6 +3234,248 @@ function ProjectWonTemplateEditor() {
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+function TaxRatesSection() {
+  const { toast } = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const { data: status, refetch: refetchStatus } = useQuery<{ rowCount: number; lastUploadedAt: string | null }>({
+    queryKey: ["/api/tax-rates/status"],
+    queryFn: async () => {
+      const res = await fetch("/api/tax-rates/status");
+      if (!res.ok) throw new Error("Status failed");
+      return res.json();
+    },
+  });
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/tax-rates/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      toast({ title: "Tax rates uploaded", description: `${data.rowCount.toLocaleString()} records loaded successfully.` });
+      refetchStatus();
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-heading">Avalara Tax Rate Spreadsheet</CardTitle>
+          <CardDescription>
+            Upload the Avalara tax rate Excel file. All existing records will be replaced. Columns used: A (Zip), B (State), C (County), D (City), O (Total Use Tax %).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {status && (
+            <div className="text-sm text-muted-foreground">
+              {status.rowCount > 0 ? (
+                <>
+                  <span className="font-medium text-foreground">{status.rowCount.toLocaleString()}</span> records currently loaded.
+                  {status.lastUploadedAt && (
+                    <span className="ml-2">Last uploaded: {new Date(status.lastUploadedAt).toLocaleDateString()}</span>
+                  )}
+                </>
+              ) : (
+                "No tax rate data loaded yet."
+              )}
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleUpload}
+            />
+            <Button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="gap-2"
+              variant="outline"
+            >
+              <FileUp className="w-4 h-4" />
+              {uploading ? "Uploading…" : "Upload Spreadsheet"}
+            </Button>
+            {status && status.rowCount > 0 && (
+              <a href="/tools/tax-rate-lookup" className="text-sm text-primary underline">
+                Open Tax Rate Lookup →
+              </a>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function QuoteParserSettingsSection() {
+  const { toast } = useToast();
+  const [promptDraft, setPromptDraft] = useState<string>("");
+  const [promptLoaded, setPromptLoaded] = useState(false);
+
+  const { data: promptData, refetch: refetchPrompt } = useQuery<{ prompt: string }>({
+    queryKey: ["/api/quoteparser/system-prompt"],
+    queryFn: async () => {
+      const res = await fetch("/api/quoteparser/system-prompt");
+      if (!res.ok) throw new Error("Failed to load");
+      return res.json();
+    },
+  });
+
+  const { data: vendorMemory } = useQuery<Array<{ id: number; name: string; parseCount: number; lastSeen: string | null }>>({
+    queryKey: ["/api/quoteparser/vendor-memory"],
+    queryFn: async () => {
+      const res = await fetch("/api/quoteparser/vendor-memory");
+      if (!res.ok) throw new Error("Failed to load");
+      return res.json();
+    },
+  });
+
+  const { data: feedbackItems, refetch: refetchFeedback } = useQuery<any[]>({
+    queryKey: ["/api/quoteparser/feedback"],
+    queryFn: async () => {
+      const res = await fetch("/api/quoteparser/feedback");
+      if (!res.ok) throw new Error("Failed to load");
+      return res.json();
+    },
+  });
+
+  useEffect(() => {
+    if (promptData && !promptLoaded) {
+      setPromptDraft(promptData.prompt);
+      setPromptLoaded(true);
+    }
+  }, [promptData, promptLoaded]);
+
+  const savePromptMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/quoteparser/system-prompt", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: promptDraft }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+    },
+    onSuccess: () => { toast({ title: "Handbook saved" }); refetchPrompt(); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
+  });
+
+  const updateFeedback = async (id: number, status: string) => {
+    await fetch(`/api/quoteparser/feedback/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    refetchFeedback();
+    toast({ title: status === "applied" ? "Marked as applied" : "Marked as reviewed" });
+  };
+
+  const openFeedback = feedbackItems?.filter((f: any) => f.status === "open") ?? [];
+  const resolvedFeedback = feedbackItems?.filter((f: any) => f.status !== "open") ?? [];
+
+  return (
+    <div className="space-y-6">
+
+      {/* Vendor Memory */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-heading">Vendor Memory</CardTitle>
+          <CardDescription>Vendors the Quote Parser has seen and learned from. Parse count increases automatically on each successful parse.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {vendorMemory && vendorMemory.length > 0 ? (
+            <div className="space-y-2">
+              {vendorMemory.map(v => (
+                <div key={v.id} className="flex items-center justify-between text-sm py-2 border-b last:border-0">
+                  <span className="font-medium">{v.name}</span>
+                  <div className="flex items-center gap-4 text-muted-foreground">
+                    <span>{v.parseCount} {v.parseCount === 1 ? "parse" : "parses"}</span>
+                    {v.lastSeen && <span>Last: {new Date(v.lastSeen).toLocaleDateString()}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No vendor parses recorded yet. Parse a quote to start building vendor memory.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Feedback / Corrections */}
+      {openFeedback.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-heading flex items-center gap-2">
+              <ThumbsDown className="w-4 h-4 text-muted-foreground" />
+              Open Feedback ({openFeedback.length})
+            </CardTitle>
+            <CardDescription>Issues reported by users. Review each one, then add a rule to the handbook below and mark it applied.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {openFeedback.map((f: any) => (
+              <div key={f.id} className="border rounded-md p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-sm">
+                    {f.vendorName && <span className="font-medium">{f.vendorName} </span>}
+                    {f.quoteNumber && <span className="text-muted-foreground">#{f.quoteNumber} </span>}
+                    <span className="text-muted-foreground text-xs">· {new Date(f.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                <p className="text-sm">{f.issueDescription}</p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => updateFeedback(f.id, "applied")}>Mark Applied</Button>
+                  <Button size="sm" variant="ghost" onClick={() => updateFeedback(f.id, "reviewed")}>Dismiss</Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* System Prompt Handbook */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-heading">AI Parsing Handbook</CardTitle>
+          <CardDescription>
+            This is the system prompt sent to GPT-4o on every parse. It defines all rules for how quotes are read. Edit this to add vendor-specific rules, fix recurring issues, or refine behavior. Changes take effect immediately on the next parse.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            value={promptDraft}
+            onChange={(e) => setPromptDraft(e.target.value)}
+            className="min-h-[400px] font-mono text-xs"
+            placeholder="Loading handbook…"
+          />
+          <div className="flex gap-2">
+            <Button onClick={() => savePromptMutation.mutate()} disabled={savePromptMutation.isPending} className="gap-2">
+              <Save className="w-4 h-4" />
+              {savePromptMutation.isPending ? "Saving…" : "Save Handbook"}
+            </Button>
+            <Button variant="outline" onClick={() => { setPromptDraft(promptData?.prompt || ""); toast({ title: "Reset to saved version" }); }}>
+              Reset
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
     </div>
   );
 }

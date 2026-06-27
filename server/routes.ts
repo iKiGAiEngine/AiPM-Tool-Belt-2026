@@ -28,9 +28,11 @@ import { registerBackupRoutes } from "./backupRestore";
 import { registerVendorDatabaseRoutes } from "./vendorDatabaseRoutes";
 import { registerEstimateRoutes } from "./estimateRoutes";
 import { registerEstimateAnalyticsRoutes } from "./estimateAnalyticsRoutes";
+import { registerBuyoutRoutes } from "./buyout/routes";
 import { registerScopeManufacturerRoutes } from "./scopeManufacturerRoutes";
 import { registerErrorRoutes } from "./errorRoutes";
 import { registerChatRoutes } from "./chatRoutes";
+import { registerTaxRateRoutes } from "./taxRateRoutes";
 import { auditLog } from "./auditService";
 import { db } from "./db";
 import { users as usersTable } from "@shared/schema";
@@ -94,6 +96,7 @@ export async function registerRoutes(
   registerAuthRoutes(app);
   registerErrorRoutes(app);
   registerChatRoutes(app);
+  registerTaxRateRoutes(app);
 
   // Get current user's feature access
   app.get("/api/user/features", async (req: Request, res: Response) => {
@@ -320,7 +323,8 @@ export async function registerRoutes(
   registerBackupRoutes(app);
   registerEstimateRoutes(app);
   registerEstimateAnalyticsRoutes(app);
-  
+  registerBuyoutRoutes(app);
+
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {
       if (!req.file) {

@@ -269,6 +269,45 @@ export function registerVendorDatabaseRoutes(app: Express) {
     }
   });
 
+  // Buyout Bot: vendors tagged to a canonical scope, each with its primary
+  // contact email + preferredForTrades, in a single round-trip. The scope match
+  // is alias-aware so estimate tab names line up with vendor tags.
+  app.get("/api/mfr/vendors/by-scope", async (req: Request, res: Response) => {
+    try {
+      const scope = String((req.query as Record<string, string>).scope || "").trim();
+      if (!scope) return res.status(400).json({ error: "scope query param required" });
+      const { resolveScope } = await import("@shared/buyout/canonicalScopes");
+      const rows = await db.select().from(mfrVendors);
+      const matched = rows.filter(
+        (v) => Array.isArray(v.scopes) && (v.scopes as string[]).some((t) => resolveScope(t) === scope)
+      );
+      const allContacts = matched.length
+        ? await db.select().from(mfrContacts)
+        : [];
+      const byVendor = new Map<number, typeof allContacts>();
+      for (const c of allContacts) {
+        if (!byVendor.has(c.vendorId)) byVendor.set(c.vendorId, [] as any);
+        byVendor.get(c.vendorId)!.push(c);
+      }
+      const result = matched.map((v) => {
+        const contacts = (byVendor.get(v.id) || []).filter((c) => c.email && c.email.trim());
+        const primary = contacts.find((c) => c.isPrimary) || contacts[0];
+        return {
+          id: v.id,
+          name: v.name,
+          scopes: v.scopes || [],
+          preferredForTrades: (v as any).preferredForTrades || [],
+          email: primary?.email?.trim() || null,
+          contactName: primary?.name || null,
+        };
+      });
+      result.sort((a, b) => a.name.localeCompare(b.name));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/mfr/vendors", async (req: Request, res: Response) => {
     try {
       const { search, scope } = req.query as Record<string, string>;
@@ -351,7 +390,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
 
   app.post("/api/mfr/vendors", async (req: Request, res: Response) => {
     try {
-      const { name, category, website, notes, tags, scopes, manufacturerIds, manufacturerDirect, legalName, shortCode, aliases } = req.body;
+      const { name, category, website, notes, tags, scopes, preferredForTrades, manufacturerIds, manufacturerDirect, legalName, shortCode, aliases } = req.body;
       const cleanName = String(name || "").trim();
       if (!cleanName) return res.status(400).json({ error: "Name required" });
       const cleanLegal = String(legalName || cleanName).trim() || cleanName;
@@ -371,6 +410,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
         aliases: cleanAliases,
         tags: tags || [],
         scopes: Array.isArray(scopes) ? scopes : null,
+        preferredForTrades: Array.isArray(preferredForTrades) ? preferredForTrades : null,
         manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
         manufacturerDirect: !!manufacturerDirect,
       }).returning();
@@ -383,7 +423,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
   app.put("/api/mfr/vendors/:id", async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const { name, category, website, notes, tags, scopes, manufacturerIds, manufacturerDirect, legalName, shortCode, aliases } = req.body;
+      const { name, category, website, notes, tags, scopes, preferredForTrades, manufacturerIds, manufacturerDirect, legalName, shortCode, aliases } = req.body;
       const updates: Record<string, any> = {
         category, website, notes,
         tags: tags || [],
@@ -392,6 +432,9 @@ export function registerVendorDatabaseRoutes(app: Express) {
         manufacturerDirect: !!manufacturerDirect,
         updatedAt: new Date(),
       };
+      if (preferredForTrades !== undefined) {
+        updates.preferredForTrades = Array.isArray(preferredForTrades) ? preferredForTrades : null;
+      }
       // Name: only update if provided; trim and require non-empty
       if (name !== undefined) {
         const cleanName = String(name ?? "").trim();
@@ -420,6 +463,23 @@ export function registerVendorDatabaseRoutes(app: Express) {
         .set(updates)
         .where(eq(mfrVendors.id, id))
         .returning();
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Buyout Bot: toggle a vendor's preferred-for-trade set WITHOUT touching any
+  // other field (the full PUT would reset tags/manufacturerIds/etc).
+  app.patch("/api/mfr/vendors/:id/preferred-trades", async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const { preferredForTrades } = req.body;
+      const [updated] = await db.update(mfrVendors)
+        .set({ preferredForTrades: Array.isArray(preferredForTrades) ? preferredForTrades : null, updatedAt: new Date() })
+        .where(eq(mfrVendors.id, id))
+        .returning();
+      if (!updated) return res.status(404).json({ error: "Vendor not found" });
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
