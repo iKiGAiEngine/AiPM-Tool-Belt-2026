@@ -37,6 +37,7 @@ import ChangelogPage from "@/pages/ChangelogPage";
 import ProposalChangeLogPage from "@/pages/ProposalChangeLogPage";
 import EstimatingModulePage from "@/pages/EstimatingModulePage";
 import BuyoutBotPage from "@/pages/BuyoutBotPage";
+import EstimateMigratorPage from "@/pages/EstimateMigratorPage";
 import AdminEstimatorAnalyticsPage from "@/pages/AdminEstimatorAnalyticsPage";
 import AdminPortfolioVisitsPage from "@/pages/AdminPortfolioVisitsPage";
 import HelpCenterPage from "@/pages/HelpCenterPage";
@@ -128,6 +129,7 @@ function Router() {
       <Route path="/vendor-database" component={VendorDatabasePage} />
       <Route path="/buyout-bot" component={BuyoutBotPage} />
       <Route path="/estimates/:id" component={EstimatingModulePage} />
+      <Route path="/estimate-migrator" component={EstimateMigratorPage} />
       <Route path="/help-center" component={HelpCenterPage} />
       <Route path="/help-center/:sop" component={HelpCenterPage} />
       <Route path="/tools/tax-rate-lookup" component={TaxRateLookupPage} />

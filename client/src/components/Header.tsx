@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Home, Wrench, Receipt, FlaskConical, Loader2, Shield, LogOut, KeyRound,
-  FolderPlus, ScanSearch, ClipboardList, TableProperties, Settings, Users, Calculator, Menu, type LucideIcon
+  FolderPlus, ScanSearch, ClipboardList, TableProperties, Settings, Users, Calculator, Menu, FileSpreadsheet, type LucideIcon
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -42,6 +42,7 @@ const toolRoutes: ToolRoute[] = [
   { path: "/spec-extractor", label: "Spec Extractor", icon: ClipboardList },
   { path: "/tools/proposal-log", label: "Proposal Log Dashboard", icon: ClipboardList },
   { path: "/estimates", label: "Estimator", icon: Calculator },
+  { path: "/estimate-migrator", label: "Estimate Migrator", icon: FileSpreadsheet },
   { path: "/settings", label: "Settings", icon: Settings },
   { path: "/admin", label: "Admin", icon: Shield },
 ];
