@@ -3260,7 +3260,9 @@ function TaxRatesSection() {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch("/api/tax-rates/upload", { method: "POST", body: formData });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any;
+      try { data = JSON.parse(text); } catch { throw new Error(`Server error (${res.status}): ${text.slice(0, 200) || "empty response"}`); }
       if (!res.ok) throw new Error(data.error || "Upload failed");
       toast({ title: "Tax rates uploaded", description: `${data.rowCount.toLocaleString()} records loaded successfully.` });
       refetchStatus();

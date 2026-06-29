@@ -11,7 +11,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 export function registerTaxRateRoutes(app: Express) {
   // Upload & replace all tax rates from an Excel file
-  app.post("/api/tax-rates/upload", requireAuth, upload.single("file"), async (req, res) => {
+  app.post("/api/tax-rates/upload", requireAuth, (req, res, next) => {
+    upload.single("file")(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message || "File upload error" });
+      next();
+    });
+  }, async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file provided" });
 
     try {

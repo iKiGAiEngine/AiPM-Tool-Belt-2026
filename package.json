@@ -67,7 +67,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
-    "multer": "^2.0.2",
+    "multer": "^2.2.0",
     "next-themes": "^0.4.6",
     "openai": "^6.19.0",
     "passport": "^0.7.0",
@@ -98,6 +98,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@replit/vite-plugin-cartographer": "^0.4.4",
     "@replit/vite-plugin-dev-banner": "^0.1.1",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
@@ -120,8 +121,7 @@
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.5",
     "typescript": "5.6.3",
-    "vite": "^7.3.0",
-    "@playwright/test": "^1.59.1"
+    "vite": "^7.3.0"
   },
   "overrides": {
     "drizzle-kit": {
