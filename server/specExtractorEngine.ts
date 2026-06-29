@@ -940,12 +940,10 @@ function makeRangesFromHeaders(headers: ExtractedHeader[], totalPages: number, p
       const detectedPageVerified = verifyStartPageContent(pages, h.page, h.section);
       if (detectedPageVerified) {
         const correctedEnd = findSectionEndPage(pages, h.page, maxEnd, h.section);
-        let pageCount = correctedEnd - h.page + 1;
-        let finalEnd = correctedEnd;
-        if (pageCount > 100) {
-          finalEnd = h.page + 10;
-          console.log(`[SpecExtractor] Capping ${h.section} from ${pageCount} pages to 11`);
-        }
+        // No page cap: extract the full detected section. The range is already
+        // bounded by the next section's start (maxEnd), so we always keep the
+        // complete content rather than truncating long sections.
+        const finalEnd = correctedEnd;
         const folderName = getFolderName(h.section, h.title);
         ranges.push({
           section: h.section,
@@ -961,13 +959,10 @@ function makeRangesFromHeaders(headers: ExtractedHeader[], totalPages: number, p
       }
     }
 
-    let pageCount = end - start + 1;
-    let finalEnd = end;
-    if (pageCount > 100) {
-      finalEnd = start + 10;
-      pageCount = 11;
-      console.log(`[SpecExtractor] Capping ${h.section} from ${pageCount} pages to 11`);
-    }
+    // No page cap: extract the full detected section. findSectionEndPage already
+    // bounds the range by the next section's start, so long sections keep their
+    // complete content instead of being truncated.
+    const finalEnd = end;
 
     const folderName = getFolderName(h.section, h.title);
 
@@ -1136,6 +1131,13 @@ export async function runExtraction(
   const pages = await extractPages(pdfBuffer);
   const totalPages = pages.length;
   console.log(`[SpecExtractor] Total pages: ${totalPages}`);
+
+  if (totalPages === 0) {
+    throw new Error("This PDF has no pages, or could not be read. Please confirm the file is a valid PDF and try again.");
+  }
+  if (!pages.some(p => p.trim().length > 0)) {
+    throw new Error("No selectable text was found in this PDF — it may be a scanned/image-only document. Please run OCR (e.g. Acrobat 'Recognize Text') and re-upload.");
+  }
 
   onProgress?.(15, "Detecting Table of Contents...");
 

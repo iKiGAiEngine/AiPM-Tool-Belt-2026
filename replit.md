@@ -17,6 +17,8 @@ The AiPM Design System uses Rajdhani for headings and DM Sans for body text, fea
 ### Backend
 The backend is an Express.js application in TypeScript, managing PDF uploads via Multer and text extraction with pdf-parse. It provides RESTful APIs and integrates modules for specification extraction (`specExtractorEngine.ts`) and OCR processing/classification (`planparser/`).
 
+**Large uploads (chunked):** The production Autoscale ingress proxy rejects request bodies over ~32 MiB. To process spec PDFs of any size, the Spec Extractor uploads large files in chunks (`/api/spec-extractor/upload/init` → `/chunk` → `/complete`, see `shared/uploadLimits.ts` for `UPLOAD_CHUNK_BYTES`). Chunks are reassembled on local disk, so **the Autoscale deployment must be set to max 1 instance** — otherwise chunks for one upload can land on different instances and reassembly fails. (The existing single-instance disk read-back for `<sessionId>.pdf` already assumes this.) Moving to a Reserved VM, or switching to object storage, would remove this constraint.
+
 ### Data Storage
 All persistent data is stored in PostgreSQL, managed by Drizzle ORM. Key tables include `sessions`, `extracted_sections`, `plan_parser_jobs`, `projects`, `scope_dictionaries`, and `proposal_log_entries`. PDF buffers and template files (folder ZIPs, estimate Excel files) are stored as binary data within the database for production resilience, with a fallback to the filesystem for retrieval.
 

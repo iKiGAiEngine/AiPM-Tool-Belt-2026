@@ -8,9 +8,12 @@ import { getActiveConfiguration } from "./configService";
 import JSZip from "jszip";
 import fs from "fs";
 import path from "path";
+import { pipeline } from "stream/promises";
 import OpenAI from "openai";
+import { UPLOAD_CHUNK_BYTES, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@shared/uploadLimits";
 
 const DATA_DIR = path.join(process.cwd(), "data", "spec-extractor");
+const UPLOAD_TMP_DIR = path.join(DATA_DIR, "uploads");
 
 const pageCache = new Map<string, { pages: string[]; timestamp: number }>();
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -21,10 +24,12 @@ async function getCachedPages(sessionId: string): Promise<string[]> {
     return cached.pages;
   }
   const pdfPath = path.join(DATA_DIR, `${sessionId}.pdf`);
-  if (!fs.existsSync(pdfPath)) {
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = await fs.promises.readFile(pdfPath);
+  } catch {
     throw new Error("Source PDF not found");
   }
-  const pdfBuffer = fs.readFileSync(pdfPath);
   const pages = await extractPages(pdfBuffer);
   pageCache.set(sessionId, { pages, timestamp: Date.now() });
   if (pageCache.size > 20) {
@@ -43,7 +48,11 @@ async function getCachedPages(sessionId: string): Promise<string[]> {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 500 * 1024 * 1024 },
+  // Single-shot path is only used for small files (the client routes anything
+  // larger than UPLOAD_CHUNK_BYTES through the chunked endpoints below). Cap at
+  // 2x the chunk size so a stray large single-shot request is rejected cleanly
+  // rather than buffering hundreds of MB in memory.
+  limits: { fileSize: UPLOAD_CHUNK_BYTES * 2 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === "application/pdf") {
       cb(null, true);
@@ -52,6 +61,42 @@ const upload = multer({
     }
   },
 });
+
+// Multer for individual chunks in the chunked-upload flow. Each chunk is held in
+// memory only briefly before being flushed to disk; the 2x margin covers
+// multipart overhead.
+const uploadChunk = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: UPLOAD_CHUNK_BYTES * 2 },
+});
+
+interface PendingUpload {
+  filename: string;
+  projectName: string;
+  selectedAccessories: string[];
+  tocHints: string;
+  totalChunks: number;
+  totalSize: number;
+  dir: string;
+  createdAt: number;
+}
+
+const pendingUploads = new Map<string, PendingUpload>();
+const UPLOAD_TTL_MS = 30 * 60 * 1000;
+
+async function cleanupStaleUploads(): Promise<void> {
+  const now = Date.now();
+  for (const [sessionId, info] of Array.from(pendingUploads.entries())) {
+    if (now - info.createdAt > UPLOAD_TTL_MS) {
+      pendingUploads.delete(sessionId);
+      try {
+        await fs.promises.rm(info.dir, { recursive: true, force: true });
+      } catch (err) {
+        console.error(`[SpecExtractor] Failed to clean up stale upload ${sessionId}:`, err);
+      }
+    }
+  }
+}
 
 function generateId(): string {
   return `se_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -93,7 +138,10 @@ export function registerSpecExtractorRoutes(app: Express) {
     upload.single("file")(req, res, (err: any) => {
       if (err) {
         if (err.code === "LIMIT_FILE_SIZE") {
-          return res.status(413).json({ message: "File is too large. Maximum upload size is 500 MB. Please reduce the PDF size and try again." });
+          // This path only handles small single-shot uploads; larger files use
+          // the chunked endpoints. If a big file lands here, tell the client to
+          // retry via the chunked flow rather than implying a hard size cap.
+          return res.status(413).json({ message: "This file is too large for a direct upload. Please retry — large PDFs are uploaded in chunks automatically." });
         }
         return res.status(400).json({ message: err.message || "File upload error" });
       }
@@ -117,12 +165,10 @@ export function registerSpecExtractorRoutes(app: Express) {
       let tocHintsRaw = (req.body.tocHints as string)?.trim() || "";
       const now = new Date().toISOString();
 
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
+      await fs.promises.mkdir(DATA_DIR, { recursive: true });
 
       const pdfPath = path.join(DATA_DIR, `${sessionId}.pdf`);
-      fs.writeFileSync(pdfPath, req.file.buffer);
+      await fs.promises.writeFile(pdfPath, req.file.buffer);
 
       await db.insert(specExtractorSessions).values({
         id: sessionId,
@@ -154,6 +200,167 @@ export function registerSpecExtractorRoutes(app: Express) {
     } catch (error: any) {
       console.error("[SpecExtractor] Upload error:", error);
       res.status(500).json({ message: error.message || "Upload failed" });
+    }
+  });
+
+  // ── Chunked upload (for files larger than the Autoscale ~32 MiB proxy cap) ──
+  // The client splits the PDF into <= UPLOAD_CHUNK_BYTES pieces and drives:
+  //   init  -> create session + temp dir, get a sessionId
+  //   chunk -> upload each piece (kept well under the proxy limit)
+  //   complete -> reassemble on disk and kick off the same background extraction.
+
+  app.post("/api/spec-extractor/upload/init", async (req: Request, res: Response) => {
+    try {
+      await cleanupStaleUploads();
+
+      const filename = (req.body.filename as string)?.trim() || "upload.pdf";
+      if (!filename.toLowerCase().endsWith(".pdf")) {
+        return res.status(400).json({ message: "Only PDF files are allowed" });
+      }
+
+      const totalChunks = parseInt(String(req.body.totalChunks), 10);
+      const totalSize = parseInt(String(req.body.totalSize), 10);
+      if (!Number.isFinite(totalChunks) || totalChunks < 1) {
+        return res.status(400).json({ message: "Invalid totalChunks" });
+      }
+      if (Number.isFinite(totalSize) && totalSize > MAX_UPLOAD_BYTES) {
+        return res.status(413).json({ message: `File is too large. Maximum size is ${MAX_UPLOAD_LABEL}.` });
+      }
+
+      const projectName = (req.body.projectName as string)?.trim() || "";
+      let selectedAccessories: string[] = [];
+      try {
+        if (req.body.selectedAccessories) selectedAccessories = JSON.parse(req.body.selectedAccessories);
+      } catch {}
+      const tocHints = (req.body.tocHints as string)?.trim() || "";
+
+      const sessionId = generateId();
+      const dir = path.join(UPLOAD_TMP_DIR, sessionId);
+      await fs.promises.mkdir(dir, { recursive: true });
+
+      pendingUploads.set(sessionId, {
+        filename,
+        projectName,
+        selectedAccessories,
+        tocHints,
+        totalChunks,
+        totalSize: Number.isFinite(totalSize) ? totalSize : 0,
+        dir,
+        createdAt: Date.now(),
+      });
+
+      res.json({ sessionId, chunkSize: UPLOAD_CHUNK_BYTES });
+    } catch (error: any) {
+      console.error("[SpecExtractor] Chunked upload init error:", error);
+      res.status(500).json({ message: error.message || "Upload init failed" });
+    }
+  });
+
+  app.post("/api/spec-extractor/upload/chunk", (req, res, next) => {
+    uploadChunk.single("chunk")(req, res, (err: any) => {
+      if (err) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(413).json({ message: "Chunk is too large." });
+        }
+        return res.status(400).json({ message: err.message || "Chunk upload error" });
+      }
+      next();
+    });
+  }, async (req: Request, res: Response) => {
+    try {
+      const sessionId = (req.body.sessionId as string)?.trim();
+      const chunkIndex = parseInt(String(req.body.chunkIndex), 10);
+      const info = sessionId ? pendingUploads.get(sessionId) : undefined;
+
+      if (!info) {
+        return res.status(404).json({ message: "Upload session not found or expired. Please start the upload again." });
+      }
+      if (!Number.isFinite(chunkIndex) || chunkIndex < 0 || chunkIndex >= info.totalChunks) {
+        return res.status(400).json({ message: "Invalid chunkIndex" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ message: "No chunk data received" });
+      }
+
+      await fs.promises.writeFile(path.join(info.dir, `${chunkIndex}.part`), req.file.buffer);
+      res.json({ received: chunkIndex });
+    } catch (error: any) {
+      console.error("[SpecExtractor] Chunk upload error:", error);
+      res.status(500).json({ message: error.message || "Chunk upload failed" });
+    }
+  });
+
+  app.post("/api/spec-extractor/upload/complete", async (req: Request, res: Response) => {
+    try {
+      const sessionId = (req.body.sessionId as string)?.trim();
+      const info = sessionId ? pendingUploads.get(sessionId) : undefined;
+      if (!info) {
+        return res.status(404).json({ message: "Upload session not found or expired. Please start the upload again." });
+      }
+
+      // Verify every chunk arrived before assembling.
+      const missing: number[] = [];
+      for (let i = 0; i < info.totalChunks; i++) {
+        if (!fs.existsSync(path.join(info.dir, `${i}.part`))) missing.push(i);
+      }
+      if (missing.length > 0) {
+        return res.status(400).json({ message: `Upload incomplete — missing chunk(s): ${missing.slice(0, 10).join(", ")}${missing.length > 10 ? "…" : ""}` });
+      }
+
+      await fs.promises.mkdir(DATA_DIR, { recursive: true });
+      const pdfPath = path.join(DATA_DIR, `${sessionId}.pdf`);
+
+      // Stream-concatenate the parts in order so we never hold the whole file in RAM.
+      const out = fs.createWriteStream(pdfPath);
+      try {
+        for (let i = 0; i < info.totalChunks; i++) {
+          await pipeline(fs.createReadStream(path.join(info.dir, `${i}.part`)), out, { end: false });
+        }
+        out.end();
+        await new Promise<void>((resolve, reject) => {
+          out.on("finish", resolve);
+          out.on("error", reject);
+        });
+      } catch (err) {
+        out.destroy();
+        throw err;
+      }
+
+      // Done with the temp parts.
+      pendingUploads.delete(sessionId);
+      await fs.promises.rm(info.dir, { recursive: true, force: true }).catch(() => {});
+
+      const now = new Date().toISOString();
+      await db.insert(specExtractorSessions).values({
+        id: sessionId,
+        filename: info.filename,
+        projectName: info.projectName,
+        selectedAccessories: info.selectedAccessories,
+        status: "processing",
+        progress: 0,
+        message: "Starting extraction...",
+        totalPages: 0,
+        createdAt: now,
+      });
+
+      res.json({
+        id: sessionId,
+        filename: info.filename,
+        projectName: info.projectName,
+        selectedAccessories: info.selectedAccessories,
+        status: "processing",
+        progress: 0,
+        message: "Starting extraction...",
+        createdAt: now,
+      });
+
+      const pdfBuffer = await fs.promises.readFile(pdfPath);
+      processInBackground(sessionId, pdfBuffer, info.tocHints).catch(err => {
+        console.error(`[SpecExtractor] Background processing failed for ${sessionId}:`, err);
+      });
+    } catch (error: any) {
+      console.error("[SpecExtractor] Chunked upload complete error:", error);
+      res.status(500).json({ message: error.message || "Upload completion failed" });
     }
   });
 
