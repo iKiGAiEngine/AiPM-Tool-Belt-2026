@@ -28,6 +28,11 @@ export interface TOCBounds {
 
 export interface ExtractionResult {
   sections: SectionRange[];
+  /**
+   * Division 11 (Equipment) and 12 (Furnishings) section ranges, enumerated for
+   * the review picker. Presented to the user unchecked; Div 10 stays the default.
+   */
+  otherDivisionSections: SectionRange[];
   tocBounds: TOCBounds;
   totalPages: number;
 }
@@ -1001,6 +1006,50 @@ function makeRangesFromHeaders(
   return ranges;
 }
 
+function divisionOf(section: string): number {
+  const m = section.match(/^(\d{2})/);
+  return m ? parseInt(m[1], 10) : -1;
+}
+
+/**
+ * Enumerate section ranges for arbitrary divisions (e.g. 11 and 12) for the
+ * review picker. Reuses the same generic, all-division header index and
+ * range/boundary logic used for Division 10, so these sections inherit correct
+ * full-page ranges. The Division-10 detection path is left untouched.
+ */
+function enumerateDivisionSections(
+  pages: string[],
+  tocBounds: TOCBounds,
+  allHeaderPages: SectionHeaderPage[],
+  totalPages: number,
+  divisions: number[]
+): SectionRange[] {
+  const rawHeaders: ExtractedHeader[] = [];
+
+  for (const entry of allHeaderPages) {
+    if (tocBounds.end >= 0 && entry.page <= tocBounds.end) continue;
+    if (EQUIPMENT_REF_RE.test(entry.section)) continue;
+    if (!divisions.includes(divisionOf(entry.section))) continue;
+
+    const txt = pages[entry.page];
+    const lines = txt.split(/[\n\r]+/);
+    rawHeaders.push({
+      section: entry.section,
+      title: extractTitleFromPage(lines, entry.section),
+      page: entry.page,
+      isLegitimate: isLegitimateSection(txt, entry.section),
+    });
+  }
+
+  if (rawHeaders.length === 0) return [];
+
+  // filterHeaders drops TOC/index pages and collapses running-header duplicates
+  // to the earliest legitimate occurrence (the Div-10 cluster preference is a
+  // no-op here since these aren't "10 " sections).
+  const filtered = filterHeaders(rawHeaders, tocBounds);
+  return makeRangesFromHeaders(filtered, totalPages, pages, allHeaderPages);
+}
+
 function findHintedSections(
   pages: string[],
   hints: TOCHint[],
@@ -1195,10 +1244,18 @@ export async function runExtraction(
   const sections = makeRangesFromHeaders(allHeaders, totalPages, pages, allHeaderPages);
   console.log(`[SpecExtractor] Final sections: ${sections.length}`);
 
+  // Enumerate Division 11 (Equipment) and 12 (Furnishings) for the review picker.
+  // These are presented unchecked; Division 10 remains the default selection.
+  const div10Numbers = new Set(sections.map(s => s.section));
+  const otherDivisionSections = enumerateDivisionSections(pages, tocBounds, allHeaderPages, totalPages, [11, 12])
+    .filter(s => !div10Numbers.has(s.section));
+  console.log(`[SpecExtractor] Division 11/12 sections: ${otherDivisionSections.length}`);
+
   onProgress?.(90, "Extraction complete");
 
   return {
     sections,
+    otherDivisionSections,
     tocBounds,
     totalPages,
   };

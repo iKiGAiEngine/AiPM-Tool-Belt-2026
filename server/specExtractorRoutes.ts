@@ -641,7 +641,10 @@ async function runAiReview(sessionId: string, projectName: string): Promise<void
     return;
   }
 
-  const sections = await db.select().from(specExtractorSections).where(eq(specExtractorSections.sessionId, sessionId));
+  const allSections = await db.select().from(specExtractorSections).where(eq(specExtractorSections.sessionId, sessionId));
+  // Auto AI review runs on Division 10 (+ accessories) only; Division 11/12 are
+  // enumerated for selection but skip the automatic AI pass to keep it fast.
+  const sections = allSections.filter(s => s.sectionType === "div10" || s.sectionType === "accessory");
   if (sections.length === 0) return;
 
   const pages = await getCachedPages(sessionId);
@@ -753,7 +756,9 @@ async function runAiPageValidation(sessionId: string): Promise<void> {
     return;
   }
 
-  const sections = await db.select().from(specExtractorSections).where(eq(specExtractorSections.sessionId, sessionId));
+  const allSections = await db.select().from(specExtractorSections).where(eq(specExtractorSections.sessionId, sessionId));
+  // Page-content validation runs on Division 10 (+ accessories) only.
+  const sections = allSections.filter(s => s.sectionType === "div10" || s.sectionType === "accessory");
   if (sections.length === 0) return;
 
   const pages = await getCachedPages(sessionId);
@@ -935,6 +940,8 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer, tocHint
     const projectName = session?.projectName || "Project";
     const selectedAccessories = (session?.selectedAccessories as string[]) || [];
 
+    const insertedNumbers = new Set<string>();
+
     for (const section of result.sections) {
       const signage = isSignageSection(section.section);
       await db.insert(specExtractorSections).values({
@@ -949,6 +956,26 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer, tocHint
         sectionType: "div10",
         isSignage: signage,
       });
+      insertedNumbers.add(section.section);
+    }
+
+    // Division 11 (Equipment) and 12 (Furnishings) sections, presented in the
+    // review picker unchecked. Tagged div11/div12 via the section-number prefix.
+    for (const section of result.otherDivisionSections || []) {
+      if (insertedNumbers.has(section.section)) continue;
+      await db.insert(specExtractorSections).values({
+        id: generateId(),
+        sessionId,
+        sectionNumber: section.section,
+        title: section.title,
+        startPage: section.start,
+        endPage: section.end,
+        pageCount: section.end - section.start + 1,
+        folderName: section.folderName,
+        sectionType: `div${section.section.slice(0, 2)}`,
+        isSignage: false,
+      });
+      insertedNumbers.add(section.section);
     }
 
     if (selectedAccessories.length > 0) {
@@ -974,6 +1001,9 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer, tocHint
       const accessoryMatches = findAccessorySections(pages, selectedAccessories, result.tocBounds, result.sections, configScopes);
 
       for (const match of accessoryMatches) {
+        // Skip if this section was already captured as a Div 10/11/12 header
+        // (the header-based entry has more accurate page ranges).
+        if (insertedNumbers.has(match.sectionNumber)) continue;
         await db.insert(specExtractorSections).values({
           id: generateId(),
           sessionId,
@@ -987,6 +1017,7 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer, tocHint
           isSignage: false,
           matchedKeywords: match.matchedKeywords,
         });
+        insertedNumbers.add(match.sectionNumber);
       }
 
       console.log(`[SpecExtractor] Found ${accessoryMatches.length} accessory matches for session ${sessionId}`);
