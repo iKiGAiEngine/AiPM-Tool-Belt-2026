@@ -198,6 +198,7 @@ export function findAccessorySections(
 
   const matches: AccessoryMatch[] = [];
   const seenPageRanges = new Set<string>();
+  const allHeaderPages = findAllSectionHeaderPages(pages, tocBounds);
 
   if (existingDiv10Sections) {
     for (const s of existingDiv10Sections) {
@@ -281,7 +282,11 @@ export function findAccessorySections(
     }
 
     const sectionStart = best.page;
-    const sectionEnd = findSectionEndPage(pages, sectionStart, Math.min(sectionStart + 30, pages.length - 1), best.sectionNumber);
+    // Bound the accessory section by the next section header (any division),
+    // capped at 30 pages so a missed boundary can't run away.
+    const boundary = nextSectionBoundaryPage(allHeaderPages, sectionStart, best.sectionNumber, pages.length);
+    const accessoryMaxEnd = Math.min(boundary, sectionStart + 30, pages.length - 1);
+    const sectionEnd = findSectionEndPage(pages, sectionStart, accessoryMaxEnd, best.sectionNumber);
     const rangeKey = `${sectionStart}-${sectionEnd}`;
 
     if (seenPageRanges.has(rangeKey)) {
@@ -479,6 +484,87 @@ function extractTitleFromPage(lines: string[], sectionCanon: string): string {
   }
 
   return getScopeName(sectionCanon, "");
+}
+
+export interface SectionHeaderPage {
+  page: number;
+  section: string;
+}
+
+// Generic, all-division header detection used purely to establish where each
+// section ENDS: a section runs until the page just before the next section
+// header (of ANY division) begins. Only lines that START with the section
+// number (optionally preceded by SECTION/SPEC) count, so mid-line
+// cross-references ("comply with Section 10 14 00") are never treated as
+// boundaries. Running page-headers that repeat the SAME number are handled by
+// the caller, which only stops at a header whose number DIFFERS from the
+// current section.
+function findAllSectionHeaderPages(pages: string[], tocBounds: TOCBounds): SectionHeaderPage[] {
+  const result: SectionHeaderPage[] = [];
+
+  const keywordAtLineStart = /^\s*(?:SECTION|SPEC)\s+(\d{2}[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{2}\d{4,6})\b/i;
+  const numberDashAtLineStart = /^\s*(\d{2}[\s\-\._]*\d{2}[\s\-\._]*\d{2})\s*[–—\-:]\s*[A-Za-z]/;
+
+  for (let pno = 0; pno < pages.length; pno++) {
+    if (tocBounds.end >= 0 && pno <= tocBounds.end) continue;
+
+    const txt = pages[pno];
+    const lines = txt.split(/[\n\r]+/);
+    const topLines = lines.slice(0, 15);
+
+    // Skip dense index/listing pages: many section numbers on one page is a
+    // table of contents, not a real section start.
+    const distinct = new Set<string>();
+    for (const line of topLines) {
+      const km = line.match(keywordAtLineStart);
+      const nm = line.match(numberDashAtLineStart);
+      const raw = km?.[1] || nm?.[1];
+      if (raw && !EQUIPMENT_REF_RE.test(raw)) distinct.add(canonize(raw));
+    }
+    if (distinct.size > 4) continue;
+
+    let found: { section: string; strong: boolean } | null = null;
+    for (const line of topLines) {
+      const km = line.match(keywordAtLineStart);
+      if (km && !EQUIPMENT_REF_RE.test(km[1])) {
+        found = { section: canonize(km[1]), strong: true };
+        break;
+      }
+      const nm = line.match(numberDashAtLineStart);
+      if (nm && !EQUIPMENT_REF_RE.test(nm[1])) {
+        found = { section: canonize(nm[1]), strong: false };
+        break;
+      }
+    }
+
+    if (!found) continue;
+    // A bare "10 26 13 - Title" line without the SECTION keyword must be backed
+    // by real section content on the page to count as a boundary; the explicit
+    // SECTION/SPEC keyword form is trusted on its own.
+    if (!found.strong && !isLegitimateSection(txt, found.section)) continue;
+
+    result.push({ page: pno, section: found.section });
+  }
+
+  return result;
+}
+
+// The last page belonging to a section that starts at `start`: the page just
+// before the next header whose section number DIFFERS from the current one.
+// Same-number running headers on later pages are skipped so they never collapse
+// a multi-page section.
+function nextSectionBoundaryPage(
+  allHeaderPages: SectionHeaderPage[],
+  start: number,
+  currentSection: string,
+  totalPages: number
+): number {
+  for (const entry of allHeaderPages) {
+    if (entry.page > start && entry.section !== currentSection) {
+      return entry.page - 1;
+    }
+  }
+  return totalPages - 1;
 }
 
 function findDiv10Headers(pages: string[], tocBounds: TOCBounds): ExtractedHeader[] {
@@ -699,6 +785,8 @@ function findSectionStartPage(pages: string[], detectedPage: number, section: st
     const headerPatterns = [
       new RegExp(`SECTION\\s+${escapedSection}\\s*[-–—]\\s*`, "i"),
       new RegExp(`^${escapedSection}\\s*[-–—]\\s*`, "im"),
+      // Two-line header form: "SECTION 10 26 13" with the title on the next line.
+      new RegExp(`(?:SECTION|SPEC)\\s+${escapedSection}\\b`, "i"),
     ];
 
     for (const pattern of headerPatterns) {
@@ -724,94 +812,31 @@ function findSectionStartPage(pages: string[], detectedPage: number, section: st
   return detectedPage;
 }
 
-function detectAnyNewSectionHeader(topZone: string, currentSection: string): string | null {
-  for (const pattern of HDR_PATTERNS) {
-    const match = pattern.exec(topZone);
-    if (match) {
-      const rawSec = match[1];
-      const canon = canonize(rawSec);
-      if (EQUIPMENT_REF_RE.test(rawSec)) continue;
-      if (canon !== currentSection) {
-        return canon;
-      }
-    }
-  }
-
-  const lines = topZone.split(/[\n\r]+/);
-  for (let i = 0; i < Math.min(15, lines.length); i++) {
-    const line = lines[i].trim();
-    const sectionOnlyMatch = line.match(/^(?:SECTION|SPEC)\s+(\d{2}[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*$/i);
-    if (sectionOnlyMatch) {
-      const canon = canonize(sectionOnlyMatch[1]);
-      if (!EQUIPMENT_REF_RE.test(sectionOnlyMatch[1]) && canon !== currentSection) {
-        return canon;
-      }
-    }
-  }
-
-  const standaloneRe = /^\s*(\d{2}[\s\-\._]*\d{2}[\s\-\._]*\d{2})\s*$/m;
-  const standaloneMatch = topZone.match(standaloneRe);
-  if (standaloneMatch) {
-    const canon = canonize(standaloneMatch[1]);
-    if (canon !== currentSection && !EQUIPMENT_REF_RE.test(standaloneMatch[1])) {
-      const lineIdx = lines.findIndex(l => l.trim() === standaloneMatch[0].trim());
-      if (lineIdx >= 0 && lineIdx < 10) {
-        const nextLine = lineIdx + 1 < lines.length ? lines[lineIdx + 1].trim() : "";
-        if (/^[A-Z][A-Z\s,&\/\-]{3,}/.test(nextLine) || /PART\s+1/i.test(nextLine)) {
-          return canon;
-        }
-      }
-    }
-  }
-
-  return null;
-}
-
+// End of a section = the boundary page (maxSearchPage, already set by the caller
+// to the page before the next section of ANY division). We only TRIM earlier
+// than that when a trustworthy "END OF SECTION" marker appears on a LATER page.
+// We never honor an END marker on the start page and never return a page before
+// the start, so a multi-page section can never collapse to a single page.
 function findSectionEndPage(pages: string[], startPage: number, maxSearchPage: number, section: string): number {
-  for (let pageNum = startPage; pageNum <= Math.min(maxSearchPage, pages.length - 1); pageNum++) {
-    const pageText = pages[pageNum];
-    const pageLines = pageText.split(/[\n\r]+/);
+  const effectiveMax = Math.min(maxSearchPage, pages.length - 1);
+  if (effectiveMax <= startPage) {
+    return Math.max(startPage, effectiveMax);
+  }
 
-    const linesAfterStart = pageNum === startPage ? pageLines.slice(Math.floor(pageLines.length / 2)) : pageLines;
-    for (const line of linesAfterStart) {
+  for (let pageNum = startPage + 1; pageNum <= effectiveMax; pageNum++) {
+    const pageLines = pages[pageNum].split(/[\n\r]+/);
+    for (const line of pageLines) {
       const lineLower = line.toLowerCase().trim();
       for (const marker of END_MARKERS) {
         if (lineLower === marker || (lineLower.includes(marker) && lineLower.length < marker.length + 10)) {
-          console.log(`[SpecExtractor] End of section for ${section} at p${pageNum + 1} ("${marker}")`);
+          console.log(`[SpecExtractor] End of section for ${section} trimmed at p${pageNum + 1} ("${marker}")`);
           return pageNum;
         }
       }
     }
-
-    if (pageNum > startPage) {
-      const topZone = pageLines.slice(0, 20).join("\n");
-      const newSection = detectAnyNewSectionHeader(topZone, section);
-      if (newSection) {
-        console.log(`[SpecExtractor] Next section header ${newSection} found at p${pageNum + 1}, ending ${section} at p${pageNum}`);
-        return pageNum - 1;
-      }
-
-      const pageUpper = pageText.toUpperCase();
-      if (pageUpper.includes("PART 1") && (pageUpper.includes("GENERAL") || pageUpper.includes("SUMMARY"))) {
-        const topZoneForPart1 = pageLines.slice(0, 15).join("\n");
-        const sectionRe = /\b(\d{2}[\s\-\._]*\d{2}[\s\-\._]*\d{2})\b/g;
-        let m2;
-        const candidateSections: string[] = [];
-        while ((m2 = sectionRe.exec(topZoneForPart1)) !== null) {
-          const canon = canonize(m2[1]);
-          if (!EQUIPMENT_REF_RE.test(m2[1]) && canon !== section && !candidateSections.includes(canon)) {
-            candidateSections.push(canon);
-          }
-        }
-        if (candidateSections.length === 1) {
-          console.log(`[SpecExtractor] PART 1 boundary: ${candidateSections[0]} found at p${pageNum + 1}, ending ${section} at p${pageNum}`);
-          return pageNum - 1;
-        }
-      }
-    }
   }
 
-  return Math.min(startPage + 10, maxSearchPage);
+  return effectiveMax;
 }
 
 function filterHeaders(headers: ExtractedHeader[], tocBounds: TOCBounds): ExtractedHeader[] {
@@ -840,6 +865,9 @@ function filterHeaders(headers: ExtractedHeader[], tocBounds: TOCBounds): Extrac
     eligible.push(h);
   }
 
+  // Where the bulk of the Division-10 sections sit. A section number that
+  // appears both in early front-matter and again in the real spec body should
+  // resolve to the occurrence clustered with its Division-10 siblings.
   const div10Pages = eligible.filter(h => h.section.startsWith("10 ")).map(h => h.page).sort((a, b) => a - b);
   let clusterCenter = -1;
   if (div10Pages.length > 0) {
@@ -869,11 +897,16 @@ function filterHeaders(headers: ExtractedHeader[], tocBounds: TOCBounds): Extrac
       if (legitimate.length === 1) {
         best = legitimate[0];
       } else if (clusterCenter >= 0 && h.section.startsWith("10 ")) {
+        // Prefer the occurrence nearest the Division-10 cluster (the real spec
+        // body), not an isolated early listing.
         best = group.reduce((a, b) =>
           Math.abs(a.page - clusterCenter) <= Math.abs(b.page - clusterCenter) ? a : b
         );
       } else {
-        best = group[group.length - 1];
+        // Fall back to the EARLIEST legitimate occurrence, never the last —
+        // anchoring late is what collapsed multi-page sections toward the end.
+        const pool = legitimate.length > 0 ? legitimate : group;
+        best = pool.reduce((a, b) => (a.page <= b.page ? a : b));
       }
       for (const g of group) {
         if (g !== best) {
@@ -916,7 +949,12 @@ function verifyStartPageContent(pages: string[], startPage: number, section: str
   return false;
 }
 
-function makeRangesFromHeaders(headers: ExtractedHeader[], totalPages: number, pages: string[]): SectionRange[] {
+function makeRangesFromHeaders(
+  headers: ExtractedHeader[],
+  totalPages: number,
+  pages: string[],
+  allHeaderPages: SectionHeaderPage[]
+): SectionRange[] {
   const ranges: SectionRange[] = [];
 
   const sorted = [...headers].sort((a, b) => a.page - b.page);
@@ -924,45 +962,28 @@ function makeRangesFromHeaders(headers: ExtractedHeader[], totalPages: number, p
   for (let i = 0; i < sorted.length; i++) {
     const h = sorted[i];
 
-    const start = findSectionStartPage(pages, h.page, h.section);
+    let start = findSectionStartPage(pages, h.page, h.section);
 
-    let maxEnd: number;
-    if (i + 1 < sorted.length) {
-      maxEnd = sorted[i + 1].page - 1;
-    } else {
-      maxEnd = totalPages - 1;
+    // If the walked-back start page doesn't actually contain the section number
+    // but the originally detected page does, trust the detected page.
+    if (!verifyStartPageContent(pages, start, h.section) && verifyStartPageContent(pages, h.page, h.section)) {
+      console.log(`[SpecExtractor] Start fallback for ${h.section}: p${start + 1} lacks the number, using detected p${h.page + 1}`);
+      start = h.page;
     }
 
-    const end = findSectionEndPage(pages, start, maxEnd, h.section);
-
-    if (!verifyStartPageContent(pages, start, h.section)) {
-      console.log(`[SpecExtractor] WARNING: Start page p${start + 1} does not contain section number ${h.section}, checking detected page p${h.page + 1}`);
-      const detectedPageVerified = verifyStartPageContent(pages, h.page, h.section);
-      if (detectedPageVerified) {
-        const correctedEnd = findSectionEndPage(pages, h.page, maxEnd, h.section);
-        // No page cap: extract the full detected section. The range is already
-        // bounded by the next section's start (maxEnd), so we always keep the
-        // complete content rather than truncating long sections.
-        const finalEnd = correctedEnd;
-        const folderName = getFolderName(h.section, h.title);
-        ranges.push({
-          section: h.section,
-          title: getScopeName(h.section, h.title),
-          start: h.page,
-          end: finalEnd,
-          folderName,
-        });
-        console.log(`[SpecExtractor] Range (corrected): ${h.section} - "${folderName}" pages ${h.page + 1}-${finalEnd + 1}`);
-        continue;
-      } else {
-        console.log(`[SpecExtractor] WARNING: Neither start p${start + 1} nor detected p${h.page + 1} verified for ${h.section}, using original range`);
+    // Whole-section boundary: run until the page before the next section header
+    // of ANY division. Also never bleed past the next detected Division-10
+    // header (belt-and-suspenders in case generic detection missed a header).
+    let maxEnd = nextSectionBoundaryPage(allHeaderPages, start, h.section, totalPages);
+    for (let j = i + 1; j < sorted.length; j++) {
+      if (sorted[j].page > start && sorted[j].section !== h.section) {
+        maxEnd = Math.min(maxEnd, sorted[j].page - 1);
+        break;
       }
     }
+    maxEnd = Math.max(start, Math.min(maxEnd, totalPages - 1));
 
-    // No page cap: extract the full detected section. findSectionEndPage already
-    // bounds the range by the next section's start, so long sections keep their
-    // complete content instead of being truncated.
-    const finalEnd = end;
+    const end = findSectionEndPage(pages, start, maxEnd, h.section);
 
     const folderName = getFolderName(h.section, h.title);
 
@@ -970,11 +991,11 @@ function makeRangesFromHeaders(headers: ExtractedHeader[], totalPages: number, p
       section: h.section,
       title: getScopeName(h.section, h.title),
       start,
-      end: finalEnd,
+      end,
       folderName,
     });
 
-    console.log(`[SpecExtractor] Range: ${h.section} - "${folderName}" pages ${start + 1}-${finalEnd + 1}`);
+    console.log(`[SpecExtractor] Range: ${h.section} - "${folderName}" pages ${start + 1}-${end + 1} (${end - start + 1} pages)`);
   }
 
   return ranges;
@@ -1168,7 +1189,10 @@ export async function runExtraction(
 
   onProgress?.(70, "Calculating page ranges...");
 
-  const sections = makeRangesFromHeaders(allHeaders, totalPages, pages);
+  const allHeaderPages = findAllSectionHeaderPages(pages, tocBounds);
+  console.log(`[SpecExtractor] All-division header pages for boundaries: ${allHeaderPages.length}`);
+
+  const sections = makeRangesFromHeaders(allHeaders, totalPages, pages, allHeaderPages);
   console.log(`[SpecExtractor] Final sections: ${sections.length}`);
 
   onProgress?.(90, "Extraction complete");
