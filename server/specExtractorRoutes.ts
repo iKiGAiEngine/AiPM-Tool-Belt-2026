@@ -530,12 +530,16 @@ export function registerSpecExtractorRoutes(app: Express) {
       await runAiReview(req.params.id, session.projectName);
 
       const updatedSections = await db.select().from(specExtractorSections).where(eq(specExtractorSections.sessionId, req.params.id));
-      const reviews = updatedSections.map(s => ({
-        id: s.id,
-        status: s.aiReviewStatus || "correct",
-        suggestedTitle: s.title,
-        notes: s.aiReviewNotes || "",
-      }));
+      // Auto AI review only runs on Division 10 (+ accessories); don't return a
+      // "correct"/Verified status for Division 11/12 rows that were never reviewed.
+      const reviews = updatedSections
+        .filter(s => s.sectionType === "div10" || s.sectionType === "accessory")
+        .map(s => ({
+          id: s.id,
+          status: s.aiReviewStatus || "correct",
+          suggestedTitle: s.title,
+          notes: s.aiReviewNotes || "",
+        }));
 
       res.json({ reviews });
     } catch (error: any) {
