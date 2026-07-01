@@ -104,7 +104,13 @@ export default function SpecExtractorPage() {
   useEffect(() => {
     if (sections.length > 0 && !hasInitializedSelection.current) {
       hasInitializedSelection.current = true;
-      setSelectedSections(new Set(sections.filter(s => !s.isSignage && s.aiReviewStatus !== "not_div10").map(s => s.id)));
+      // Pre-check Division 10 only. Division 11/12 (and accessories) are listed
+      // for the user to opt into, but start unchecked.
+      setSelectedSections(new Set(
+        sections
+          .filter(s => s.sectionType === "div10" && !s.isSignage && s.aiReviewStatus !== "not_div10")
+          .map(s => s.id)
+      ));
     }
 
     if (sections.length > 0) {
@@ -627,11 +633,23 @@ export default function SpecExtractorPage() {
     }
   };
 
-  const div10Sections = sections.filter(s => s.sectionType !== "accessory");
+  const byNumber = (a: SpecExtractorSection, b: SpecExtractorSection) => a.sectionNumber.localeCompare(b.sectionNumber);
+  const div10Sections = sections.filter(s => s.sectionType === "div10");
+  const div11Sections = sections.filter(s => s.sectionType === "div11");
+  const div12Sections = sections.filter(s => s.sectionType === "div12");
   const accessorySections = sections.filter(s => s.sectionType === "accessory");
-  const sortedDiv10 = [...div10Sections].sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber));
-  const sortedAccessory = [...accessorySections].sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber));
-  const sortedSections = [...sortedDiv10, ...sortedAccessory];
+  const sortedDiv10 = [...div10Sections].sort(byNumber);
+  const sortedDiv11 = [...div11Sections].sort(byNumber);
+  const sortedDiv12 = [...div12Sections].sort(byNumber);
+  const sortedAccessory = [...accessorySections].sort(byNumber);
+  const sortedSections = [...sortedDiv10, ...sortedDiv11, ...sortedDiv12, ...sortedAccessory];
+  const sectionGroupLabels: Record<string, string> = {
+    div10: "Division 10 Sections",
+    div11: "Division 11 Sections",
+    div12: "Division 12 Sections",
+    accessory: "Accessory Sections",
+  };
+  const presentGroupCount = [div10Sections, div11Sections, div12Sections, accessorySections].filter(g => g.length > 0).length;
   const totalPages = sections.reduce((sum, s) => sum + s.pageCount, 0);
   const selectedCount = selectedSections.size;
   const selectableCount = sections.filter(s => !s.isSignage && s.aiReviewStatus !== "not_div10").length;
@@ -953,6 +971,12 @@ export default function SpecExtractorPage() {
                   </Button>
                   <div className="flex items-center gap-2 flex-wrap">
                     <Badge variant="secondary" data-testid="badge-se-section-count">{div10Sections.length} Div 10</Badge>
+                    {div11Sections.length > 0 && (
+                      <Badge variant="secondary" data-testid="badge-se-div11-count">{div11Sections.length} Div 11</Badge>
+                    )}
+                    {div12Sections.length > 0 && (
+                      <Badge variant="secondary" data-testid="badge-se-div12-count">{div12Sections.length} Div 12</Badge>
+                    )}
                     {accessorySections.length > 0 && (
                       <Badge variant="secondary" data-testid="badge-se-accessory-count">{accessorySections.length} Accessory</Badge>
                     )}
@@ -1091,26 +1115,22 @@ export default function SpecExtractorPage() {
                     </span>
                   </div>
 
-                  {sortedDiv10.length > 0 && accessorySections.length > 0 && (
-                    <div className="flex items-center gap-2 px-1 pt-1">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Division 10 Sections</span>
-                    </div>
-                  )}
-
                   {sortedSections.map((section, idx) => {
                     const isSelected = selectedSections.has(section.id);
                     const isPreviewing = previewSectionId === section.id;
                     const review = aiReviews.get(section.id);
                     const isEditingThisFolder = editingFolderId === section.id;
-                    const showAccessoryHeader = section.sectionType === "accessory" && (idx === 0 || sortedSections[idx - 1]?.sectionType !== "accessory");
+                    const isFirstOfGroup = idx === 0 || sortedSections[idx - 1]?.sectionType !== section.sectionType;
+                    const showGroupHeader = presentGroupCount > 1 && isFirstOfGroup;
+                    const groupLabel = sectionGroupLabels[section.sectionType] || `${section.sectionType} Sections`;
+                    const GroupIcon = section.sectionType === "accessory" ? Package : FileText;
 
                     return (
                       <div key={section.id}>
-                        {showAccessoryHeader && (
+                        {showGroupHeader && (
                           <div className="flex items-center gap-2 px-1 pt-4 pb-1">
-                            <Package className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Accessory Sections</span>
+                            <GroupIcon className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{groupLabel}</span>
                           </div>
                         )}
                         <Card

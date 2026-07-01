@@ -36,8 +36,10 @@ async function verifyOne(pdfPath: string): Promise<void> {
   const buffer = fs.readFileSync(pdfPath);
   const result = await runExtraction(buffer);
 
-  console.log(`  totalPages=${result.totalPages}  tocBounds=${result.tocBounds.start + 1}-${result.tocBounds.end + 1}  sections=${result.sections.length}`);
-  for (const s of result.sections) {
+  const other = result.otherDivisionSections || [];
+  console.log(`  totalPages=${result.totalPages}  tocBounds=${result.tocBounds.start + 1}-${result.tocBounds.end + 1}  div10=${result.sections.length}  div11/12=${other.length}`);
+
+  const printRow = (s: { section: string; start: number; end: number; title: string }) => {
     const pageCount = s.end - s.start + 1;
     const flags: string[] = [];
     if (pageCount === 1) flags.push("⚠ SINGLE-PAGE");
@@ -46,6 +48,13 @@ async function verifyOne(pdfPath: string): Promise<void> {
       `  ${s.section.padEnd(10)} ${String(s.start + 1).padStart(4)}-${String(s.end + 1).padStart(4)}  ` +
       `(${String(pageCount).padStart(3)}p)  ${s.title}${flags.length ? "   " + flags.join(" ") : ""}`
     );
+  };
+
+  console.log("  -- Division 10 --");
+  for (const s of result.sections) printRow(s);
+  if (other.length > 0) {
+    console.log("  -- Division 11 / 12 --");
+    for (const s of other) printRow(s);
   }
 }
 
