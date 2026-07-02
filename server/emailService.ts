@@ -88,6 +88,26 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
+// Wraps a body-only HTML fragment in a minimal document with dark-mode
+// opt-out meta tags. Webmail/mobile clients (Gmail, Apple Mail, Outlook.com,
+// Outlook iOS/Android) apply "smart" dark-mode recoloring to HTML emails that
+// lack a <head>; these meta tags declare the email as light-only so clients
+// don't invert/reinterpret inline colors.
+function wrapEmailHtml(bodyHtml: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+</head>
+<body style="margin: 0; padding: 0;">
+${bodyHtml}
+</body>
+</html>`;
+}
+
 export function buildBidAssignmentHtml(
   template: { subject: string; greeting: string; bodyMessage: string; signOff: string },
   details: {
@@ -117,7 +137,7 @@ export function buildBidAssignmentHtml(
     template.signOff,
   ].join("\n");
 
-  const html = `
+  const html = wrapEmailHtml(`
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px;">
       <div style="border-bottom: 3px solid #D4A843; padding-bottom: 12px; margin-bottom: 24px;">
         <h2 style="margin: 0; font-size: 20px; color: #111;">AiPM Tool Belt</h2>
@@ -146,7 +166,7 @@ export function buildBidAssignmentHtml(
       </div>
       <p style="color: #666; font-size: 13px; margin: 0;">${signOff}</p>
     </div>
-  `;
+  `);
 
   return { subject, text, html };
 }
@@ -227,7 +247,7 @@ export async function sendDraftNotificationEmail(
     "Please log in to AiPM Tool Belt to review.",
   ].join("\n");
 
-  const html = `
+  const html = wrapEmailHtml(`
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px;">
       <div style="border-bottom: 3px solid #D4A843; padding-bottom: 12px; margin-bottom: 24px;">
         <h2 style="margin: 0; font-size: 20px; color: #111;">AiPM Tool Belt</h2>
@@ -251,7 +271,7 @@ export async function sendDraftNotificationEmail(
       </div>
       <p style="color: #666; font-size: 13px; margin: 0;">Please log in to review and take action.</p>
     </div>
-  `;
+  `);
 
   if (EMAIL_PROVIDER === "sendgrid") {
     try {
@@ -355,7 +375,7 @@ export async function sendProjectWonEmail(
     template.signOff,
   ].join("\n");
 
-  const html = `
+  const html = wrapEmailHtml(`
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px;">
       <div style="border-bottom: 3px solid #D4A843; padding-bottom: 12px; margin-bottom: 24px;">
         <h2 style="margin: 0; font-size: 20px; color: #111;">AiPM Tool Belt</h2>
@@ -387,7 +407,7 @@ export async function sendProjectWonEmail(
       </div>
       <p style="color: #666; font-size: 13px; margin: 0;">${signOff}</p>
     </div>
-  `;
+  `);
 
   if (EMAIL_PROVIDER === "sendgrid") {
     for (const to of recipients) {
@@ -416,7 +436,7 @@ export async function sendInviteEmail(to: string, token: string): Promise<void> 
   const link = `${baseUrl}/reset-password?token=${token}`;
   const subject = "You've been invited to AiPM — set your password.";
   const text = `You have been invited to AiPM Tool Belt.\n\nSet your password using the link below (valid for 72 hours):\n${link}\n\nIf you did not expect this email, you can ignore it.`;
-  const html = `
+  const html = wrapEmailHtml(`
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
       <div style="border-bottom: 3px solid #D4A843; padding-bottom: 12px; margin-bottom: 24px;">
         <h2 style="margin: 0; font-size: 20px; color: #111;">AiPM Tool Belt</h2>
@@ -424,11 +444,11 @@ export async function sendInviteEmail(to: string, token: string): Promise<void> 
       <p style="color: #333; font-size: 15px;">You have been invited to access <strong>AiPM Tool Belt</strong>.</p>
       <p style="color: #555; font-size: 14px;">Click the button below to set your password and activate your account. This link is valid for <strong>72 hours</strong>.</p>
       <div style="text-align: center; margin: 28px 0;">
-        <a href="${link}" style="display: inline-block; padding: 13px 28px; background: linear-gradient(135deg, #D4A843, #B8903C); color: #fff; font-weight: 700; font-size: 15px; border-radius: 8px; text-decoration: none; letter-spacing: 0.5px;">Set Your Password</a>
+        <a href="${link}" style="display: inline-block; padding: 13px 28px; background: linear-gradient(135deg, #D4A843, #B8903C); background-color: #B8903C; color: #ffffff !important; font-weight: 700; font-size: 15px; border-radius: 8px; text-decoration: none; letter-spacing: 0.5px; border: 1px solid #B8903C;">Set Your Password</a>
       </div>
       <p style="color: #888; font-size: 12px;">If you did not expect this invitation, you can safely ignore this email.</p>
     </div>
-  `;
+  `);
 
   if (EMAIL_PROVIDER === "sendgrid") {
     try {
@@ -451,7 +471,7 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
   const link = `${baseUrl}/reset-password?token=${token}`;
   const subject = "Reset your AiPM password.";
   const text = `You requested a password reset for your AiPM Tool Belt account.\n\nReset your password using the link below (valid for 1 hour):\n${link}\n\nIf you did not request this, please ignore this email.`;
-  const html = `
+  const html = wrapEmailHtml(`
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
       <div style="border-bottom: 3px solid #D4A843; padding-bottom: 12px; margin-bottom: 24px;">
         <h2 style="margin: 0; font-size: 20px; color: #111;">AiPM Tool Belt</h2>
@@ -460,9 +480,9 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
       <p style="color: #555; font-size: 14px;">Click the button below to choose a new password. This link is valid for <strong>1 hour</strong>.</p>
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 28px auto;">
         <tr>
-          <td align="center" bgcolor="#B8903C" style="background-color: #B8903C; border-radius: 8px;">
-            <a href="${link}" target="_blank" style="display: inline-block; padding: 14px 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 700; color: #ffffff; text-decoration: none; letter-spacing: 0.5px; border-radius: 8px; mso-padding-alt: 0;">
-              <!--[if mso]>&nbsp;&nbsp;&nbsp;&nbsp;<![endif]-->Reset Password<!--[if mso]>&nbsp;&nbsp;&nbsp;&nbsp;<![endif]-->
+          <td align="center" bgcolor="#B8903C" style="background-color: #B8903C; border-radius: 8px; border: 1px solid #B8903C;">
+            <a href="${link}" target="_blank" style="display: inline-block; padding: 14px 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 700; color: #ffffff !important; text-decoration: none; letter-spacing: 0.5px; border-radius: 8px; background-color: #B8903C; border: 1px solid #B8903C; mso-padding-alt: 0;">
+              <!--[if mso]>&nbsp;&nbsp;&nbsp;&nbsp;<![endif]--><span style="color: #ffffff !important;">Reset Password</span><!--[if mso]>&nbsp;&nbsp;&nbsp;&nbsp;<![endif]-->
             </a>
           </td>
         </tr>
@@ -470,7 +490,7 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
       <p style="color: #555; font-size: 13px; word-break: break-all;">Or copy and paste this link into your browser:<br><a href="${link}" style="color: #B8903C;">${link}</a></p>
       <p style="color: #888; font-size: 12px;">If you did not request a password reset, you can safely ignore this email.</p>
     </div>
-  `;
+  `);
 
   if (EMAIL_PROVIDER === "sendgrid") {
     try {
