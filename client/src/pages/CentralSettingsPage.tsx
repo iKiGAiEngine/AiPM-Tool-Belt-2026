@@ -47,10 +47,10 @@ export default function CentralSettingsPage() {
           <h1 className="text-2xl font-semibold text-foreground font-heading">{regionsOnly ? "Settings — Regions" : "Settings"}</h1>
           <p className="text-muted-foreground">{regionsOnly ? "You have access to the Regions tab. Other tabs are visible but restricted to admins." : "Manage vendors, products, scope dictionaries, regions, templates, spec extraction, and email notifications"}</p>
         </div>
-        <Link href="/tools/bc-sync-table">
+        <Link href="/tools/proposal-log?tab=newbids">
           <Button variant="outline" className="gap-2" data-testid="button-bc-sync-table">
             <ClipboardList className="w-4 h-4" />
-            BC Sync Table
+            New Bids
           </Button>
         </Link>
       </div>

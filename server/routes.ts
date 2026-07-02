@@ -116,13 +116,6 @@ export async function registerRoutes(
 
   registerAutodeskRoutes(app);
 
-  app.get("/tools/proposal-log", (req, res) => {
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
-    res.sendFile(path.resolve(process.cwd(), "public", "tools", "proposal-log.html"));
-  });
-
   const publicPaths = ["/api/auth/", "/api/version", "/health", "/api/mfr/export-excel", "/api/mfr/contacts-report"];
   app.use("/api", (req, res, next) => {
     const fullPath = req.originalUrl || req.path;

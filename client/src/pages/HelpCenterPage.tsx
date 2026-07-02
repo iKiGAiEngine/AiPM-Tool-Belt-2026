@@ -9,7 +9,6 @@ import { BackNav } from "@/components/BackNav";
 
 import shotHomePage from "@assets/sop-screenshots/01-home-page.png";
 import shotProposalLog from "@assets/sop-screenshots/10-proposal-log-dashboard.png";
-import shotBcSyncTable from "@assets/sop-screenshots/11-bc-sync-table-admin.png";
 import shotProjectStart from "@assets/sop-screenshots/20-project-start.png";
 import shotSpecExtractor from "@assets/sop-screenshots/30-spec-extractor.png";
 import shotScheduleConverter from "@assets/sop-screenshots/40-schedule-converter.png";

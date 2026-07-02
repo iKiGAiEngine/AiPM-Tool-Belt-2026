@@ -950,6 +950,7 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   bcLink: varchar("bc_link", { length: 1000 }),
   ndaRequired: boolean("nda_required").default(false),
   bcAccessStatus: varchar("bc_access_status", { length: 30 }),
+  regionNeedsReview: boolean("region_needs_review").default(false),
   isTest: boolean("is_test").default(false),
   syncedToLocal: boolean("synced_to_local").default(false),
   isDraft: boolean("is_draft").default(false),
