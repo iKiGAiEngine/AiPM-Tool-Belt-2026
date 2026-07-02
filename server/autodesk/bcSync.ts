@@ -1054,6 +1054,9 @@ export function registerBcSyncRoutes(app: Express) {
               const wasNda = !!existingEntry.ndaRequired;
               const ndaCleared = wasNda && !mapped.ndaRequired;
               const newRegion = ndaCleared && mapped.region ? mapped.region : existingEntry.region;
+              const newRegionNeedsReview = ndaCleared && mapped.region
+                ? !!mapped.regionNotConfident
+                : existingEntry.regionNeedsReview;
 
               await db.update(proposalLogEntries).set({
                 dueDate: mapped.dueDate || existingEntry.dueDate,
@@ -1064,6 +1067,7 @@ export function registerBcSyncRoutes(app: Express) {
                 squareFeet: mapped.squareFeet || existingEntry.squareFeet,
                 scopeList: JSON.stringify([...mergedScopes]),
                 region: newRegion,
+                regionNeedsReview: newRegionNeedsReview,
                 ndaRequired: mapped.ndaRequired,
                 bcAccessStatus: mapped.bcAccessStatus,
                 bcUpdateFlag: true,
@@ -1141,10 +1145,11 @@ export function registerBcSyncRoutes(app: Express) {
 
         if (!existingLog) {
           try {
-            const { regionNotConfident: _rnc, ...entryData } = await mapOpportunityToEntry(opp);
+            const { regionNotConfident, ...entryData } = await mapOpportunityToEntry(opp);
 
             const [entry] = await db.insert(proposalLogEntries).values({
               ...entryData,
+              regionNeedsReview: !!regionNotConfident,
               syncedToLocal: false,
             }).returning();
 
@@ -1687,7 +1692,10 @@ export function registerBcSyncRoutes(app: Express) {
 
       const updates: Record<string, unknown> = {};
       if (projectName !== undefined) updates.projectName = projectName;
-      if (region !== undefined) updates.region = region;
+      if (region !== undefined) {
+        updates.region = region;
+        updates.regionNeedsReview = false;
+      }
       if (dueDate !== undefined) updates.dueDate = dueDate;
       if (nbsEstimator !== undefined) updates.nbsEstimator = nbsEstimator;
       if (gcEstimateLead !== undefined) updates.gcEstimateLead = gcEstimateLead;

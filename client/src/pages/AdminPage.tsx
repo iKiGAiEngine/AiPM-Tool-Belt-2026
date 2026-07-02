@@ -394,11 +394,11 @@ export function AdminUsersSection() {
                 </div>
               </div>
             </Link>
-            <Link href="/tools/bc-sync-table" data-testid="link-bc-sync-table">
+            <Link href="/tools/proposal-log?tab=newbids" data-testid="link-bc-sync-table">
               <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
                 <Link2 className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
                 <div>
-                  <div className="font-medium text-sm font-heading group-hover:text-foreground">BC Sync Table</div>
+                  <div className="font-medium text-sm font-heading group-hover:text-foreground">New Bids (BuildingConnected)</div>
                   <div className="text-xs text-muted-foreground">BuildingConnected draft review, approval & change history</div>
                 </div>
               </div>

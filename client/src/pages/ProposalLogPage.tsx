@@ -17,6 +17,7 @@ import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
+import { NewBidsTab } from "@/components/NewBidsTab";
 
 interface ProposalLogEntry {
   id: number;
@@ -58,11 +59,15 @@ interface ProposalLogEntry {
 
 type SortField = "projectName" | "region" | "dueDate" | "estimateStatus" | "nbsEstimator" | "createdAt";
 type SortDir = "asc" | "desc";
-type ViewTab = "all" | "active" | "drafts" | "deleted";
+type ViewTab = "all" | "active" | "drafts" | "deleted" | "newbids";
 
 export default function ProposalLogPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewTab, setViewTab] = useState<ViewTab>("all");
+  const [viewTab, setViewTab] = useState<ViewTab>(() => {
+    if (typeof window === "undefined") return "all";
+    const params = new URLSearchParams(window.location.search);
+    return params.get("tab") === "newbids" ? "newbids" : "all";
+  });
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [scopePopupEntryId, setScopePopupEntryId] = useState<number | null>(null);
@@ -78,8 +83,22 @@ export default function ProposalLogPage() {
   const notesPopupRef = useRef<HTMLDivElement>(null);
   const { isTestMode } = useTestMode();
   const { toast } = useToast();
-  const { isViewer } = useAuth();
+  const { isAdmin, isViewer } = useAuth();
   const { hasFeature } = useFeatureAccess();
+  const canSeeNewBids = isAdmin || hasFeature("bc-sync") || hasFeature("draft-review");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const bc = params.get("bc");
+    if (bc === "connected") {
+      toast({ title: "BuildingConnected linked", description: "Your account is now connected." });
+      queryClient.invalidateQueries({ queryKey: ["/api/autodesk/status"] });
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (bc === "error") {
+      toast({ title: "Connection failed", description: "Could not connect to BuildingConnected. Please try again.", variant: "destructive" });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   const { data: dbRegions = [] } = useQuery<{ id: number; code: string; name: string | null; isActive: boolean }[]>({
     queryKey: ["/api/regions", "active"],
@@ -406,23 +425,28 @@ export default function ProposalLogPage() {
           <div className="flex-1">
             <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>Proposal Log</h1>
             <p className="text-sm" style={{ color: "var(--text-dim)" }}>
-              Active bids, pipeline tracking & estimating workflow
+              {viewTab === "newbids"
+                ? "Review, accept, merge, or reject bids synced from BuildingConnected"
+                : "Active bids, pipeline tracking & estimating workflow"}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={exportToCSV} data-testid="button-export-csv">
-              <FileText className="w-4 h-4 mr-2" />
-              CSV
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportToXLSX} data-testid="button-export-xlsx">
-              <FileSpreadsheet className="w-4 h-4 mr-2" />
-              XLSX
-            </Button>
-          </div>
+          {viewTab !== "newbids" && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={exportToCSV} data-testid="button-export-csv">
+                <FileText className="w-4 h-4 mr-2" />
+                CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportToXLSX} data-testid="button-export-xlsx">
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                XLSX
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl card-accent-bar" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
           <div className="pb-4 p-6">
+            {viewTab !== "newbids" && (
             <div className="flex items-center gap-2 mb-3 flex-wrap">
               <select
                 value={regionFilter}
@@ -468,6 +492,7 @@ export default function ProposalLogPage() {
                 )}
               </div>
             </div>
+            )}
             <div className="flex items-center gap-4 flex-wrap">
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-dim)" }} />
@@ -486,6 +511,7 @@ export default function ProposalLogPage() {
                   { key: "active" as ViewTab, label: "Active", count: activeCount },
                   { key: "drafts" as ViewTab, label: "Drafts", count: draftCount },
                   { key: "deleted" as ViewTab, label: "Deleted", count: deletedCount },
+                  ...(canSeeNewBids ? [{ key: "newbids" as ViewTab, label: "New Bids", count: draftCount }] : []),
                 ]).map(tab => (
                   <button
                     key={tab.key}
@@ -502,13 +528,17 @@ export default function ProposalLogPage() {
                   </button>
                 ))}
               </div>
-              <Badge variant="secondary" className="text-xs">
-                {filteredEntries.length} entr{filteredEntries.length !== 1 ? "ies" : "y"}
-              </Badge>
+              {viewTab !== "newbids" && (
+                <Badge variant="secondary" className="text-xs">
+                  {filteredEntries.length} entr{filteredEntries.length !== 1 ? "ies" : "y"}
+                </Badge>
+              )}
             </div>
           </div>
           <div className="px-6 pb-6">
-            {isLoading && entries.length === 0 ? (
+            {viewTab === "newbids" ? (
+              <NewBidsTab />
+            ) : isLoading && entries.length === 0 ? (
               <p className="text-sm py-8 text-center" style={{ color: "var(--text-dim)" }}>Loading proposal log...</p>
             ) : filteredEntries.length === 0 ? (
               <p className="text-sm py-8 text-center" style={{ color: "var(--text-dim)" }}>No entries found.</p>

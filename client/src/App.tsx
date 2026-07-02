@@ -18,7 +18,6 @@ import CentralSettingsPage from "@/pages/CentralSettingsPage";
 import QuoteParserPage from "@/pages/QuoteParserPage";
 import ProjectStartPage from "@/pages/ProjectStartPage";
 import ProjectDetailPage from "@/pages/ProjectDetailPage";
-import ProjectLogPage from "@/pages/ProjectLogPage";
 import ProposalLogPage from "@/pages/ProposalLogPage";
 import ScheduleConverterPage from "@/pages/ScheduleConverterPage";
 import SpecExtractorPage from "@/pages/SpecExtractorPage";
@@ -83,20 +82,23 @@ function SettingsRoute({ component: Component }: { component: React.ComponentTyp
   return <Component />;
 }
 
-function BcSyncRoute({ component: Component }: { component: React.ComponentType }) {
-  const { canAccessAdminDashboard, isLoading } = useAuth();
-  const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
-  if (isLoading || featuresLoading) return <RouteSpinner />;
-  if (!canAccessAdminDashboard && !hasFeature("bc-sync")) return <HomePage />;
-  return <Component />;
-}
-
 function ProposalLogRoute({ component: Component }: { component: React.ComponentType }) {
   const { canAccessAdminDashboard, isLoading } = useAuth();
   const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
   if (isLoading || featuresLoading) return <RouteSpinner />;
-  if (!canAccessAdminDashboard && !hasFeature("proposal-log")) return <HomePage />;
+  // The New Bids tab (BuildingConnected review) lives inside this page, so anyone
+  // gated on bc-sync/draft-review needs to reach it even without proposal-log access.
+  if (!canAccessAdminDashboard && !hasFeature("proposal-log") && !hasFeature("bc-sync") && !hasFeature("draft-review")) return <HomePage />;
   return <Component />;
+}
+
+// Retired route: sends old bookmarks/links to their new destination.
+function RedirectRoute({ to }: { to: string }) {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    navigate(to);
+  }, [to, navigate]);
+  return <RouteSpinner />;
 }
 
 function Router() {
@@ -110,8 +112,8 @@ function Router() {
       <Route path="/project-start" component={ProjectStartPage} />
       <Route path="/projects/:id" component={ProjectDetailPage} />
       <Route path="/tools/proposal-log">{() => <ProposalLogRoute component={ProposalLogPage} />}</Route>
-      <Route path="/tools/bc-sync-table">{() => <BcSyncRoute component={ProjectLogPage} />}</Route>
-      <Route path="/project-log">{() => { const [, nav] = useLocation(); useEffect(() => { nav("/tools/bc-sync-table"); }, []); return <RouteSpinner />; }}</Route>
+      <Route path="/tools/bc-sync-table">{() => <RedirectRoute to="/tools/proposal-log?tab=newbids" />}</Route>
+      <Route path="/project-log">{() => <RedirectRoute to="/tools/proposal-log?tab=newbids" />}</Route>
       <Route path="/schedule-converter" component={ScheduleConverterPage} />
       <Route path="/spec-extractor" component={SpecExtractorPage} />
       <Route path="/admin">{() => <AdminDashboardRoute component={AdminDashboardPage} />}</Route>

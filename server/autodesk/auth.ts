@@ -31,12 +31,12 @@ export function registerAutodeskRoutes(app: Express) {
 
   app.get("/api/autodesk/login", requireAuth, (req: Request, res: Response) => {
     if (!envClientId) {
-      return res.redirect("/tools/bc-sync-table?bc=error");
+      return res.redirect("/tools/proposal-log?tab=newbids&bc=error");
     }
 
     const userId = (req.session as any)?.userId;
     if (!userId) {
-      return res.redirect("/tools/bc-sync-table?bc=error");
+      return res.redirect("/tools/proposal-log?tab=newbids&bc=error");
     }
 
     const nonce = randomBytes(32).toString("hex");
@@ -66,11 +66,11 @@ export function registerAutodeskRoutes(app: Express) {
 
       if (error) {
         console.error("[APS] OAuth error:", error);
-        return res.redirect("/tools/bc-sync-table?bc=error");
+        return res.redirect("/tools/proposal-log?tab=newbids&bc=error");
       }
 
       if (!code || !state) {
-        return res.redirect("/tools/bc-sync-table?bc=error");
+        return res.redirect("/tools/proposal-log?tab=newbids&bc=error");
       }
 
       const nonce = state as string;
@@ -78,13 +78,13 @@ export function registerAutodeskRoutes(app: Express) {
 
       if (!oauthState || oauthState.nonce !== nonce) {
         console.error("[APS] Invalid or mismatched OAuth state");
-        return res.redirect("/tools/bc-sync-table?bc=error");
+        return res.redirect("/tools/proposal-log?tab=newbids&bc=error");
       }
 
       if (Date.now() - oauthState.createdAt > STATE_TTL_MS) {
         delete (req.session as any).apsOAuthState;
         console.error("[APS] OAuth state expired");
-        return res.redirect("/tools/bc-sync-table?bc=error");
+        return res.redirect("/tools/proposal-log?tab=newbids&bc=error");
       }
 
       const userId = oauthState.userId;
@@ -94,7 +94,7 @@ export function registerAutodeskRoutes(app: Express) {
       const clientSecret = process.env.APS_CLIENT_SECRET;
       if (!clientId || !clientSecret) {
         console.error("[APS] Missing client credentials");
-        return res.redirect("/tools/bc-sync-table?bc=error");
+        return res.redirect("/tools/proposal-log?tab=newbids&bc=error");
       }
 
       const redirectUri = getRedirectUri(req);
@@ -114,7 +114,7 @@ export function registerAutodeskRoutes(app: Express) {
       if (!tokenRes.ok) {
         const errText = await tokenRes.text();
         console.error("[APS] Token exchange failed:", tokenRes.status, errText);
-        return res.redirect("/tools/bc-sync-table?bc=error");
+        return res.redirect("/tools/proposal-log?tab=newbids&bc=error");
       }
 
       const data = await tokenRes.json() as {
@@ -153,10 +153,10 @@ export function registerAutodeskRoutes(app: Express) {
       }
 
       console.log(`[APS] User ${userId} connected to BuildingConnected`);
-      res.redirect("/tools/bc-sync-table?bc=connected");
+      res.redirect("/tools/proposal-log?tab=newbids&bc=connected");
     } catch (err) {
       console.error("[APS] Callback error:", err);
-      res.redirect("/tools/bc-sync-table?bc=error");
+      res.redirect("/tools/proposal-log?tab=newbids&bc=error");
     }
   });
 
