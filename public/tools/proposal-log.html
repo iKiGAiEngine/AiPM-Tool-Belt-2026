@@ -682,6 +682,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
 <div class="nav-tabs">
   <div class="nav-tab active" id="tab-log" onclick="setTab('log')">Proposal Log</div>
   <div class="nav-tab" id="tab-dash" onclick="setTab('dash')">Dashboard</div>
+  <div class="nav-tab" id="tab-newbids" onclick="setTab('newbids')" style="display:none">BC Invites <span id="newbids-tab-count" style="display:none"></span></div>
 </div>
 
 <main>
@@ -839,6 +840,40 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
       </table>
     </div>
     <div class="export-bar"></div>
+  </div>
+
+  <!-- BC INVITES -->
+  <div class="view" id="view-newbids">
+    <div class="toolbar" style="justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:12px;color:var(--text-dim);max-width:520px;">New bid invites pulled from BuildingConnected, awaiting review. Accept moves a project into the Proposal Log; Reject discards it.</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="newbids-bc-status" style="font-size:11px;color:var(--text-dim)"></span>
+        <button class="btn-secondary" id="btn-newbids-connect" onclick="connectToBc()" style="display:none;font-size:11px;padding:5px 12px;">Connect to BuildingConnected</button>
+        <button class="btn-primary" id="btn-newbids-sync" onclick="runBcInvitesSync()" style="display:none;">&#8635; Sync from BC</button>
+      </div>
+    </div>
+
+    <div id="newbids-preview-wrap" style="display:none; margin:0 20px 12px; border:1px solid var(--border); border-radius:6px; overflow:hidden; background:var(--bg2);"></div>
+
+    <div class="table-outer">
+      <table id="newbids-table">
+        <thead>
+          <tr>
+            <th style="width:26px"></th>
+            <th>Project Name</th>
+            <th style="width:150px">Region</th>
+            <th style="width:110px">Due Date</th>
+            <th style="width:160px">GC Lead</th>
+            <th style="width:180px">Flags</th>
+            <th style="width:200px">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="newbids-tbody"></tbody>
+      </table>
+    </div>
+    <div id="newbids-empty" style="display:none;padding:40px;text-align:center;color:var(--text-dim);font-size:13px;">No BC invites awaiting review.</div>
   </div>
 </main>
 
@@ -1260,11 +1295,12 @@ function getColDef(key) { return COL_DEFS.find(c=>c.key===key); }
 function setMode(m) { /* mode toggle removed */ }
 function setTab(t) {
   tab=t;
-  ['log','dash'].forEach(x=>{
+  ['log','dash','newbids'].forEach(x=>{
     document.getElementById('tab-'+x).classList.toggle('active',x===t);
     document.getElementById('view-'+x).classList.toggle('active',x===t);
   });
   if(t==='dash') renderDash();
+  if(t==='newbids') loadBcInvites();
 }
 
 function getFiltered() {
@@ -2058,21 +2094,329 @@ async function checkGoogleSheet(){
   checkBcSyncAccess();
 }
 
+let canReviewBcInvites=false;
+
 async function checkBcSyncAccess(){
   const bcBtn=document.getElementById('btn-bc-sync');
-  if(!bcBtn || !currentUser) return;
+  const newBidsTab=document.getElementById('tab-newbids');
+  if(!currentUser) return;
   try{
     const res=await fetch('/api/user/features',{credentials:'include'});
     if(!res.ok) return;
     const features=await res.json();
     const list=Array.isArray(features)?features:[];
-    const hasBcSync=list.some(f=>(typeof f==='string'?f:f&&f.feature)==='bc-sync');
-    if(hasBcSync) bcBtn.style.display='';
+    const has=(f)=>list.some(x=>(typeof x==='string'?x:x&&x.feature)===f);
+    const isAdmin=currentUser.role==='admin';
+    const hasBcSync=isAdmin||has('bc-sync');
+    canReviewBcInvites=isAdmin||has('bc-sync')||has('draft-review');
+    if(hasBcSync && bcBtn) bcBtn.style.display='';
+    if(canReviewBcInvites && newBidsTab) newBidsTab.style.display='';
+    if(canReviewBcInvites) refreshBcConnectionStatus();
   }catch(e){console.warn('BC sync access check failed:',e);}
 }
 
 function bcSyncFromProposalLog(){
-  window.location.href='/tools/bc-sync-table?openSync=1';
+  setTab('newbids');
+}
+
+async function refreshBcConnectionStatus(){
+  const statusEl=document.getElementById('newbids-bc-status');
+  const connectBtn=document.getElementById('btn-newbids-connect');
+  const syncBtn=document.getElementById('btn-newbids-sync');
+  try{
+    const res=await fetch('/api/autodesk/status',{credentials:'include'});
+    const d=await res.json();
+    if(d.connected){
+      if(statusEl) statusEl.textContent='BC Connected';
+      if(connectBtn) connectBtn.style.display='none';
+      if(syncBtn) syncBtn.style.display='';
+    }else{
+      if(statusEl) statusEl.textContent='Not connected to BuildingConnected';
+      if(connectBtn) connectBtn.style.display='';
+      if(syncBtn) syncBtn.style.display='none';
+    }
+  }catch(e){console.warn('BC status check failed:',e);}
+}
+
+function connectToBc(){
+  window.location.href='/api/autodesk/login';
+}
+
+let bcInvites=[];
+let bcSyncPreview=null;
+let bcSyncPreviewSelected=new Set();
+
+async function loadBcInvites(){
+  const tbody=document.getElementById('newbids-tbody');
+  const empty=document.getElementById('newbids-empty');
+  if(!tbody) return;
+  try{
+    const res=await fetch('/api/proposal-log/all-entries',{credentials:'include'});
+    if(!res.ok) return;
+    const all=await res.json();
+    bcInvites=all.filter(e=>e.isDraft && !e.deletedAt).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    renderBcInvites();
+  }catch(e){console.warn('Failed to load BC invites:',e);}
+}
+
+function renderBcInvites(){
+  const tbody=document.getElementById('newbids-tbody');
+  const empty=document.getElementById('newbids-empty');
+  const countBadge=document.getElementById('newbids-tab-count');
+  if(!tbody) return;
+  tbody.innerHTML='';
+  if(countBadge){
+    if(bcInvites.length>0){countBadge.textContent='('+bcInvites.length+')';countBadge.style.display='';}
+    else countBadge.style.display='none';
+  }
+  if(bcInvites.length===0){
+    if(empty) empty.style.display='';
+    document.getElementById('newbids-table').style.display='none';
+    return;
+  }
+  if(empty) empty.style.display='none';
+  document.getElementById('newbids-table').style.display='';
+
+  bcInvites.forEach(entry=>{
+    const tr=document.createElement('tr');
+    tr.dataset.id=entry.id;
+    const isNda=entry.ndaRequired||entry.bcAccessStatus==='nda_required';
+    let dupMatches=[];
+    if(entry.duplicateOverrideNote&&entry.duplicateOverrideNote.startsWith('__dup:')){
+      try{dupMatches=JSON.parse(entry.duplicateOverrideNote.slice(6));}catch(e){}
+    }
+    const flags=[];
+    if(isNda) flags.push('<span class="badge" style="background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.35)">&#128274; NDA</span>');
+    if(dupMatches.length>0) flags.push('<span class="badge" style="background:rgba(249,115,22,.15);color:#fb923c;border:1px solid rgba(249,115,22,.35)">&#9888; Possible Duplicate</span>');
+    if(entry.regionNeedsReview) flags.push('<span class="badge" style="background:rgba(249,115,22,.15);color:#fb923c;border:1px solid rgba(249,115,22,.35)">&#9888; Confirm Region</span>');
+
+    const regionOptions='<option value="">— Select —</option>'+REGIONS.map(r=>`<option value="${r}"${entry.region===r?' selected':''}>${r}</option>`).join('');
+
+    tr.innerHTML=`
+      <td></td>
+      <td><input type="text" value="${(entry.projectName||'').replace(/"/g,'&quot;')}" style="width:100%;background:transparent;border:1px solid transparent;color:var(--text);font-size:12px;padding:3px;" onblur="saveBcInviteField(${entry.id},'projectName',this.value)"></td>
+      <td><select style="width:100%;font-size:11px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;" onchange="saveBcInviteField(${entry.id},'region',this.value)">${regionOptions}</select></td>
+      <td><input type="date" value="${entry.dueDate||''}" style="width:100%;font-size:11px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;" onblur="saveBcInviteField(${entry.id},'dueDate',this.value)"></td>
+      <td><input type="text" value="${(entry.gcEstimateLead||'').replace(/"/g,'&quot;')}" style="width:100%;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;font-size:11px;" onblur="saveBcInviteField(${entry.id},'gcEstimateLead',this.value)"></td>
+      <td>${flags.join(' ')}</td>
+      <td style="white-space:nowrap;">
+        ${canReviewBcInvites?`
+          <button class="btn-primary" style="padding:4px 10px;font-size:10px;" onclick="acceptBcInvite(${entry.id})">Accept</button>
+          <button class="btn-secondary" style="padding:4px 10px;font-size:10px;" onclick="openBcMergePicker(${entry.id})">Merge</button>
+          <button class="btn-danger" style="padding:4px 8px;font-size:10px;" onclick="rejectBcInvite(${entry.id})">&#10005;</button>
+        `:''}
+      </td>`;
+    tbody.appendChild(tr);
+
+    if(dupMatches.length>0){
+      const mergeTr=document.createElement('tr');
+      mergeTr.id='bc-merge-'+entry.id;
+      mergeTr.style.display='none';
+      mergeTr.innerHTML=`<td colspan="7" style="background:var(--bg2);padding:10px;">
+        <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Possible duplicate entries</div>
+        <div id="bc-merge-list-${entry.id}"></div>
+      </td>`;
+      tbody.appendChild(mergeTr);
+    }
+
+    const rejectTr=document.createElement('tr');
+    rejectTr.id='bc-reject-'+entry.id;
+    rejectTr.style.display='none';
+    rejectTr.innerHTML=`<td colspan="7" style="background:var(--bg2);padding:10px;">
+      <textarea id="bc-reject-reason-${entry.id}" placeholder="Reason for rejection (optional)" style="width:100%;min-height:50px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;"></textarea>
+      <div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end;">
+        <button class="btn-secondary" style="padding:4px 10px;font-size:10px;" onclick="document.getElementById('bc-reject-${entry.id}').style.display='none'">Cancel</button>
+        <button class="btn-danger" style="padding:4px 10px;font-size:10px;" onclick="confirmRejectBcInvite(${entry.id})">Reject Draft</button>
+      </div>
+    </td>`;
+    tbody.appendChild(rejectTr);
+  });
+}
+
+async function saveBcInviteField(id,field,value){
+  try{
+    const body={};
+    body[field]=value;
+    if(field==='region') body.regionNeedsReview=false;
+    await fetch(`/api/bc/drafts/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(body)});
+    const entry=bcInvites.find(e=>e.id===id);
+    if(entry) entry[field]=value;
+  }catch(e){console.warn('Failed to save BC invite field:',e);}
+}
+
+async function acceptBcInvite(id,extra){
+  const entry=bcInvites.find(e=>e.id===id);
+  if(!entry) return;
+  if(!entry.projectName||!entry.region){
+    alert('Project name and region are required to accept a bid.');
+    return;
+  }
+  try{
+    const res=await fetch(`/api/bc/drafts/${id}/approve-and-create`,{
+      method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
+      body:JSON.stringify(Object.assign({
+        projectName:entry.projectName,region:entry.region,dueDate:entry.dueDate,
+        gcEstimateLead:entry.gcEstimateLead,createVendorFolder:true
+      },extra||{}))
+    });
+    if(res.status===409){
+      const body=await res.json();
+      showBcMergePicker(id,body.matches||[]);
+      return;
+    }
+    if(!res.ok){alert('Failed to accept bid.');return;}
+    const result=await res.json();
+    alert(`Project created: ${result.project.projectName} — Estimate #${result.project.projectId}`);
+    loadBcInvites();
+    loadFromServer().then(render);
+  }catch(e){console.warn('Accept failed:',e);alert('Failed to accept bid.');}
+}
+
+function openBcMergePicker(id){
+  const entry=bcInvites.find(e=>e.id===id);
+  let dupMatches=[];
+  if(entry && entry.duplicateOverrideNote && entry.duplicateOverrideNote.startsWith('__dup:')){
+    try{dupMatches=JSON.parse(entry.duplicateOverrideNote.slice(6));}catch(e){}
+  }
+  if(dupMatches.length===0){
+    acceptBcInvite(id);
+    return;
+  }
+  showBcMergePicker(id,dupMatches);
+}
+
+function showBcMergePicker(id,matches){
+  let row=document.getElementById('bc-merge-'+id);
+  if(!row){
+    const dataRow=document.querySelector(`tr[data-id="${id}"]`);
+    if(!dataRow) return;
+    row=document.createElement('tr');
+    row.id='bc-merge-'+id;
+    row.innerHTML=`<td colspan="7" style="background:var(--bg2);padding:10px;">
+      <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Possible duplicate entries</div>
+      <div id="bc-merge-list-${id}"></div>
+    </td>`;
+    dataRow.after(row);
+  }
+  const list=document.getElementById('bc-merge-list-'+id);
+  if(!list) return;
+  list.innerHTML=matches.map(m=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:4px;cursor:pointer;" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">
+      <input type="radio" name="bc-dup-${id}" value="${m.id}">
+      <span style="flex:1;font-size:12px;">${m.projectName} ${m.estimateNumber?'#'+m.estimateNumber:''} ${m.region||''} <span style="color:#fb923c;font-weight:700;">${Math.round(m.score*100)}% match</span></span>
+    </label>`).join('')+`
+    <div style="margin-top:8px;display:flex;gap:6px;">
+      <button class="btn-primary" style="padding:4px 10px;font-size:10px;" onclick="mergeBcInviteAsBidRound(${id})">Add as Bid Round</button>
+      <button class="btn-secondary" style="padding:4px 10px;font-size:10px;" onclick="acceptBcInvite(${id},{force:true})">Create as Separate Project</button>
+      <button class="btn-secondary" style="padding:4px 10px;font-size:10px;" onclick="document.getElementById('bc-merge-${id}').style.display='none'">Cancel</button>
+    </div>`;
+  row.style.display='';
+}
+
+async function mergeBcInviteAsBidRound(id){
+  const selected=document.querySelector(`input[name="bc-dup-${id}"]:checked`);
+  if(!selected){alert('Select an entry to merge into.');return;}
+  const entry=bcInvites.find(e=>e.id===id);
+  try{
+    const res=await fetch(`/api/bc/drafts/${id}/approve-and-create`,{
+      method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
+      body:JSON.stringify({projectName:entry.projectName,region:entry.region,dueDate:entry.dueDate,gcEstimateLead:entry.gcEstimateLead,mergeIntoId:parseInt(selected.value)})
+    });
+    if(!res.ok){alert('Failed to merge bid.');return;}
+    loadBcInvites();
+    loadFromServer().then(render);
+  }catch(e){console.warn('Merge failed:',e);alert('Failed to merge bid.');}
+}
+
+function rejectBcInvite(id){
+  const row=document.getElementById('bc-reject-'+id);
+  if(row) row.style.display='';
+}
+
+async function confirmRejectBcInvite(id){
+  const reasonEl=document.getElementById('bc-reject-reason-'+id);
+  const reason=reasonEl?reasonEl.value:'';
+  try{
+    await fetch(`/api/bc/drafts/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({reason})});
+    loadBcInvites();
+  }catch(e){console.warn('Reject failed:',e);alert('Failed to reject draft.');}
+}
+
+async function runBcInvitesSync(){
+  const btn=document.getElementById('btn-newbids-sync');
+  const wrap=document.getElementById('newbids-preview-wrap');
+  if(btn){btn.disabled=true;btn.textContent='Checking BuildingConnected...';}
+  try{
+    const res=await fetch('/api/bc/sync/preview',{method:'POST',credentials:'include'});
+    const d=await res.json();
+    bcSyncPreview=d;
+    bcSyncPreviewSelected=new Set((d.preview||[]).map(p=>p.opportunityId));
+    renderBcSyncPreview();
+  }catch(e){console.warn('Sync preview failed:',e);alert('Could not fetch opportunities from BuildingConnected.');}
+  if(btn){btn.disabled=false;btn.innerHTML='&#8635; Sync from BC';}
+}
+
+function renderBcSyncPreview(){
+  const wrap=document.getElementById('newbids-preview-wrap');
+  if(!wrap||!bcSyncPreview) return;
+  const items=bcSyncPreview.preview||[];
+  if(items.length===0){
+    wrap.style.display='';
+    wrap.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-dim);font-size:12px;">No new opportunities found. Everything is up to date. <span style="cursor:pointer;color:var(--gold);" onclick="document.getElementById(\'newbids-preview-wrap\').style.display=\'none\'">Dismiss</span></div>';
+    return;
+  }
+  const actionColor={create:'#4ade80',merge:'#60a5fa',update:'#fbbf24'};
+  const actionLabel={create:'New',merge:'Merge',update:'Update'};
+  wrap.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg3);">
+      <span style="font-size:11px;color:var(--text-dim);">${bcSyncPreview.totalFound} found, ${bcSyncPreview.afterFilter} from approved GCs</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-secondary" style="font-size:10px;padding:4px 10px;" onclick="document.getElementById('newbids-preview-wrap').style.display='none'">Dismiss</button>
+        <button class="btn-primary" style="font-size:10px;padding:4px 10px;" id="btn-pull-selected" onclick="pullBcSyncSelected()">Pull ${bcSyncPreviewSelected.size} Selected Into Log</button>
+      </div>
+    </div>
+    <table style="width:100%;font-size:11px;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="width:24px;padding:6px;"></th><th style="text-align:left;padding:6px;">Action</th><th style="text-align:left;padding:6px;">Project</th><th style="text-align:left;padding:6px;">GC</th><th style="text-align:left;padding:6px;">Region</th><th style="text-align:left;padding:6px;">Due Date</th>
+      </tr></thead>
+      <tbody>${items.map(item=>`
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px;"><input type="checkbox" ${bcSyncPreviewSelected.has(item.opportunityId)?'checked':''} onchange="toggleBcSyncSelect('${item.opportunityId}',this.checked)"></td>
+          <td style="padding:6px;"><span class="badge" style="background:${actionColor[item.action]}22;color:${actionColor[item.action]};border:1px solid ${actionColor[item.action]}55;">${actionLabel[item.action]}</span></td>
+          <td style="padding:6px;">${item.projectName}</td>
+          <td style="padding:6px;color:var(--text-dim);">${item.gcCompanyName||item.gcEstimateLead||'—'}</td>
+          <td style="padding:6px;">${item.region?item.region:'<span style="color:#fb923c;">No region</span>'}${item.regionNotConfident&&item.region?' <span style="color:#fb923c;" title="Region needs review">&#9888;</span>':''}</td>
+          <td style="padding:6px;color:var(--text-dim);">${item.dueDate||'—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  wrap.style.display='';
+}
+
+function toggleBcSyncSelect(oppId,checked){
+  if(checked) bcSyncPreviewSelected.add(oppId); else bcSyncPreviewSelected.delete(oppId);
+  const btn=document.getElementById('btn-pull-selected');
+  if(btn) btn.textContent='Pull '+bcSyncPreviewSelected.size+' Selected Into Log';
+}
+
+async function pullBcSyncSelected(){
+  if(bcSyncPreviewSelected.size===0) return;
+  const btn=document.getElementById('btn-pull-selected');
+  if(btn){btn.disabled=true;btn.textContent='Pulling...';}
+  try{
+    const res=await fetch('/api/bc/sync/confirm',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
+      body:JSON.stringify({opportunityIds:Array.from(bcSyncPreviewSelected),sinceDateUsed:bcSyncPreview?bcSyncPreview.sinceDateUsed:null})});
+    const d=await res.json();
+    const parts=[];
+    if(d.created>0) parts.push(d.created+' pulled in');
+    if(d.merged>0) parts.push(d.merged+' scope-merged');
+    if(d.updated>0) parts.push(d.updated+' field-updated');
+    alert('BC Sync Complete: '+(parts.join(', ')||'No changes made.'));
+    bcSyncPreview=null;
+    document.getElementById('newbids-preview-wrap').style.display='none';
+    loadBcInvites();
+  }catch(e){console.warn('Sync confirm failed:',e);alert('Sync failed.');}
+  if(btn) btn.disabled=false;
 }
 
 async function forceSync(){
@@ -3676,7 +4020,9 @@ async function loadFromServer() {
   try {
     const res = await fetch('/api/proposal-log/entries', { credentials: 'include' });
     if (!res.ok) return false;
-    const entries = await res.json();
+    // BC-sourced drafts awaiting review live in the BC Invites tab only — keep them
+    // out of the main Proposal Log list until they're accepted (isDraft becomes false).
+    const entries = (await res.json()).filter(e => !e.isDraft);
 
     const localData = data.slice();
     // Build O(1) lookup indices instead of O(N*M) .find() per entry
@@ -3759,8 +4105,20 @@ async function initApp() {
   }
   for(const p of data){if(p.region)p.region=normalizeRegion(p.region);}
   render();
-  checkGoogleSheet();
+  await checkGoogleSheet();
+  handleUrlParams();
+}
 
+function handleUrlParams(){
+  const params=new URLSearchParams(window.location.search);
+  const bc=params.get('bc');
+  if(bc==='connected') showBanner('BuildingConnected linked — your account is now connected.','warning');
+  else if(bc==='error') showBanner('Could not connect to BuildingConnected. Please try again.','error');
+  if(params.get('tab')==='newbids') setTab('newbids');
+  if(bc||params.get('tab')){
+    const cleanUrl=window.location.pathname;
+    window.history.replaceState({},'',cleanUrl);
+  }
 }
 
 // ── Duplicate Resolution Modal (T005) ──────────────────────────────────────

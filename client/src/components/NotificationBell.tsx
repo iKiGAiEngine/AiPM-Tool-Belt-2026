@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Bell, Check, CheckCheck } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -24,7 +23,6 @@ interface NotificationsResponse {
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [, navigate] = useLocation();
 
   const { data } = useQuery<NotificationsResponse>({
     queryKey: ["/api/notifications"],
@@ -141,7 +139,11 @@ export function NotificationBell() {
                   onClick={() => {
                     if (!item.isRead) markReadMutation.mutate(item.id);
                     setOpen(false);
-                    navigate("/tools/proposal-log");
+                    // Hard navigation — /tools/proposal-log is served by Express as a
+                    // static tool, not a client-side route, so pushState alone won't reach it.
+                    window.location.href = item.type.startsWith("draft_")
+                      ? "/tools/proposal-log?tab=newbids"
+                      : "/tools/proposal-log";
                   }}
                   data-testid={`notification-item-${item.id}`}
                 >
