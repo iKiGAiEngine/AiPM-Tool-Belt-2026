@@ -2192,14 +2192,22 @@ function renderBcInvites(){
 
     const regionOptions='<option value="">— Select —</option>'+REGIONS.map(r=>`<option value="${r}"${entry.region===r?' selected':''}>${r}</option>`).join('');
 
+    const bcLinkIcon=entry.bcLink?`<a href="${entry.bcLink}" target="_blank" rel="noopener noreferrer" title="View on BuildingConnected" style="color:#60a5fa;flex-shrink:0;text-decoration:none;" onclick="event.stopPropagation()">&#128279;</a>`:'';
+
     tr.innerHTML=`
       <td></td>
-      <td><input type="text" value="${(entry.projectName||'').replace(/"/g,'&quot;')}" style="width:100%;background:transparent;border:1px solid transparent;color:var(--text);font-size:12px;padding:3px;" onblur="saveBcInviteField(${entry.id},'projectName',this.value)"></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="text" value="${(entry.projectName||'').replace(/"/g,'&quot;')}" style="flex:1;min-width:0;background:transparent;border:1px solid transparent;color:var(--text);font-size:12px;padding:3px;" onblur="saveBcInviteField(${entry.id},'projectName',this.value)">
+          ${bcLinkIcon}
+        </div>
+      </td>
       <td><select style="width:100%;font-size:11px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;" onchange="saveBcInviteField(${entry.id},'region',this.value)">${regionOptions}</select></td>
       <td><input type="date" value="${entry.dueDate||''}" style="width:100%;font-size:11px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;" onblur="saveBcInviteField(${entry.id},'dueDate',this.value)"></td>
       <td><input type="text" value="${(entry.gcEstimateLead||'').replace(/"/g,'&quot;')}" style="width:100%;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;font-size:11px;" onblur="saveBcInviteField(${entry.id},'gcEstimateLead',this.value)"></td>
       <td>${flags.join(' ')}</td>
       <td style="white-space:nowrap;">
+        <button class="btn-secondary" style="padding:4px 8px;font-size:10px;" onclick="toggleBcDetail(${entry.id})" title="Review project address, dates, square footage">Details</button>
         ${canReviewBcInvites?`
           <button class="btn-primary" style="padding:4px 10px;font-size:10px;" onclick="acceptBcInvite(${entry.id})">Accept</button>
           <button class="btn-secondary" style="padding:4px 10px;font-size:10px;" onclick="openBcMergePicker(${entry.id})">Merge</button>
@@ -2207,6 +2215,32 @@ function renderBcInvites(){
         `:''}
       </td>`;
     tbody.appendChild(tr);
+
+    const detailTr=document.createElement('tr');
+    detailTr.id='bc-detail-'+entry.id;
+    detailTr.style.display='none';
+    detailTr.innerHTML=`<td colspan="7" style="background:var(--bg2);padding:10px;">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;">Project Address</label>
+          <input type="text" value="${(entry.projectAddress||'').replace(/"/g,'&quot;')}" placeholder="Street, City, State ZIP" style="width:100%;font-size:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px;" onblur="saveBcInviteField(${entry.id},'projectAddress',this.value)">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;">Anticipated Start</label>
+          <input type="date" value="${entry.anticipatedStart||''}" style="width:100%;font-size:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px;" onblur="saveBcInviteField(${entry.id},'anticipatedStart',this.value)">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;">Anticipated Finish</label>
+          <input type="date" value="${entry.anticipatedFinish||''}" style="width:100%;font-size:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px;" onblur="saveBcInviteField(${entry.id},'anticipatedFinish',this.value)">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;">Square Feet</label>
+          <input type="text" value="${(entry.squareFeet||'').replace(/"/g,'&quot;')}" placeholder="e.g. 125,000" style="width:100%;font-size:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px;" onblur="saveBcInviteField(${entry.id},'squareFeet',this.value)">
+        </div>
+      </div>
+      ${entry.bcLink?`<div style="margin-top:10px;"><a href="${entry.bcLink}" target="_blank" rel="noopener noreferrer" style="color:#60a5fa;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">&#128279; View this invite on BuildingConnected &#8599;</a></div>`:'<div style="margin-top:10px;font-size:11px;color:var(--text-dim);">No BuildingConnected link on file for this invite.</div>'}
+    </td>`;
+    tbody.appendChild(detailTr);
 
     if(dupMatches.length>0){
       const mergeTr=document.createElement('tr');
@@ -2231,6 +2265,11 @@ function renderBcInvites(){
     </td>`;
     tbody.appendChild(rejectTr);
   });
+}
+
+function toggleBcDetail(id){
+  const row=document.getElementById('bc-detail-'+id);
+  if(row) row.style.display = row.style.display==='none' ? '' : 'none';
 }
 
 async function saveBcInviteField(id,field,value){
