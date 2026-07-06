@@ -32,7 +32,8 @@ export function registerTaxRateRoutes(app: Express) {
 
       sheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return; // skip header
-        const zip = String(row.getCell(1).value ?? "").trim();
+        // Strip ZIP+4 suffix (e.g. "12345-6789" → "12345") to fit varchar(10)
+        const zip = String(row.getCell(1).value ?? "").trim().replace(/-.*$/, "").trim().slice(0, 10);
         if (!zip) return;
         zips.push(zip);
         states.push(String(row.getCell(2).value ?? "").trim() || null);
