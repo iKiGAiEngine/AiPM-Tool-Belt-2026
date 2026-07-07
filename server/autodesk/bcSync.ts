@@ -1054,6 +1054,7 @@ export function registerBcSyncRoutes(app: Express) {
               const wasNda = !!existingEntry.ndaRequired;
               const ndaCleared = wasNda && !mapped.ndaRequired;
               const newRegion = ndaCleared && mapped.region ? mapped.region : existingEntry.region;
+              const newRegionNeedsReview = ndaCleared && mapped.region ? mapped.regionNotConfident : existingEntry.regionNeedsReview;
 
               await db.update(proposalLogEntries).set({
                 dueDate: mapped.dueDate || existingEntry.dueDate,
@@ -1064,6 +1065,7 @@ export function registerBcSyncRoutes(app: Express) {
                 squareFeet: mapped.squareFeet || existingEntry.squareFeet,
                 scopeList: JSON.stringify([...mergedScopes]),
                 region: newRegion,
+                regionNeedsReview: newRegionNeedsReview,
                 ndaRequired: mapped.ndaRequired,
                 bcAccessStatus: mapped.bcAccessStatus,
                 bcUpdateFlag: true,
@@ -1141,10 +1143,11 @@ export function registerBcSyncRoutes(app: Express) {
 
         if (!existingLog) {
           try {
-            const { regionNotConfident: _rnc, ...entryData } = await mapOpportunityToEntry(opp);
+            const { regionNotConfident, ...entryData } = await mapOpportunityToEntry(opp);
 
             const [entry] = await db.insert(proposalLogEntries).values({
               ...entryData,
+              regionNeedsReview: regionNotConfident,
               syncedToLocal: false,
             }).returning();
 
@@ -1683,7 +1686,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry) return res.status(404).json({ message: "Entry not found" });
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
 
-      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish } = req.body;
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish, regionNeedsReview } = req.body;
 
       const updates: Record<string, unknown> = {};
       if (projectName !== undefined) updates.projectName = projectName;
@@ -1699,6 +1702,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (squareFeet !== undefined) updates.squareFeet = squareFeet;
       if (anticipatedStart !== undefined) updates.anticipatedStart = anticipatedStart;
       if (anticipatedFinish !== undefined) updates.anticipatedFinish = anticipatedFinish;
+      if (regionNeedsReview !== undefined) updates.regionNeedsReview = regionNeedsReview;
 
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No fields to update" });
