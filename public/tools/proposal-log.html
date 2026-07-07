@@ -2177,7 +2177,9 @@ function renderBcInvites(){
     if(entry.duplicateOverrideNote&&entry.duplicateOverrideNote.startsWith('__dup:')){
       try{dupMatches=JSON.parse(entry.duplicateOverrideNote.slice(6));}catch(e){}
     }
+    const isEmailSourced=entry.sourceType==='email'||entry.sourceType==='bc-email';
     const flags=[];
+    if(isEmailSourced) flags.push(`<span class="badge" style="background:rgba(20,184,166,.15);color:#2dd4bf;border:1px solid rgba(20,184,166,.35)" title="${(entry.sourceType==='bc-email'?'Created from a dropped bid-invite email and enriched from BuildingConnected':'Created from a dropped bid-invite email')}${entry.sourceEmailSubject?' — &quot;'+entry.sourceEmailSubject.replace(/"/g,'&quot;')+'&quot;':''}">&#9993; Email${entry.sourceType==='bc-email'?' + BC':''}</span>`);
     if(isNda) flags.push('<span class="badge" style="background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.35)">&#128274; NDA</span>');
     if(dupMatches.length>0) flags.push('<span class="badge" style="background:rgba(249,115,22,.15);color:#fb923c;border:1px solid rgba(249,115,22,.35)">&#9888; Possible Duplicate</span>');
     if(entry.regionNeedsReview) flags.push('<span class="badge" style="background:rgba(249,115,22,.15);color:#fb923c;border:1px solid rgba(249,115,22,.35)">&#9888; Confirm Region</span>');
@@ -2194,6 +2196,7 @@ function renderBcInvites(){
         <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:240px;">
           <input type="text" value="${(entry.projectName||'').replace(/"/g,'&quot;')}" style="flex:1;min-width:0;font-size:14px;font-weight:600;background:transparent;border:1px solid transparent;color:var(--text);padding:4px;" onblur="saveBcInviteField(${entry.id},'projectName',this.value)">
           ${entry.bcLink?`<a href="${entry.bcLink}" target="_blank" rel="noopener noreferrer" title="View on BuildingConnected" style="color:#60a5fa;flex-shrink:0;text-decoration:none;font-size:12px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap;">&#128279; View on BC</a>`:''}
+          ${isEmailSourced&&entry.sourceAttachmentUrl?`<a href="${entry.sourceAttachmentUrl}" target="_blank" rel="noopener noreferrer" title="Download the original email this draft was created from" style="color:var(--text-dim);flex-shrink:0;text-decoration:underline;font-size:11px;white-space:nowrap;">original email</a>`:''}
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">${flags.join(' ')}</div>
       </div>
