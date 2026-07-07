@@ -275,7 +275,7 @@ function detectMimeType(buffer: Buffer): string {
   return "image/png";
 }
 
-function parseJsonFromResponse(content: string): Record<string, any> {
+export function parseJsonFromResponse(content: string): Record<string, any> {
   let cleaned = content.trim();
 
   const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -297,7 +297,7 @@ function parseJsonFromResponse(content: string): Record<string, any> {
   }
 }
 
-function normalizeDate(dateStr: string | null | undefined): string | null {
+export function normalizeDate(dateStr: string | null | undefined): string | null {
   if (!dateStr) return null;
 
   const isoMatch = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
@@ -342,7 +342,7 @@ function normalizeDate(dateStr: string | null | undefined): string | null {
   return null;
 }
 
-function extractFieldsFromOCRText(text: string): ExtractedProjectDetails {
+export function extractFieldsFromOCRText(text: string): ExtractedProjectDetails {
   const projectName = extractProjectName(text);
   const dueDate = extractDueDate(text);
   const location = extractLocation(text);
@@ -449,7 +449,7 @@ function extractTradeName(text: string): string | null {
   return null;
 }
 
-function normalizeBcLink(link: string | null | undefined): string | null {
+export function normalizeBcLink(link: string | null | undefined): string | null {
   if (!link) return null;
   let url = link.trim();
   if (!url) return null;
@@ -460,7 +460,7 @@ function normalizeBcLink(link: string | null | undefined): string | null {
   return null;
 }
 
-function extractBcLink(text: string): string | null {
+export function extractBcLink(text: string): string | null {
   const bcPatternWithProtocol = /https?:\/\/app\.buildingconnected\.com\/[^\s"'<>)}\]]+/i;
   const match1 = text.match(bcPatternWithProtocol);
   if (match1) return match1[0].replace(/[.,;:]+$/, '');

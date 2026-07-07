@@ -50,6 +50,45 @@ async function main() {
     console.log("---- raw sample (first 2000 chars) ----");
     console.log(JSON.stringify(match).slice(0, 2000));
   }
+
+  // Probe GET-by-id endpoints (used by the email-intake BC reference pull).
+  // Grabs a real opportunity id from the list endpoints above, then verifies
+  // the single-opportunity fetch works on each API base and shows how the
+  // payload is nested (bare object vs { data: ... }).
+  let sampleId = "";
+  for (const url of endpoints) {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) continue;
+    const data = await res.json() as any;
+    const arr: any[] = data.results || data.data || [];
+    if (arr.length > 0) { sampleId = arr[0].id || arr[0]._id; break; }
+  }
+  if (!sampleId) {
+    console.log("\nNo opportunity id available to probe GET-by-id endpoints");
+  } else {
+    const byIdEndpoints = [
+      `https://developer.api.autodesk.com/buildingconnected/v2/bid-board/opportunities/${sampleId}`,
+      `https://developer.api.autodesk.com/construction/buildingconnected/v2/opportunities/${sampleId}`,
+    ];
+    for (const url of byIdEndpoints) {
+      console.log("\n===== GET-by-id:", url);
+      try {
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        console.log("status", res.status);
+        const text = await res.text();
+        if (!res.ok) { console.log(text.slice(0, 300)); continue; }
+        const data = JSON.parse(text) as any;
+        console.log("Top-level keys:", Object.keys(data));
+        const opp = data.data && !Array.isArray(data.data) ? data.data : data;
+        console.log("Opportunity keys:", Object.keys(opp));
+        console.log("id:", opp.id || opp._id, "| name:", opp.name || opp.projectName || opp.attributes?.name);
+        console.log("---- raw (first 2000 chars) ----");
+        console.log(text.slice(0, 2000));
+      } catch (err: any) {
+        console.log("fetch error:", err.message);
+      }
+    }
+  }
   process.exit(0);
 }
 main().catch(e => { console.error(e); process.exit(1); });

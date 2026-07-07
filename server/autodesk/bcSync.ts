@@ -31,7 +31,7 @@ export async function guessRegionFromLocation(location: string): Promise<string>
   return result.code;
 }
 
-interface BcOpportunity {
+export interface BcOpportunity {
   id: string;
   projectId?: string;
   projectName?: string;
@@ -440,7 +440,7 @@ async function fetchFromEndpoint(
   return { opportunities: allResults, totalAvailable };
 }
 
-async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSync: boolean = false): Promise<FetchResult> {
+export async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSync: boolean = false): Promise<FetchResult> {
   try {
     for (const endpoint of ENDPOINTS) {
       console.log(`[BC Sync] Trying ${endpoint.label} endpoint...`);
@@ -542,7 +542,7 @@ function extractOfficeSegments(name: string | undefined): string[] {
   return segments.reverse();
 }
 
-async function mapOpportunityToEntry(opp: BcOpportunity) {
+export async function mapOpportunityToEntry(opp: BcOpportunity) {
   const locationStr = getLocationStr(opp);
   const isNda = looksLikeNdaInvite(opp);
 
