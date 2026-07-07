@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback } from "react";
-import { Link } from "wouter";
 import { Mail, Loader2, CheckCircle2, AlertTriangle, XCircle, Copy, ExternalLink, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -263,11 +262,13 @@ export function EmailIntakeDropzone() {
                         )}
 
                         <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <Link href="/tools/proposal-log?tab=newbids">
+                          {/* /tools/proposal-log is served by Express as a static page, not a
+                              wouter route — use a real <a> navigation so it doesn't 404. */}
+                          <a href="/tools/proposal-log?tab=newbids">
                             <Button size="sm" variant="outline" className="h-7 text-xs" data-testid={`button-review-draft-${idx}`}>
                               <ExternalLink className="w-3 h-3 mr-1" /> Review in BC Invites tab
                             </Button>
-                          </Link>
+                          </a>
                           {r.intakeId != null && (
                             <a href={`/api/email-intake/${r.intakeId}/raw`} className="text-xs text-muted-foreground underline">
                               Original email
@@ -310,7 +311,7 @@ export function EmailIntakeDropzone() {
                     {r.status === "duplicate_intake" && r.entryId != null && (
                       <p className="mt-1 text-xs text-muted-foreground">
                         Existing entry #{r.entryId} —{" "}
-                        <Link href="/tools/proposal-log?tab=newbids" className="underline">open the log</Link>
+                        <a href="/tools/proposal-log?tab=newbids" className="underline">open the log</a>
                       </p>
                     )}
                   </div>
