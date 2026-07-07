@@ -2688,8 +2688,10 @@ export function registerProjectRoutes(app: Express) {
       }
 
       const safeName = sanitizeForWindows(projectName);
-      const regionCode = region.toUpperCase();
-      const folderName = `${regionCode} - ${safeName}`;
+      // entry.region is stored as "CODE - Name" (e.g. "LAX - Los Angeles").
+      // The bid folder should use only the airport code, e.g. "LAX - Project Name".
+      const airportCode = region.split(" - ")[0].trim().toUpperCase();
+      const folderName = `${airportCode} - ${safeName}`;
 
       const outZip = new JSZip();
       const rootFolder = outZip.folder(folderName);
