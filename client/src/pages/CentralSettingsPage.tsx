@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star, FileSearch, Save, History, RotateCcw, Tag, CheckCircle, ClipboardList, FileUp, AlertTriangle, Mail, FileText, ShieldCheck, ShieldX, ThumbsDown } from "lucide-react";
 import { BackNav } from "@/components/BackNav";
@@ -47,12 +46,12 @@ export default function CentralSettingsPage() {
           <h1 className="text-2xl font-semibold text-foreground font-heading">{regionsOnly ? "Settings — Regions" : "Settings"}</h1>
           <p className="text-muted-foreground">{regionsOnly ? "You have access to the Regions tab. Other tabs are visible but restricted to admins." : "Manage vendors, products, scope dictionaries, regions, templates, spec extraction, and email notifications"}</p>
         </div>
-        <Link href="/tools/bc-sync-table">
-          <Button variant="outline" className="gap-2" data-testid="button-bc-sync-table">
+        <a href="/tools/proposal-log?tab=newbids">
+          <Button variant="outline" className="gap-2" data-testid="button-bc-invites">
             <ClipboardList className="w-4 h-4" />
-            BC Sync Table
+            BC Invites
           </Button>
-        </Link>
+        </a>
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">

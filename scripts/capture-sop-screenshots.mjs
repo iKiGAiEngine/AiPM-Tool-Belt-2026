@@ -45,7 +45,7 @@ const targets = [
   { path: "/help-center/proposal-log", name: "04-help-center-proposal-log" },
   { path: "/help-center/estimating-module", name: "05-help-center-estimating" },
   { path: "/tools/proposal-log", name: "10-proposal-log-dashboard", delay: 3000 },
-  { path: "/tools/bc-sync-table", name: "11-bc-sync-table-admin", delay: 2500 },
+  { path: "/tools/proposal-log?tab=newbids", name: "11-bc-sync-table-admin", delay: 2500 },
   { path: "/project-start", name: "20-project-start" },
   { path: "/spec-extractor", name: "30-spec-extractor" },
   { path: "/schedule-converter", name: "40-schedule-converter" },

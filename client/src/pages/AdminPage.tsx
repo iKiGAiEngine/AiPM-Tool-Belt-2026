@@ -385,7 +385,7 @@ export function AdminUsersSection() {
                 </div>
               </div>
             </Link>
-            <Link href="/tools/proposal-log" data-testid="link-proposal-log">
+            <a href="/tools/proposal-log" data-testid="link-proposal-log">
               <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
                 <History className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
                 <div>
@@ -393,16 +393,16 @@ export function AdminUsersSection() {
                   <div className="text-xs text-muted-foreground">Bid tracking, pipeline & estimating workflow</div>
                 </div>
               </div>
-            </Link>
-            <Link href="/tools/bc-sync-table" data-testid="link-bc-sync-table">
+            </a>
+            <a href="/tools/proposal-log?tab=newbids" data-testid="link-bc-invites">
               <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
                 <Link2 className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
                 <div>
-                  <div className="font-medium text-sm font-heading group-hover:text-foreground">BC Sync Table</div>
+                  <div className="font-medium text-sm font-heading group-hover:text-foreground">BC Invites</div>
                   <div className="text-xs text-muted-foreground">BuildingConnected draft review, approval & change history</div>
                 </div>
               </div>
-            </Link>
+            </a>
             <Link href="/admin/proposal-change-log" data-testid="link-proposal-change-log">
               <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
                 <ClipboardList className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />

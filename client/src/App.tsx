@@ -18,8 +18,6 @@ import CentralSettingsPage from "@/pages/CentralSettingsPage";
 import QuoteParserPage from "@/pages/QuoteParserPage";
 import ProjectStartPage from "@/pages/ProjectStartPage";
 import ProjectDetailPage from "@/pages/ProjectDetailPage";
-import ProjectLogPage from "@/pages/ProjectLogPage";
-import ProposalLogPage from "@/pages/ProposalLogPage";
 import ScheduleConverterPage from "@/pages/ScheduleConverterPage";
 import SpecExtractorPage from "@/pages/SpecExtractorPage";
 import LoginPage from "@/pages/LoginPage";
@@ -83,20 +81,15 @@ function SettingsRoute({ component: Component }: { component: React.ComponentTyp
   return <Component />;
 }
 
-function BcSyncRoute({ component: Component }: { component: React.ComponentType }) {
-  const { canAccessAdminDashboard, isLoading } = useAuth();
-  const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
-  if (isLoading || featuresLoading) return <RouteSpinner />;
-  if (!canAccessAdminDashboard && !hasFeature("bc-sync")) return <HomePage />;
-  return <Component />;
-}
-
-function ProposalLogRoute({ component: Component }: { component: React.ComponentType }) {
-  const { canAccessAdminDashboard, isLoading } = useAuth();
-  const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
-  if (isLoading || featuresLoading) return <RouteSpinner />;
-  if (!canAccessAdminDashboard && !hasFeature("proposal-log")) return <HomePage />;
-  return <Component />;
+// Retired routes: /tools/proposal-log is now served by Express as a static
+// tool (see server/routes.ts), and the old BC Sync Table page is gone — its
+// review workflow lives in a "BC Invites" tab on that static tool instead.
+// Old bookmarks/links get a hard-navigation redirect rather than a 404.
+function RedirectToProposalLog({ tab }: { tab?: string }) {
+  useEffect(() => {
+    window.location.href = tab ? `/tools/proposal-log?tab=${tab}` : "/tools/proposal-log";
+  }, [tab]);
+  return <RouteSpinner />;
 }
 
 function Router() {
@@ -109,9 +102,8 @@ function Router() {
       <Route path="/settings">{() => <SettingsRoute component={CentralSettingsPage} />}</Route>
       <Route path="/project-start" component={ProjectStartPage} />
       <Route path="/projects/:id" component={ProjectDetailPage} />
-      <Route path="/tools/proposal-log">{() => <ProposalLogRoute component={ProposalLogPage} />}</Route>
-      <Route path="/tools/bc-sync-table">{() => <BcSyncRoute component={ProjectLogPage} />}</Route>
-      <Route path="/project-log">{() => { const [, nav] = useLocation(); useEffect(() => { nav("/tools/bc-sync-table"); }, []); return <RouteSpinner />; }}</Route>
+      <Route path="/tools/bc-sync-table">{() => <RedirectToProposalLog tab="newbids" />}</Route>
+      <Route path="/project-log">{() => <RedirectToProposalLog tab="newbids" />}</Route>
       <Route path="/schedule-converter" component={ScheduleConverterPage} />
       <Route path="/spec-extractor" component={SpecExtractorPage} />
       <Route path="/admin">{() => <AdminDashboardRoute component={AdminDashboardPage} />}</Route>
