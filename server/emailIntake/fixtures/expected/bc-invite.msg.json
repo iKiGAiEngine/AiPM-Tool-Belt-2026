@@ -1,0 +1,40 @@
+{
+  "user": "noBc",
+  "status": "draft_created",
+  "bcEnrichmentStatus": "no_connection",
+  "sourceType": "email",
+  "extractionTierNoLlm": "regex",
+  "note": "Dropped by a user with no BuildingConnected connection — draft still created from email data alone, link preserved for later.",
+  "entry": {
+    "projectName": "Harbor Point Logistics Center - Phase 1",
+    "region": "PDX",
+    "regionNeedsReview": false,
+    "primaryMarket": "",
+    "dueDate": "2026-09-03",
+    "inviteDate": "2026-07-13",
+    "anticipatedStart": "",
+    "anticipatedFinish": "",
+    "gcEstimateLead": "Alicia Nguyen",
+    "owner": "Swinerton Builders",
+    "bcLink": "https://app.buildingconnected.com/opportunities/68d7e8f9a0b1c2d3e4f5a6b7",
+    "bcProjectId": "",
+    "scopeList": "[\"Division 10 - Specialties\"]",
+    "projectAddress": "2200 N Harbor Dr, Portland, OR 97217",
+    "squareFeet": "",
+    "ndaRequired": false,
+    "notes": "",
+    "sourceEmail": "notifications@buildingconnected.com",
+    "sourceEmailSubject": "Invitation to Bid: Harbor Point Logistics Center - Phase 1",
+    "isDraft": true,
+    "estimateStatus": "Draft"
+  },
+  "provenance": {
+    "projectName": "email",
+    "dueDate": "email",
+    "gcEstimateLead": "email",
+    "owner": "email",
+    "projectAddress": "email",
+    "bcLink": "email",
+    "inviteDate": "fallback"
+  }
+}

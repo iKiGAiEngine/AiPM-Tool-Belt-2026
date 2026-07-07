@@ -23,6 +23,7 @@ import { registerAdminRoutes } from "./adminRoutes";
 import { registerToolUsageRoutes } from "./toolUsageRoutes";
 import { registerAutodeskRoutes } from "./autodesk/auth";
 import { registerBcSyncRoutes } from "./autodesk/bcSync";
+import { registerEmailIntakeRoutes } from "./emailIntake/routes";
 import { registerNotificationRoutes } from "./notificationRoutes";
 import { registerBackupRoutes } from "./backupRestore";
 import { registerVendorDatabaseRoutes } from "./vendorDatabaseRoutes";
@@ -321,6 +322,7 @@ export async function registerRoutes(
   registerVendorDatabaseRoutes(app);
   registerScopeManufacturerRoutes(app);
   registerBcSyncRoutes(app);
+  registerEmailIntakeRoutes(app);
   registerBackupRoutes(app);
   registerEstimateRoutes(app);
   registerEstimateAnalyticsRoutes(app);

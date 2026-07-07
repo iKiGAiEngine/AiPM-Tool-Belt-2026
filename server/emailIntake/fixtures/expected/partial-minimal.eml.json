@@ -1,0 +1,33 @@
+{
+  "user": "withBc",
+  "status": "draft_created",
+  "bcEnrichmentStatus": "no_link",
+  "sourceType": "email",
+  "extractionTierNoLlm": "floor",
+  "note": "Body has no usable content — the floor tier guarantees a draft from subject/sender/date so the bid is never missed.",
+  "entry": {
+    "projectName": "Cedar Flats Apartments Phase 2",
+    "region": "",
+    "regionNeedsReview": true,
+    "primaryMarket": "Residential",
+    "dueDate": "",
+    "inviteDate": "2026-07-10",
+    "anticipatedStart": "",
+    "anticipatedFinish": "",
+    "gcEstimateLead": "",
+    "owner": "",
+    "bcLink": "",
+    "projectAddress": "",
+    "squareFeet": "",
+    "ndaRequired": false,
+    "notes": "",
+    "sourceEmail": "bids@genericgc.com",
+    "sourceEmailSubject": "FW: Bid Invitation - Cedar Flats Apartments Phase 2",
+    "isDraft": true,
+    "estimateStatus": "Draft"
+  },
+  "provenance": {
+    "projectName": "fallback",
+    "inviteDate": "fallback"
+  }
+}

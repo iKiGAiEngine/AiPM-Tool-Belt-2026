@@ -1057,6 +1057,41 @@ export const bcSyncState = pgTable("bc_sync_state", {
 
 export type BcSyncState = typeof bcSyncState.$inferSelect;
 
+// Intake ledger for drag-and-dropped bid-invite emails (.eml/.msg).
+// A row is inserted with status "processing" BEFORE any parsing happens and
+// updated at each pipeline stage, so a crash mid-pipeline still leaves a
+// visible record — dropped bids can never silently disappear.
+export const emailIntakeLog = pgTable("email_intake_log", {
+  id: serial("id").primaryKey(),
+  // sha256 of the raw file bytes; unique so re-dropping the same email is idempotent
+  contentHash: varchar("content_hash", { length: 64 }).notNull().unique(),
+  messageId: varchar("message_id", { length: 500 }),
+  fileName: varchar("file_name", { length: 500 }),
+  fileType: varchar("file_type", { length: 10 }), // 'eml' | 'msg'
+  fromEmail: varchar("from_email", { length: 500 }),
+  subject: varchar("subject", { length: 500 }),
+  emailDate: varchar("email_date", { length: 40 }),
+  rawEmail: screenshotBytea("raw_email"),
+  parsedText: text("parsed_text"),
+  extractedFields: jsonb("extracted_fields").$type<Record<string, any>>(),
+  // Per-field source of the value written to the draft: 'email' | 'bc' | 'fallback'
+  provenance: jsonb("provenance").$type<Record<string, "email" | "bc" | "fallback">>(),
+  bcLink: varchar("bc_link", { length: 2000 }),
+  bcOpportunityId: varchar("bc_opportunity_id", { length: 200 }),
+  // 'enriched' | 'no_link' | 'no_connection' | 'not_found' | 'fetch_failed' | 'nda_restricted'
+  bcEnrichmentStatus: varchar("bc_enrichment_status", { length: 30 }),
+  bcRawData: jsonb("bc_raw_data"),
+  // 'processing' | 'draft_created' | 'duplicate_intake' | 'failed'
+  status: varchar("status", { length: 30 }).notNull(),
+  entryId: integer("entry_id").references(() => proposalLogEntries.id),
+  errorMessage: text("error_message"),
+  uploadedBy: integer("uploaded_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type EmailIntakeLog = typeof emailIntakeLog.$inferSelect;
+export type InsertEmailIntakeLog = typeof emailIntakeLog.$inferInsert;
+
 export const proposalChangeLog = pgTable("proposal_change_log", {
   id: serial("id").primaryKey(),
   entryId: integer("entry_id").notNull().references(() => proposalLogEntries.id),

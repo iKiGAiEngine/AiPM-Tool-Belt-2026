@@ -1,0 +1,41 @@
+{
+  "user": "withBc",
+  "status": "draft_created",
+  "bcEnrichmentStatus": "nda_restricted",
+  "sourceType": "bc-email",
+  "extractionTierNoLlm": "regex",
+  "note": "Compressed-RTF-only .msg body + NDA-restricted BC opportunity (stub payload hides the location). Email-extracted address is preserved; BC region inference is intentionally skipped.",
+  "entry": {
+    "projectName": "Lakeline Transit Center Expansion",
+    "region": "",
+    "regionNeedsReview": true,
+    "primaryMarket": "Public Facility",
+    "dueDate": "2026-08-27",
+    "inviteDate": "2026-07-14",
+    "anticipatedStart": "",
+    "anticipatedFinish": "",
+    "gcEstimateLead": "Marcus Webb",
+    "owner": "Hensel Phelps - Austin",
+    "bcLink": "https://app.buildingconnected.com/opportunities/68e9f0a1b2c3d4e5f6a7b8c9",
+    "bcProjectId": "",
+    "bcOpportunityIds": "[\"68e9f0a1b2c3d4e5f6a7b8c9\"]",
+    "scopeList": "[\"Division 10 Specialties\"]",
+    "projectAddress": "13701 Lyndhurst Blvd, Austin, TX 78717",
+    "squareFeet": "",
+    "ndaRequired": true,
+    "bcAccessStatus": "nda_required",
+    "notes": "NDA required. Some project details are hidden until NDA is accepted in BuildingConnected.",
+    "sourceEmail": "notifications@buildingconnected.com",
+    "sourceEmailSubject": "Invitation to Bid: Lakeline Transit Center Expansion",
+    "isDraft": true,
+    "estimateStatus": "Draft"
+  },
+  "provenance": {
+    "projectName": "bc",
+    "dueDate": "bc",
+    "gcEstimateLead": "bc",
+    "owner": "bc",
+    "projectAddress": "email",
+    "bcLink": "bc"
+  }
+}

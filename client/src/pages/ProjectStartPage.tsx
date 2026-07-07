@@ -28,6 +28,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
+import { EmailIntakeDropzone } from "@/components/EmailIntakeDropzone";
 import { guardViewer } from "@/lib/viewerGuard";
 import { queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -968,6 +969,18 @@ export default function ProjectStartPage() {
                 )}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-heading">Email Intake — Bid Invites</CardTitle>
+            <CardDescription>
+              Drop BuildingConnected or GC bid-invite emails to add them straight to the proposal log as drafts for review
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <EmailIntakeDropzone />
           </CardContent>
         </Card>
 

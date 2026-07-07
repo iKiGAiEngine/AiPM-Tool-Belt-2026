@@ -46,7 +46,13 @@ export function guessMarket(projectName: string, rawText?: string): string {
   for (const [market, keywords] of Object.entries(MARKET_KEYWORDS)) {
     let score = 0;
     for (const kw of keywords) {
-      if (combined.includes(kw.toLowerCase())) {
+      const kwLower = kw.toLowerCase();
+      // Short keywords ("TI", "vet", "pool") must match as whole words —
+      // substring matching mislabels e.g. "invited"/"Specialties" as TI.
+      const hit = kwLower.length <= 4
+        ? new RegExp(`\\b${kwLower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(combined)
+        : combined.includes(kwLower);
+      if (hit) {
         score += kw.length;
       }
     }

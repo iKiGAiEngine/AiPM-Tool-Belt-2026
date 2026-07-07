@@ -1,0 +1,40 @@
+{
+  "user": "withBc",
+  "status": "draft_created",
+  "bcEnrichmentStatus": "enriched",
+  "sourceType": "bc-email",
+  "extractionTierNoLlm": "regex",
+  "note": "GET-by-id is stubbed to 404 for this opportunity — exercises the list-fetch fallback path",
+  "entry": {
+    "projectName": "Riverside Community College - Building C Renovation",
+    "region": "",
+    "regionNeedsReview": true,
+    "primaryMarket": "Special Projects",
+    "dueDate": "2026-07-30",
+    "inviteDate": "2026-07-07",
+    "anticipatedStart": "2026-10-05",
+    "anticipatedFinish": "2027-08-20",
+    "gcEstimateLead": "Dana Whitfield",
+    "owner": "Turner Construction Company",
+    "bcLink": "https://app.buildingconnected.com/opportunities/68c4d5e6f7a8b9c0d1e2f3a4",
+    "bcProjectId": "88bb22cc33dd44ee55ff66aa",
+    "bcOpportunityIds": "[\"68c4d5e6f7a8b9c0d1e2f3a4\"]",
+    "scopeList": "[\"Division 10 Specialties\"]",
+    "projectAddress": "4800 Magnolia Ave, Riverside, CA 92506",
+    "squareFeet": "",
+    "ndaRequired": false,
+    "notes": "",
+    "sourceEmail": "hkruse@nbsco.com",
+    "sourceEmailSubject": "FW: Invitation to Bid: Riverside Community College - Building C Renovation",
+    "isDraft": true,
+    "estimateStatus": "Draft"
+  },
+  "provenance": {
+    "projectName": "bc",
+    "dueDate": "bc",
+    "gcEstimateLead": "bc",
+    "owner": "bc",
+    "projectAddress": "bc",
+    "bcLink": "bc"
+  }
+}

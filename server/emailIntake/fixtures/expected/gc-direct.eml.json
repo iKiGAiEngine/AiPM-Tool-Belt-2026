@@ -1,0 +1,40 @@
+{
+  "user": "withBc",
+  "status": "draft_created",
+  "bcEnrichmentStatus": "no_link",
+  "sourceType": "email",
+  "extractionTierNoLlm": "floor",
+  "note": "GC-direct invite with no BC link and no labeled rows — without the LLM the extractor can't read this prose body, so it lands at the floor tier (subject/sender, flagged for verification); the LLM tier extracts full values from the body.",
+  "entry": {
+    "region": "",
+    "regionNeedsReview": true,
+    "dueDate": "",
+    "inviteDate": "2026-07-09",
+    "anticipatedStart": "",
+    "anticipatedFinish": "",
+    "bcLink": "",
+    "bcProjectId": "",
+    "squareFeet": "",
+    "ndaRequired": false,
+    "notes": "",
+    "sourceEmail": "rcastellanos@hprconstruction.com",
+    "sourceEmailSubject": "Request for Proposal - Mesa Verde Elementary School Modernization",
+    "isDraft": true,
+    "estimateStatus": "Draft"
+  },
+  "entryNoLlm": {
+    "projectName": "Mesa Verde Elementary School Modernization",
+    "primaryMarket": "Education",
+    "gcEstimateLead": "Rob Castellanos",
+    "owner": ""
+  },
+  "entryLlm": {
+    "projectName": "Mesa Verde Elementary School Modernization",
+    "gcEstimateLead": "Rob Castellanos",
+    "owner": "HPR Construction",
+    "dueDate": "2026-08-21"
+  },
+  "provenance": {
+    "inviteDate": "fallback"
+  }
+}
