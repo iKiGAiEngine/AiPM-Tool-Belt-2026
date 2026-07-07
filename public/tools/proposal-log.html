@@ -857,22 +857,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
 
     <div id="newbids-preview-wrap" style="display:none; margin:0 20px 12px; border:1px solid var(--border); border-radius:6px; overflow:hidden; background:var(--bg2);"></div>
 
-    <div class="table-outer">
-      <table id="newbids-table">
-        <thead>
-          <tr>
-            <th style="width:26px"></th>
-            <th>Project Name</th>
-            <th style="width:150px">Region</th>
-            <th style="width:110px">Due Date</th>
-            <th style="width:160px">GC Lead</th>
-            <th style="width:180px">Flags</th>
-            <th style="width:200px">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="newbids-tbody"></tbody>
-      </table>
-    </div>
+    <div id="newbids-list" style="padding:0 20px 20px;"></div>
     <div id="newbids-empty" style="display:none;padding:40px;text-align:center;color:var(--text-dim);font-size:13px;">No BC invites awaiting review.</div>
   </div>
 </main>
@@ -2147,9 +2132,8 @@ let bcSyncPreview=null;
 let bcSyncPreviewSelected=new Set();
 
 async function loadBcInvites(){
-  const tbody=document.getElementById('newbids-tbody');
-  const empty=document.getElementById('newbids-empty');
-  if(!tbody) return;
+  const list=document.getElementById('newbids-list');
+  if(!list) return;
   try{
     const res=await fetch('/api/proposal-log/all-entries',{credentials:'include'});
     if(!res.ok) return;
@@ -2159,27 +2143,35 @@ async function loadBcInvites(){
   }catch(e){console.warn('Failed to load BC invites:',e);}
 }
 
+function bcField(id,label,field,value,opts){
+  opts=opts||{};
+  const type=opts.type||'text';
+  const span=opts.span||1;
+  const placeholder=opts.placeholder||'';
+  const safeVal=(value||'').toString().replace(/"/g,'&quot;');
+  return `<div style="grid-column:span ${span};">
+    <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">${label}</label>
+    <input type="${type}" value="${safeVal}" placeholder="${placeholder}" style="width:100%;font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 6px;" onblur="saveBcInviteField(${id},'${field}',this.value)">
+  </div>`;
+}
+
 function renderBcInvites(){
-  const tbody=document.getElementById('newbids-tbody');
+  const list=document.getElementById('newbids-list');
   const empty=document.getElementById('newbids-empty');
   const countBadge=document.getElementById('newbids-tab-count');
-  if(!tbody) return;
-  tbody.innerHTML='';
+  if(!list) return;
+  list.innerHTML='';
   if(countBadge){
     if(bcInvites.length>0){countBadge.textContent='('+bcInvites.length+')';countBadge.style.display='';}
     else countBadge.style.display='none';
   }
   if(bcInvites.length===0){
     if(empty) empty.style.display='';
-    document.getElementById('newbids-table').style.display='none';
     return;
   }
   if(empty) empty.style.display='none';
-  document.getElementById('newbids-table').style.display='';
 
   bcInvites.forEach(entry=>{
-    const tr=document.createElement('tr');
-    tr.dataset.id=entry.id;
     const isNda=entry.ndaRequired||entry.bcAccessStatus==='nda_required';
     let dupMatches=[];
     if(entry.duplicateOverrideNote&&entry.duplicateOverrideNote.startsWith('__dup:')){
@@ -2192,84 +2184,58 @@ function renderBcInvites(){
 
     const regionOptions='<option value="">— Select —</option>'+REGIONS.map(r=>`<option value="${r}"${entry.region===r?' selected':''}>${r}</option>`).join('');
 
-    const bcLinkIcon=entry.bcLink?`<a href="${entry.bcLink}" target="_blank" rel="noopener noreferrer" title="View on BuildingConnected" style="color:#60a5fa;flex-shrink:0;text-decoration:none;" onclick="event.stopPropagation()">&#128279;</a>`:'';
+    const card=document.createElement('div');
+    card.className='bc-invite-card';
+    card.dataset.id=entry.id;
+    card.style.cssText='border:1px solid var(--border);border-radius:8px;background:var(--bg2);padding:14px;margin-bottom:12px;';
 
-    tr.innerHTML=`
-      <td></td>
-      <td>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <input type="text" value="${(entry.projectName||'').replace(/"/g,'&quot;')}" style="flex:1;min-width:0;background:transparent;border:1px solid transparent;color:var(--text);font-size:12px;padding:3px;" onblur="saveBcInviteField(${entry.id},'projectName',this.value)">
-          ${bcLinkIcon}
+    card.innerHTML=`
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:240px;">
+          <input type="text" value="${(entry.projectName||'').replace(/"/g,'&quot;')}" style="flex:1;min-width:0;font-size:14px;font-weight:600;background:transparent;border:1px solid transparent;color:var(--text);padding:4px;" onblur="saveBcInviteField(${entry.id},'projectName',this.value)">
+          ${entry.bcLink?`<a href="${entry.bcLink}" target="_blank" rel="noopener noreferrer" title="View on BuildingConnected" style="color:#60a5fa;flex-shrink:0;text-decoration:none;font-size:12px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap;">&#128279; View on BC</a>`:''}
         </div>
-      </td>
-      <td><select style="width:100%;font-size:11px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;" onchange="saveBcInviteField(${entry.id},'region',this.value)">${regionOptions}</select></td>
-      <td><input type="date" value="${entry.dueDate||''}" style="width:100%;font-size:11px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;" onblur="saveBcInviteField(${entry.id},'dueDate',this.value)"></td>
-      <td><input type="text" value="${(entry.gcEstimateLead||'').replace(/"/g,'&quot;')}" style="width:100%;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px;font-size:11px;" onblur="saveBcInviteField(${entry.id},'gcEstimateLead',this.value)"></td>
-      <td>${flags.join(' ')}</td>
-      <td style="white-space:nowrap;">
-        <button class="btn-secondary" style="padding:4px 8px;font-size:10px;" onclick="toggleBcDetail(${entry.id})" title="Review project address, dates, square footage">Details</button>
-        ${canReviewBcInvites?`
-          <button class="btn-primary" style="padding:4px 10px;font-size:10px;" onclick="acceptBcInvite(${entry.id})">Accept</button>
-          <button class="btn-secondary" style="padding:4px 10px;font-size:10px;" onclick="openBcMergePicker(${entry.id})">Merge</button>
-          <button class="btn-danger" style="padding:4px 8px;font-size:10px;" onclick="rejectBcInvite(${entry.id})">&#10005;</button>
-        `:''}
-      </td>`;
-    tbody.appendChild(tr);
-
-    const detailTr=document.createElement('tr');
-    detailTr.id='bc-detail-'+entry.id;
-    detailTr.style.display='none';
-    detailTr.innerHTML=`<td colspan="7" style="background:var(--bg2);padding:10px;">
-      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;">
-        <div>
-          <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;">Project Address</label>
-          <input type="text" value="${(entry.projectAddress||'').replace(/"/g,'&quot;')}" placeholder="Street, City, State ZIP" style="width:100%;font-size:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px;" onblur="saveBcInviteField(${entry.id},'projectAddress',this.value)">
-        </div>
-        <div>
-          <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;">Anticipated Start</label>
-          <input type="date" value="${entry.anticipatedStart||''}" style="width:100%;font-size:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px;" onblur="saveBcInviteField(${entry.id},'anticipatedStart',this.value)">
-        </div>
-        <div>
-          <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;">Anticipated Finish</label>
-          <input type="date" value="${entry.anticipatedFinish||''}" style="width:100%;font-size:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px;" onblur="saveBcInviteField(${entry.id},'anticipatedFinish',this.value)">
-        </div>
-        <div>
-          <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;">Square Feet</label>
-          <input type="text" value="${(entry.squareFeet||'').replace(/"/g,'&quot;')}" placeholder="e.g. 125,000" style="width:100%;font-size:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px;" onblur="saveBcInviteField(${entry.id},'squareFeet',this.value)">
-        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">${flags.join(' ')}</div>
       </div>
-      ${entry.bcLink?`<div style="margin-top:10px;"><a href="${entry.bcLink}" target="_blank" rel="noopener noreferrer" style="color:#60a5fa;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">&#128279; View this invite on BuildingConnected &#8599;</a></div>`:'<div style="margin-top:10px;font-size:11px;color:var(--text-dim);">No BuildingConnected link on file for this invite.</div>'}
-    </td>`;
-    tbody.appendChild(detailTr);
 
-    if(dupMatches.length>0){
-      const mergeTr=document.createElement('tr');
-      mergeTr.id='bc-merge-'+entry.id;
-      mergeTr.style.display='none';
-      mergeTr.innerHTML=`<td colspan="7" style="background:var(--bg2);padding:10px;">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px;">
+        <div>
+          <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">Region</label>
+          <select style="width:100%;font-size:12px;background:var(--bg);color:var(--text);border:1px solid ${entry.regionNeedsReview?'#fb923c':'var(--border)'};border-radius:4px;padding:5px 6px;" onchange="saveBcInviteField(${entry.id},'region',this.value)">${regionOptions}</select>
+        </div>
+        ${bcField(entry.id,'Due Date','dueDate',entry.dueDate,{type:'date'})}
+        ${bcField(entry.id,'GC Lead','gcEstimateLead',entry.gcEstimateLead)}
+        ${bcField(entry.id,'Square Feet','squareFeet',entry.squareFeet,{placeholder:'e.g. 125,000'})}
+      </div>
+
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;">
+        ${bcField(entry.id,'Project Address','projectAddress',entry.projectAddress,{placeholder:'Street, City, State ZIP'})}
+        ${bcField(entry.id,'Anticipated Start','anticipatedStart',entry.anticipatedStart,{type:'date'})}
+        ${bcField(entry.id,'Anticipated Finish','anticipatedFinish',entry.anticipatedFinish,{type:'date'})}
+      </div>
+
+      <div id="bc-merge-${entry.id}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
         <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Possible duplicate entries</div>
         <div id="bc-merge-list-${entry.id}"></div>
-      </td>`;
-      tbody.appendChild(mergeTr);
-    }
-
-    const rejectTr=document.createElement('tr');
-    rejectTr.id='bc-reject-'+entry.id;
-    rejectTr.style.display='none';
-    rejectTr.innerHTML=`<td colspan="7" style="background:var(--bg2);padding:10px;">
-      <textarea id="bc-reject-reason-${entry.id}" placeholder="Reason for rejection (optional)" style="width:100%;min-height:50px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;"></textarea>
-      <div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end;">
-        <button class="btn-secondary" style="padding:4px 10px;font-size:10px;" onclick="document.getElementById('bc-reject-${entry.id}').style.display='none'">Cancel</button>
-        <button class="btn-danger" style="padding:4px 10px;font-size:10px;" onclick="confirmRejectBcInvite(${entry.id})">Reject Draft</button>
       </div>
-    </td>`;
-    tbody.appendChild(rejectTr);
-  });
-}
 
-function toggleBcDetail(id){
-  const row=document.getElementById('bc-detail-'+id);
-  if(row) row.style.display = row.style.display==='none' ? '' : 'none';
+      <div id="bc-reject-${entry.id}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <textarea id="bc-reject-reason-${entry.id}" placeholder="Reason for rejection (optional)" style="width:100%;min-height:50px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;"></textarea>
+        <div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end;">
+          <button class="btn-secondary" style="padding:4px 10px;font-size:10px;" onclick="document.getElementById('bc-reject-${entry.id}').style.display='none'">Cancel</button>
+          <button class="btn-danger" style="padding:4px 10px;font-size:10px;" onclick="confirmRejectBcInvite(${entry.id})">Reject Draft</button>
+        </div>
+      </div>
+
+      ${canReviewBcInvites?`
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+        <button class="btn-danger" style="padding:5px 12px;font-size:11px;" onclick="rejectBcInvite(${entry.id})">Reject</button>
+        <button class="btn-secondary" style="padding:5px 12px;font-size:11px;" onclick="openBcMergePicker(${entry.id})">Merge</button>
+        <button class="btn-primary" style="padding:5px 14px;font-size:11px;" onclick="acceptBcInvite(${entry.id})">Accept</button>
+      </div>`:''}
+    `;
+    list.appendChild(card);
+  });
 }
 
 async function saveBcInviteField(id,field,value){
@@ -2325,20 +2291,9 @@ function openBcMergePicker(id){
 }
 
 function showBcMergePicker(id,matches){
-  let row=document.getElementById('bc-merge-'+id);
-  if(!row){
-    const dataRow=document.querySelector(`tr[data-id="${id}"]`);
-    if(!dataRow) return;
-    row=document.createElement('tr');
-    row.id='bc-merge-'+id;
-    row.innerHTML=`<td colspan="7" style="background:var(--bg2);padding:10px;">
-      <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Possible duplicate entries</div>
-      <div id="bc-merge-list-${id}"></div>
-    </td>`;
-    dataRow.after(row);
-  }
+  const row=document.getElementById('bc-merge-'+id);
   const list=document.getElementById('bc-merge-list-'+id);
-  if(!list) return;
+  if(!row||!list) return;
   list.innerHTML=matches.map(m=>`
     <label style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:4px;cursor:pointer;" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">
       <input type="radio" name="bc-dup-${id}" value="${m.id}">
