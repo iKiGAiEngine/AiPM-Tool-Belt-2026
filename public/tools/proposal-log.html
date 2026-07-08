@@ -2233,6 +2233,7 @@ function renderBcInvites(){
 
       ${canReviewBcInvites?`
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+        <button class="btn-secondary" style="padding:5px 12px;font-size:11px;color:#fb923c;border-color:rgba(249,115,22,.4);${dupMatches.length>0?'background:rgba(249,115,22,.15);':''}" onclick="rejectBcInviteAsDuplicate(${entry.id})" title="${dupMatches.length>0?'Likely duplicate — reject and remove from the list':'Reject this invite as a duplicate'}">&#9888; Duplicate</button>
         <button class="btn-danger" style="padding:5px 12px;font-size:11px;" onclick="rejectBcInvite(${entry.id})">Reject</button>
         <button class="btn-secondary" style="padding:5px 12px;font-size:11px;" onclick="openBcMergePicker(${entry.id})">Merge</button>
         <button class="btn-primary" style="padding:5px 14px;font-size:11px;" onclick="acceptBcInvite(${entry.id})">Accept</button>
@@ -2338,6 +2339,20 @@ async function confirmRejectBcInvite(id){
     await fetch(`/api/bc/drafts/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({reason})});
     loadBcInvites();
   }catch(e){console.warn('Reject failed:',e);alert('Failed to reject draft.');}
+}
+
+// Quick-reject an invite as a duplicate — one click + confirm, reason preset to
+// "Duplicate". Reuses the standard reject endpoint (soft-delete, No Bid, logged).
+async function rejectBcInviteAsDuplicate(id){
+  const entry=bcInvites.find(e=>e.id===id);
+  const name=entry&&entry.projectName?entry.projectName:'this invite';
+  if(!confirm(`Reject "${name}" as a duplicate? It will be removed from the invites list.`)) return;
+  try{
+    const res=await fetch(`/api/bc/drafts/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({reason:'Duplicate'})});
+    if(!res.ok){alert('Failed to reject duplicate.');return;}
+    if(typeof showToast==='function') showToast('Rejected as duplicate');
+    loadBcInvites();
+  }catch(e){console.warn('Duplicate reject failed:',e);alert('Failed to reject duplicate.');}
 }
 
 async function runBcInvitesSync(){
