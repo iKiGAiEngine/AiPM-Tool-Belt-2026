@@ -2374,7 +2374,7 @@ function renderBcSyncPreview(){
     </div>
     <table style="width:100%;font-size:11px;">
       <thead><tr style="border-bottom:1px solid var(--border);">
-        <th style="width:24px;padding:6px;"></th><th style="text-align:left;padding:6px;">Action</th><th style="text-align:left;padding:6px;">Project</th><th style="text-align:left;padding:6px;">GC</th><th style="text-align:left;padding:6px;">Region</th><th style="text-align:left;padding:6px;">Due Date</th>
+        <th style="width:24px;padding:6px;"></th><th style="text-align:left;padding:6px;">Action</th><th style="text-align:left;padding:6px;">Project</th><th style="text-align:left;padding:6px;">GC</th><th style="text-align:left;padding:6px;">Region</th><th style="text-align:left;padding:6px;">Due Date</th><th style="text-align:left;padding:6px;">Changes</th>
       </tr></thead>
       <tbody>${items.map(item=>`
         <tr style="border-bottom:1px solid var(--border);">
@@ -2384,10 +2384,42 @@ function renderBcSyncPreview(){
           <td style="padding:6px;color:var(--text-dim);">${item.gcCompanyName||item.gcEstimateLead||'—'}</td>
           <td style="padding:6px;">${item.region?item.region:'<span style="color:#fb923c;">No region</span>'}${item.regionNotConfident&&item.region?' <span style="color:#fb923c;" title="Region needs review">&#9888;</span>':''}</td>
           <td style="padding:6px;color:var(--text-dim);">${item.dueDate||'—'}</td>
+          <td style="padding:6px;">${renderBcSyncChanges(item)}</td>
         </tr>`).join('')}
       </tbody>
     </table>`;
   wrap.style.display='';
+}
+
+// Human-readable labels for the raw field keys returned in item.fieldChanges
+// (e.g. "dueDate: 2026-07-15 → 2026-08-11" → "Due Date: 2026-07-15 → 2026-08-11").
+const BC_CHANGE_LABELS={dueDate:'Due Date',gcEstimateLead:'GC Lead',anticipatedStart:'Anticipated Start',anticipatedFinish:'Anticipated Finish',projectAddress:'Project Address',squareFeet:'Square Feet',ndaRequired:'NDA',region:'Region','scopes added':'Scopes added'};
+
+function bcEscHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// Renders the per-item change summary for the BC sync preview so a reviewer can
+// see WHAT an Update actually changes before pulling it into the log.
+//   • update → the field-level diffs from detectFieldChanges (dueDate, GC lead, …)
+//   • merge  → the scopes that will be added to the existing bid
+//   • create → nothing to diff; it's an entirely new project
+function renderBcSyncChanges(item){
+  if(item.action==='update'){
+    const changes=item.fieldChanges||[];
+    if(changes.length===0) return '<span style="color:var(--text-dim);">—</span>';
+    return changes.map(ch=>{
+      const idx=String(ch).indexOf(':');
+      const key=idx>=0?ch.slice(0,idx).trim():'';
+      const rest=idx>=0?ch.slice(idx+1).trim():ch;
+      const label=BC_CHANGE_LABELS[key]||key;
+      return `<div style="line-height:1.5;">${label?`<span style="color:var(--text-dim);">${bcEscHtml(label)}:</span> `:''}<span style="color:#fbbf24;">${bcEscHtml(rest)}</span></div>`;
+    }).join('');
+  }
+  if(item.action==='merge'){
+    const scopes=item.scopeChanges||[];
+    if(scopes.length===0) return '<span style="color:var(--text-dim);">—</span>';
+    return `<div style="line-height:1.5;"><span style="color:var(--text-dim);">Scopes added:</span> <span style="color:#60a5fa;">${bcEscHtml(scopes.join(', '))}</span></div>`;
+  }
+  return '<span style="color:var(--text-dim);">New project</span>';
 }
 
 function toggleBcSyncSelect(oppId,checked){
