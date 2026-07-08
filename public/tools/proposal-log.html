@@ -2347,10 +2347,24 @@ async function runBcInvitesSync(){
     const res=await fetch('/api/bc/sync/preview',{method:'POST',credentials:'include'});
     const d=await res.json();
     bcSyncPreview=d;
-    bcSyncPreviewSelected=new Set((d.preview||[]).map(p=>p.opportunityId));
+    // Pre-select only NEW bids (additive, low-risk). Updates/merges overwrite
+    // existing entries, so they start unchecked and require deliberate review.
+    bcSyncPreviewSelected=new Set((d.preview||[]).filter(p=>p.action==='create').map(p=>p.opportunityId));
     renderBcSyncPreview();
   }catch(e){console.warn('Sync preview failed:',e);alert('Could not fetch opportunities from BuildingConnected.');}
   if(btn){btn.disabled=false;btn.innerHTML='&#8635; Sync from BC';}
+}
+
+// Split preview items into the two review groups.
+//   New Bids  = brand-new projects (create) → pulled into the invites list.
+//   Updates   = changes to something already tracked (update = field diffs,
+//               merge = new scopes on an existing bid) → applied to that entry.
+function bcSyncGroups(){
+  const items=(bcSyncPreview&&bcSyncPreview.preview)||[];
+  return {
+    newBids: items.filter(i=>i.action==='create'),
+    updates: items.filter(i=>i.action==='update'||i.action==='merge'),
+  };
 }
 
 function renderBcSyncPreview(){
@@ -2362,33 +2376,112 @@ function renderBcSyncPreview(){
     wrap.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-dim);font-size:12px;">No new opportunities found. Everything is up to date. <span style="cursor:pointer;color:var(--gold);" onclick="document.getElementById(\'newbids-preview-wrap\').style.display=\'none\'">Dismiss</span></div>';
     return;
   }
-  const actionColor={create:'#4ade80',merge:'#60a5fa',update:'#fbbf24'};
-  const actionLabel={create:'New',merge:'Merge',update:'Update'};
-  wrap.innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg3);">
-      <span style="font-size:11px;color:var(--text-dim);">${bcSyncPreview.totalFound} found, ${bcSyncPreview.afterFilter} from approved GCs</span>
-      <div style="display:flex;gap:8px;">
-        <button class="btn-secondary" style="font-size:10px;padding:4px 10px;" onclick="document.getElementById('newbids-preview-wrap').style.display='none'">Dismiss</button>
-        <button class="btn-primary" style="font-size:10px;padding:4px 10px;" id="btn-pull-selected" onclick="pullBcSyncSelected()">Pull ${bcSyncPreviewSelected.size} Selected Into Log</button>
+  const {newBids,updates}=bcSyncGroups();
+  const newSel=newBids.filter(i=>bcSyncPreviewSelected.has(i.opportunityId)).length;
+  const updSel=updates.filter(i=>bcSyncPreviewSelected.has(i.opportunityId)).length;
+
+  const summary=[`${bcSyncPreview.totalFound} found`,`${bcSyncPreview.afterFilter} from approved GCs`];
+  if(newBids.length) summary.push(newBids.length+' new');
+  if(updates.length) summary.push(updates.length+' update'+(updates.length!==1?'s':''));
+
+  let html=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg3);">
+      <span style="font-size:11px;color:var(--text-dim);">${summary.join(' · ')}</span>
+      <button class="btn-secondary" style="font-size:10px;padding:4px 10px;" onclick="document.getElementById('newbids-preview-wrap').style.display='none'">Dismiss</button>
+    </div>`;
+
+  if(newBids.length){
+    html+=`<div style="padding:10px 12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+        <label style="font-size:11px;font-weight:600;color:#4ade80;text-transform:uppercase;letter-spacing:.5px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" ${newBids.length&&newSel===newBids.length?'checked':''} onchange="bcSyncSelectAll('create',this.checked)"> New Bids (${newBids.length})
+        </label>
+        <button class="btn-primary" style="font-size:10px;padding:4px 10px;" id="btn-pull-new" ${newSel===0?'disabled':''} onclick="pullBcNewBids()">Pull ${newSel} Into Invites List</button>
+      </div>
+      ${newBids.map(renderBcNewBidCard).join('')}
+    </div>`;
+  }
+
+  if(updates.length){
+    html+=`<div style="padding:10px 12px;${newBids.length?'border-top:1px solid var(--border);':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+        <label style="font-size:11px;font-weight:600;color:#fbbf24;text-transform:uppercase;letter-spacing:.5px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" ${updates.length&&updSel===updates.length?'checked':''} onchange="bcSyncSelectAll('update',this.checked)"> Updates to Existing (${updates.length})
+        </label>
+        <button class="btn-secondary" style="font-size:10px;padding:4px 10px;" id="btn-apply-updates" ${updSel===0?'disabled':''} onclick="reviewBcUpdates()">Review &amp; Apply ${updSel} Update${updSel!==1?'s':''}</button>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;">These overwrite the existing bid's current values. Nothing is applied until you confirm.</div>
+      <div id="bc-update-confirm" style="display:none;"></div>
+      ${updates.map(renderBcUpdateCard).join('')}
+    </div>`;
+  }
+
+  wrap.innerHTML=html;
+  wrap.style.display='';
+}
+
+// A New Bid card — surfaces the project context a reviewer needs to decide
+// whether it's worth pulling in. Blank fields are omitted to keep it clean.
+function renderBcNewBidCard(item){
+  const checked=bcSyncPreviewSelected.has(item.opportunityId);
+  const regionHtml=item.region
+    ? bcEscHtml(item.region)+(item.regionNotConfident?' <span style="color:#fb923c;" title="Region needs review">&#9888;</span>':'')
+    : '<span style="color:#fb923c;">No region</span>';
+  const nda=item.ndaRequired?' <span class="badge" style="background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.35);">&#128274; NDA</span>':'';
+  const bc=item.bcLink?` <a href="${bcEscHtml(item.bcLink)}" target="_blank" rel="noopener noreferrer" style="color:#60a5fa;font-size:11px;text-decoration:none;white-space:nowrap;">&#128279; View on BC</a>`:'';
+  const meta=[];
+  if(item.gcCompanyName) meta.push(bcEscHtml(item.gcCompanyName));
+  if(item.primaryMarket) meta.push(bcEscHtml(item.primaryMarket));
+  if(item.dueDate) meta.push('Due '+bcEscHtml(item.dueDate));
+  if(item.inviteDate) meta.push('Invited '+bcEscHtml(item.inviteDate));
+  const detail=[];
+  if(item.anticipatedStart||item.anticipatedFinish) detail.push('Anticipated '+bcEscHtml(item.anticipatedStart||'?')+' &rarr; '+bcEscHtml(item.anticipatedFinish||'?'));
+  if(item.squareFeet) detail.push(bcEscHtml(item.squareFeet)+' SF');
+  if(item.projectAddress||item.location) detail.push(bcEscHtml(item.projectAddress||item.location));
+  const scopes=item.scopeChanges||[];
+  const scopeHtml=scopes.length?`<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;">${scopes.map(s=>`<span style="font-size:10px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 6px;color:var(--text-dim);">${bcEscHtml(s)}</span>`).join('')}</div>`:'';
+  return `<div style="border:1px solid var(--border);border-radius:6px;background:var(--bg);padding:10px;margin:8px 0;">
+    <div style="display:flex;align-items:flex-start;gap:8px;">
+      <input type="checkbox" style="margin-top:3px;" ${checked?'checked':''} onchange="toggleBcSyncSelect('${item.opportunityId}',this.checked)">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-weight:600;font-size:13px;">${bcEscHtml(item.projectName||'(untitled)')}</span>
+          <span style="font-size:11px;">${regionHtml}</span>${nda}${bc}
+        </div>
+        ${meta.length?`<div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${meta.join(' &middot; ')}</div>`:''}
+        ${detail.length?`<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${detail.join(' &middot; ')}</div>`:''}
+        ${scopeHtml}
       </div>
     </div>
-    <table style="width:100%;font-size:11px;">
-      <thead><tr style="border-bottom:1px solid var(--border);">
-        <th style="width:24px;padding:6px;"></th><th style="text-align:left;padding:6px;">Action</th><th style="text-align:left;padding:6px;">Project</th><th style="text-align:left;padding:6px;">GC</th><th style="text-align:left;padding:6px;">Region</th><th style="text-align:left;padding:6px;">Due Date</th><th style="text-align:left;padding:6px;">Changes</th>
-      </tr></thead>
-      <tbody>${items.map(item=>`
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:6px;"><input type="checkbox" ${bcSyncPreviewSelected.has(item.opportunityId)?'checked':''} onchange="toggleBcSyncSelect('${item.opportunityId}',this.checked)"></td>
-          <td style="padding:6px;"><span class="badge" style="background:${actionColor[item.action]}22;color:${actionColor[item.action]};border:1px solid ${actionColor[item.action]}55;">${actionLabel[item.action]}</span></td>
-          <td style="padding:6px;">${item.projectName}</td>
-          <td style="padding:6px;color:var(--text-dim);">${item.gcCompanyName||item.gcEstimateLead||'—'}</td>
-          <td style="padding:6px;">${item.region?item.region:'<span style="color:#fb923c;">No region</span>'}${item.regionNotConfident&&item.region?' <span style="color:#fb923c;" title="Region needs review">&#9888;</span>':''}</td>
-          <td style="padding:6px;color:var(--text-dim);">${item.dueDate||'—'}</td>
-          <td style="padding:6px;">${renderBcSyncChanges(item)}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>`;
-  wrap.style.display='';
+  </div>`;
+}
+
+// An Update card — shows which existing bid is affected and exactly what changes.
+function renderBcUpdateCard(item){
+  const checked=bcSyncPreviewSelected.has(item.opportunityId);
+  const bc=item.bcLink?` <a href="${bcEscHtml(item.bcLink)}" target="_blank" rel="noopener noreferrer" style="color:#60a5fa;font-size:11px;text-decoration:none;white-space:nowrap;">&#128279; View on BC</a>`:'';
+  return `<div style="border:1px solid var(--border);border-radius:6px;background:var(--bg);padding:10px;margin:8px 0;">
+    <div style="display:flex;align-items:flex-start;gap:8px;">
+      <input type="checkbox" style="margin-top:3px;" ${checked?'checked':''} onchange="toggleBcSyncSelect('${item.opportunityId}',this.checked)">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-weight:600;font-size:13px;">${bcEscHtml(item.projectName||'(untitled)')}</span>
+          ${bcUpdateTargetTag(item)}${bc}
+        </div>
+        <div style="margin-top:5px;">${renderBcSyncChanges(item)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Tags where an update lands: still a draft in the invites queue, or already a
+// live bid in the Proposal Log (the higher-stakes case). Uses the drafts list
+// already loaded in this tab.
+function bcUpdateTargetTag(item){
+  if(!item.existingEntryId) return '';
+  const inDraft=bcInvites.some(e=>e.id===item.existingEntryId);
+  return inDraft
+    ? '<span class="badge" style="background:rgba(148,163,184,.15);color:#94a3b8;border:1px solid rgba(148,163,184,.35);">Draft</span>'
+    : '<span class="badge" style="background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.35);">In Proposal Log</span>';
 }
 
 // Human-readable labels for the raw field keys returned in item.fieldChanges
@@ -2424,28 +2517,95 @@ function renderBcSyncChanges(item){
 
 function toggleBcSyncSelect(oppId,checked){
   if(checked) bcSyncPreviewSelected.add(oppId); else bcSyncPreviewSelected.delete(oppId);
-  const btn=document.getElementById('btn-pull-selected');
-  if(btn) btn.textContent='Pull '+bcSyncPreviewSelected.size+' Selected Into Log';
+  renderBcSyncPreview(); // re-render so section counts / button states stay in sync
 }
 
-async function pullBcSyncSelected(){
-  if(bcSyncPreviewSelected.size===0) return;
-  const btn=document.getElementById('btn-pull-selected');
-  if(btn){btn.disabled=true;btn.textContent='Pulling...';}
+// Select-all for one group: 'create' (new bids) or 'update' (updates + merges).
+function bcSyncSelectAll(group,checked){
+  const {newBids,updates}=bcSyncGroups();
+  (group==='create'?newBids:updates).forEach(i=>{
+    if(checked) bcSyncPreviewSelected.add(i.opportunityId); else bcSyncPreviewSelected.delete(i.opportunityId);
+  });
+  renderBcSyncPreview();
+}
+
+function bcSelectedIds(group){
+  const {newBids,updates}=bcSyncGroups();
+  return (group==='create'?newBids:updates)
+    .filter(i=>bcSyncPreviewSelected.has(i.opportunityId))
+    .map(i=>i.opportunityId);
+}
+
+// New bids are additive — pull them straight in, no confirm needed.
+function pullBcNewBids(){
+  applyBcSync(bcSelectedIds('create'),{btnId:'btn-pull-new',label:'Pulling...'});
+}
+
+// Updates overwrite existing bids — surface an in-panel confirmation listing
+// exactly what will change before anything is applied (#1 confirm-before-apply).
+function reviewBcUpdates(){
+  const {updates}=bcSyncGroups();
+  const selected=updates.filter(i=>bcSyncPreviewSelected.has(i.opportunityId));
+  if(selected.length===0) return;
+  const box=document.getElementById('bc-update-confirm');
+  if(!box) return;
+  box.style.display='';
+  box.innerHTML=`<div style="border:1px solid #fbbf24;background:rgba(251,191,36,.08);border-radius:6px;padding:10px;margin-bottom:8px;">
+    <div style="font-size:12px;font-weight:600;color:#fbbf24;margin-bottom:8px;">Apply changes to ${selected.length} existing bid${selected.length!==1?'s':''}? This overwrites their current values.</div>
+    <div style="max-height:200px;overflow:auto;">${selected.map(item=>`<div style="font-size:11px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);"><div style="font-weight:600;margin-bottom:2px;">${bcEscHtml(item.projectName||'(untitled)')} ${bcUpdateTargetTag(item)}</div>${renderBcSyncChanges(item)}</div>`).join('')}</div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
+      <button class="btn-secondary" style="font-size:10px;padding:4px 10px;" onclick="cancelBcUpdateConfirm()">Cancel</button>
+      <button class="btn-primary" style="font-size:10px;padding:4px 10px;" id="btn-confirm-updates" onclick="confirmApplyBcUpdates()">Confirm Apply</button>
+    </div>
+  </div>`;
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function cancelBcUpdateConfirm(){
+  const box=document.getElementById('bc-update-confirm');
+  if(box){box.style.display='none';box.innerHTML='';}
+}
+
+function confirmApplyBcUpdates(){
+  applyBcSync(bcSelectedIds('update'),{btnId:'btn-confirm-updates',label:'Applying...'});
+}
+
+// Sends the given opportunity IDs to the confirm endpoint, then removes just
+// those items from the preview so the other group can still be reviewed.
+async function applyBcSync(oppIds,opts){
+  opts=opts||{};
+  if(!oppIds||oppIds.length===0) return;
+  const btn=opts.btnId?document.getElementById(opts.btnId):null;
+  const origText=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent=opts.label||'Working...';}
   try{
     const res=await fetch('/api/bc/sync/confirm',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
-      body:JSON.stringify({opportunityIds:Array.from(bcSyncPreviewSelected),sinceDateUsed:bcSyncPreview?bcSyncPreview.sinceDateUsed:null})});
+      body:JSON.stringify({opportunityIds:oppIds,sinceDateUsed:bcSyncPreview?bcSyncPreview.sinceDateUsed:null})});
     const d=await res.json();
     const parts=[];
     if(d.created>0) parts.push(d.created+' pulled in');
     if(d.merged>0) parts.push(d.merged+' scope-merged');
     if(d.updated>0) parts.push(d.updated+' field-updated');
     alert('BC Sync Complete: '+(parts.join(', ')||'No changes made.'));
-    bcSyncPreview=null;
-    document.getElementById('newbids-preview-wrap').style.display='none';
+    const applied=new Set(oppIds);
+    oppIds.forEach(id=>bcSyncPreviewSelected.delete(id));
+    if(bcSyncPreview&&Array.isArray(bcSyncPreview.preview)){
+      bcSyncPreview.preview=bcSyncPreview.preview.filter(i=>!applied.has(i.opportunityId));
+    }
+    cancelBcUpdateConfirm();
+    if(!bcSyncPreview||!bcSyncPreview.preview||bcSyncPreview.preview.length===0){
+      bcSyncPreview=null;
+      const wrap=document.getElementById('newbids-preview-wrap');
+      if(wrap) wrap.style.display='none';
+    } else {
+      renderBcSyncPreview();
+    }
     loadBcInvites();
-  }catch(e){console.warn('Sync confirm failed:',e);alert('Sync failed.');}
-  if(btn) btn.disabled=false;
+  }catch(e){
+    console.warn('Sync confirm failed:',e);
+    alert('Sync failed.');
+    if(btn){btn.disabled=false;btn.textContent=origText;}
+  }
 }
 
 async function forceSync(){
