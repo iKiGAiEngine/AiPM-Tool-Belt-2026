@@ -1482,12 +1482,13 @@ function buildRows() {
         case 'projectName': {
           const testBadge = p._isTest ? '<span style="display:inline-block;font-size:9px;font-weight:700;font-family:Rajdhani,sans-serif;letter-spacing:.5px;background:rgba(201,168,76,.18);color:var(--gold);border:1px solid var(--gold-dim);padding:0 4px;border-radius:3px;margin-right:5px;vertical-align:middle;line-height:16px">TEST</span>' : '';
           const pendingBadge = p._pendingDeletion ? `<span style="display:inline-block;font-size:9px;font-weight:700;font-family:Rajdhani,sans-serif;letter-spacing:.5px;background:rgba(234,88,12,.18);color:#f97316;border:1px solid rgba(234,88,12,.35);padding:0 5px;border-radius:3px;margin-right:5px;vertical-align:middle;line-height:16px">\u23f3 PENDING DELETION${p._pendingDeletionBy?' by '+p._pendingDeletionBy:''}</span>` : '';
+          const bcUpdatedBadge = p._bcUpdateFlag ? `<span onclick="event.stopPropagation();event.preventDefault();openBcChangeLog(${oi})" title="Updated from BuildingConnected \u2014 click to view what changed" style="cursor:pointer;display:inline-block;font-size:9px;font-weight:700;font-family:Rajdhani,sans-serif;letter-spacing:.5px;background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.45);padding:0 5px;border-radius:3px;margin-right:5px;vertical-align:middle;line-height:16px">\u21ba UPDATED</span>` : '';
           const nameText = p._pendingDeletion ? `<span style="text-decoration:line-through;opacity:.6">${p.projectName||'\u2014'}</span>` : (p.projectName||'\u2014');
           const canEstimate = userFeatures.includes('estimating-module');
           const estimateLink = p._serverDbId && !p._pendingDeletion && canEstimate ? `<a class="proj-name-link" href="/estimates/${p._serverDbId}" title="Open Estimate Module">${testBadge}${nameText}</a>` : `${testBadge}${nameText}`;
           const rounds = Array.isArray(p._bidRounds) ? p._bidRounds : [];
           const roundBadge = rounds.length > 0 ? `<span class="bid-rounds-badge" onclick="openBidHistory(${oi})" title="View bid round history">\u21bb ${rounds.length} Round${rounds.length!==1?'s':''}</span>` : '';
-          val=`<div class="proj-name" title="${p.projectName||''}">${pendingBadge}${estimateLink}${roundBadge}</div>`;
+          val=`<div class="proj-name" title="${p.projectName||''}">${pendingBadge}${bcUpdatedBadge}${estimateLink}${roundBadge}</div>`;
           break;
         }
         case 'proposalTotal':
@@ -4202,6 +4203,8 @@ function serverEntryToLocal(e, existingLocal) {
     _pendingDeletion: e.pendingDeletion || false,
     _pendingDeletionBy: e.pendingDeletionBy || '',
     _bidRounds: Array.isArray(e.bidRounds) ? e.bidRounds : [],
+    _bcUpdateFlag: e.bcUpdateFlag || false,
+    _bcChangeLog: e.bcChangeLog || '',
   });
 }
 
@@ -4494,6 +4497,52 @@ function openBidHistory(oi){
 
 function closeBidHistoryModal(){document.getElementById('bid-history-modal').style.display='none';}
 
+// ─── BC UPDATE CHANGE LOG ────────────────────────────────────────────────────
+// The "UPDATED" badge on a Proposal Log row means BuildingConnected pushed field
+// changes (bcUpdateFlag). Clicking it opens the change history (bcChangeLog) so a
+// reviewer can see exactly what changed, then acknowledge to clear the flag.
+let bcChangeLogOi=-1;
+function openBcChangeLog(oi){
+  const p=data[oi]; if(!p) return;
+  bcChangeLogOi=oi;
+  document.getElementById('bc-changelog-title').textContent=`BuildingConnected Updates — ${p.projectName||''}`;
+  let log=[];
+  try{ log=p._bcChangeLog?JSON.parse(p._bcChangeLog):[]; }catch(e){ log=[]; }
+  const body=document.getElementById('bc-changelog-body');
+  if(!log.length){
+    body.innerHTML='<div style="color:var(--text-dim);font-size:12px;padding:12px 0">No change details recorded.</div>';
+  } else {
+    body.innerHTML=log.slice().reverse().map(entry=>{
+      const s=String(entry);
+      const m=s.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z):\s*(.*)$/);
+      const when=m?new Date(m[1]).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'Update';
+      const rest=m?m[2]:s;
+      const parts=rest.split(';').map(x=>x.trim()).filter(Boolean).map(part=>{
+        const idx=part.indexOf(':');
+        const key=idx>=0?part.slice(0,idx).trim():'';
+        const val=idx>=0?part.slice(idx+1).trim():part;
+        const label=BC_CHANGE_LABELS[key]||key;
+        return `<div style="line-height:1.5;">${label?`<span style="color:var(--text-dim);">${bcEscHtml(label)}:</span> `:''}<span style="color:#fbbf24;">${bcEscHtml(val)}</span></div>`;
+      }).join('');
+      return `<div class="bid-round-row"><div class="bid-round-detail"><strong>${when}</strong>${parts}</div></div>`;
+    }).join('');
+  }
+  const ackBtn=document.getElementById('bc-changelog-ack');
+  if(ackBtn) ackBtn.style.display=can('editRow')?'':'none';
+  document.getElementById('bc-changelog-modal').style.display='flex';
+}
+function closeBcChangeLogModal(){document.getElementById('bc-changelog-modal').style.display='none';}
+async function acknowledgeBcUpdate(){
+  const p=data[bcChangeLogOi];
+  if(!p||!p._serverDbId){closeBcChangeLogModal();return;}
+  try{
+    const res=await fetch(`/api/proposal-log/entries/${p._serverDbId}/acknowledge-bc-update`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'}});
+    if(res.ok){ p._bcUpdateFlag=false; buildRows(); showToast('Update acknowledged'); }
+    else showToast('Could not acknowledge update','error');
+  }catch(e){ showToast('Could not acknowledge update','error'); }
+  closeBcChangeLogModal();
+}
+
 checkAuth();
 </script>
 
@@ -4515,6 +4564,21 @@ checkAuth();
       <button class="btn-row" onclick="closeBidHistoryModal()">&#10005;</button>
     </div>
     <div id="bid-history-body"></div>
+  </div>
+</div>
+
+<!-- BuildingConnected Update Change Log Modal -->
+<div class="bid-history-modal-overlay" id="bc-changelog-modal" style="display:none" onclick="if(event.target===this)closeBcChangeLogModal()">
+  <div class="bid-history-modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div class="bid-history-title" id="bc-changelog-title">BuildingConnected Updates</div>
+      <button class="btn-row" onclick="closeBcChangeLogModal()">&#10005;</button>
+    </div>
+    <div id="bc-changelog-body"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button class="btn-secondary" style="font-size:11px;padding:5px 12px;" onclick="closeBcChangeLogModal()">Close</button>
+      <button class="btn-primary" id="bc-changelog-ack" style="font-size:11px;padding:5px 12px;" onclick="acknowledgeBcUpdate()">Acknowledge &amp; Clear</button>
+    </div>
   </div>
 </div>
 
