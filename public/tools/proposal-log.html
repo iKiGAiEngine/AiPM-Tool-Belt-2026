@@ -368,6 +368,18 @@ cursor:col-resize;z-index:3;background:transparent;
 .col-filter-input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 7px;border-radius:4px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;}
 .col-filter-input:focus{border-color:var(--gold-dim);}
 .col-filter-select{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 5px;border-radius:4px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;}
+/* Column-filter multi-select (checkbox dropdown) */
+.cfm-wrap{position:relative;width:100%;}
+.cfm-btn{display:flex;align-items:center;justify-content:space-between;gap:4px;width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 7px;border-radius:4px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;outline:none;white-space:nowrap;transition:border-color .2s;}
+.cfm-btn:hover,.cfm-btn.open{border-color:var(--gold-dim);}
+.cfm-btn.has-sel{border-color:var(--gold-dim);color:var(--gold);}
+.cfm-label{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;}
+.cfm-arrow{font-size:9px;color:var(--text-dim);flex-shrink:0;transition:transform .15s;}
+.cfm-btn.open .cfm-arrow{transform:rotate(180deg);}
+.cfm-drop{display:none;position:absolute;top:calc(100% + 2px);left:0;z-index:300;background:var(--bg2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.4);min-width:100%;width:max-content;max-width:240px;max-height:260px;overflow-y:auto;padding:4px 0;text-align:left;font-weight:400;}
+.cfm-drop.open{display:block;}
+.cfm-drop.align-right{left:auto;right:0;}
+.mr-item span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
 tbody tr{border-bottom:1px solid var(--border);transition:background .12s;animation:rowIn .22s ease both;}
 @keyframes rowIn{from{opacity:0;transform:translateX(-4px);}to{opacity:1;transform:none;}}
@@ -1199,14 +1211,14 @@ const STATUSES = ['Lead','Estimating','Revising','Submitted','Won','Lost','No Bi
 const COL_DEFS = [
   {key:'projectName',    label:'Project Name',       w:180, filter:'text'},
   {key:'estimateNumber', label:'Estimate #',          w:110, filter:'text'},
-  {key:'region',         label:'Region',              w:140, filter:'select', opts:REGIONS},
-  {key:'primaryMarket',  label:'Primary Market',      w:130, filter:'select', opts:MARKETS},
+  {key:'region',         label:'Region',              w:140, filter:'select', multi:true, opts:REGIONS},
+  {key:'primaryMarket',  label:'Primary Market',      w:130, filter:'select', multi:true, opts:MARKETS},
   {key:'inviteDate',     label:'Invite Date',         w:100, filter:'date'},
   {key:'dueDate',        label:'Due Date',            w:100, filter:'date'},
   {key:'nbsEstimator',   label:'NBS Estimator',       w:130, filter:'text'},
   {key:'gcEstimateLead', label:'GC Estimate Lead',    w:140, filter:'text'},
   {key:'proposalTotal',  label:'Proposal Total',      w:150, filter:'text'},
-  {key:'estimateStatus', label:'Status',              w:150, filter:'select', opts:STATUSES},
+  {key:'estimateStatus', label:'Status',              w:150, filter:'select', multi:true, opts:STATUSES},
   {key:'finalReviewer',  label:'Final Reviewer',      w:130, filter:'text'},
   {key:'anticipatedStart',  label:'Est. Start',       w:100, filter:'date'},
   {key:'anticipatedFinish', label:'Est. End',         w:100, filter:'date'},
@@ -1260,7 +1272,7 @@ const saveLayout = () => localStorage.setItem('nbs_layout', JSON.stringify(layou
   if(layout.visible['projectName'] === false) { layout.visible['projectName'] = true; changed = true; }
   if (changed) saveLayout();
 })();
-let colFilters = { estimateStatus: 'Estimating' };
+let colFilters = { estimateStatus: ['Estimating','Revising'] };
 let selectedRegions = new Set();
 let socalActive = false;
 const SOCAL_REGIONS = r => r && (/^LAX/i.test(r) || /^SAN/i.test(r) || /san.?diego/i.test(r));
@@ -1276,6 +1288,13 @@ function statusBadge(s) {
 }
 
 function getColDef(key) { return COL_DEFS.find(c=>c.key===key); }
+
+function getColMulti(key) {
+  const v = colFilters[key];
+  if(Array.isArray(v)) return v;
+  if(typeof v === 'string' && v) return [v];
+  return [];
+}
 
 function setMode(m) { /* mode toggle removed */ }
 function setTab(t) {
@@ -1311,9 +1330,13 @@ function getFiltered() {
     if(ff && p.dueDate && p.dueDate<ff) return false;
     if(ft && p.dueDate && p.dueDate>ft) return false;
     for(const [key,val] of Object.entries(colFilters)) {
-      if(!val) continue;
-      let pv=(p[key]||'').toLowerCase();
-      if(!pv.includes(val.toLowerCase())) return false;
+      if(val==null || val==='') continue;
+      const pv = p[key]||'';
+      if(Array.isArray(val)) {
+        if(val.length && !val.includes(pv)) return false;
+      } else {
+        if(!pv.toLowerCase().includes(String(val).toLowerCase())) return false;
+      }
     }
     return true;
   });
@@ -1408,7 +1431,9 @@ function buildHeaders() {
     ftd.style.width=w+'px'; ftd.style.minWidth=w+'px';
     if(key==='projectName') { ftd.classList.add('col-frozen'); ftd.style.left='36px'; }
     if(!isSpecial && def.filter!=='none') {
-      if(def.filter==='select') {
+      if(def.filter==='select' && def.multi) {
+        ftd.appendChild(buildMultiFilter(key, def));
+      } else if(def.filter==='select') {
         const sel=document.createElement('select');
         sel.className='col-filter-select';
         sel.innerHTML='<option value=""></option>'+(def.opts||[]).map(o=>`<option${(colFilters[key]||'')===(o)?' selected':''}>${o}</option>`).join('');
@@ -1835,6 +1860,64 @@ function clearMR() {
   updateMRLabel();
   populateMRList();
   buildRows();
+}
+
+/* Column-filter checkbox multi-select (Region / Primary Market / Status) */
+function buildMultiFilter(key, def) {
+  const opts = key==='region' ? REGIONS : (def.opts||[]);
+  const sel = getColMulti(key);
+  const wrap = document.createElement('div'); wrap.className='cfm-wrap'; wrap.dataset.key=key;
+  const btn = document.createElement('button'); btn.type='button'; btn.className='cfm-btn';
+  btn.innerHTML = '<span class="cfm-label"></span><span class="cfm-arrow">▾</span>';
+  const drop = document.createElement('div'); drop.className='cfm-drop';
+  const clear = document.createElement('span'); clear.className='mr-clear-lnk'; clear.textContent='Clear';
+  clear.addEventListener('click', e=>{
+    e.stopPropagation();
+    colFilters[key]=[];
+    drop.querySelectorAll('input').forEach(c=>c.checked=false);
+    setCfmLabel(wrap,key);
+    buildRows();
+  });
+  drop.appendChild(clear);
+  opts.forEach(o=>{
+    const item=document.createElement('label'); item.className='mr-item';
+    const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=sel.includes(o);
+    cb.addEventListener('change', ()=>{
+      const cur=getColMulti(key);
+      colFilters[key] = cb.checked ? [...cur,o] : cur.filter(v=>v!==o);
+      setCfmLabel(wrap,key);
+      buildRows();
+    });
+    const txt=document.createElement('span'); txt.textContent=o;
+    item.appendChild(cb); item.appendChild(txt);
+    drop.appendChild(item);
+  });
+  btn.addEventListener('click', e=>{
+    e.stopPropagation();
+    const opening=!drop.classList.contains('open');
+    closeAllCfm();
+    if(opening){
+      drop.classList.add('open'); btn.classList.add('open');
+      const outer=document.querySelector('.table-outer');
+      if(outer && drop.getBoundingClientRect().right > outer.getBoundingClientRect().right - 4)
+        drop.classList.add('align-right');
+    }
+  });
+  wrap.appendChild(btn); wrap.appendChild(drop);
+  setCfmLabel(wrap,key);
+  return wrap;
+}
+function setCfmLabel(wrap,key) {
+  const sel=getColMulti(key);
+  const lbl=wrap.querySelector('.cfm-label'), btn=wrap.querySelector('.cfm-btn');
+  if(!sel.length){ lbl.textContent='All'; btn.classList.remove('has-sel'); }
+  else if(sel.length===1){ lbl.textContent=sel[0]; btn.classList.add('has-sel'); }
+  else { lbl.textContent=sel.length+' selected'; btn.classList.add('has-sel'); }
+}
+function closeAllCfm() {
+  document.querySelectorAll('.cfm-drop.open').forEach(el=>el.classList.remove('open'));
+  document.querySelectorAll('.cfm-btn.open').forEach(el=>el.classList.remove('open'));
+  document.querySelectorAll('.cfm-drop.align-right').forEach(el=>el.classList.remove('align-right'));
 }
 
 function toggleSoCal() {
@@ -4082,6 +4165,7 @@ async function initApp() {
   }
 
   document.addEventListener('click', e => { const w = document.getElementById('mr-wrap'); if(w && !w.contains(e.target)) closeAllMR(); });
+  document.addEventListener('click', e => { if(!e.target.closest('.cfm-wrap')) closeAllCfm(); });
   document.getElementById('search').addEventListener('input', () => buildRows());
   ['f-status','f-market','f-swinerton','f-from','f-to']
     .forEach(id => document.getElementById(id).addEventListener('change', () => buildRows()));
