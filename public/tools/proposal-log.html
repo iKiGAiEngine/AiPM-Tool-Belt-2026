@@ -851,6 +851,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
       <div style="display:flex;align-items:center;gap:8px;">
         <span id="newbids-bc-status" style="font-size:11px;color:var(--text-dim)"></span>
         <button class="btn-secondary" id="btn-newbids-connect" onclick="connectToBc()" style="display:none;font-size:11px;padding:5px 12px;">Connect to BuildingConnected</button>
+        <button class="btn-secondary" id="btn-newbids-demo" onclick="loadBcSyncDemo()" title="Load sample BC data to preview the sync flow — nothing is saved" style="display:none;font-size:11px;padding:5px 12px;">&#127916; Load Demo Data</button>
         <button class="btn-primary" id="btn-newbids-sync" onclick="runBcInvitesSync()" style="display:none;">&#8635; Sync from BC</button>
       </div>
     </div>
@@ -2098,6 +2099,15 @@ async function checkBcSyncAccess(){
     if(hasBcSync && bcBtn) bcBtn.style.display='';
     if(canReviewBcInvites && newBidsTab) newBidsTab.style.display='';
     if(canReviewBcInvites) refreshBcConnectionStatus();
+    // Demo mode (append ?bcdemo=1 to the URL): expose the BC Invites tab and a
+    // "Load Demo Data" button so the sync flow can be previewed without a live BC
+    // connection. Frontend-only — nothing is written to the server.
+    if(/[?&]bcdemo=1/.test(location.search)){
+      canReviewBcInvites=true;
+      if(newBidsTab) newBidsTab.style.display='';
+      const demoBtn=document.getElementById('btn-newbids-demo');
+      if(demoBtn) demoBtn.style.display='';
+    }
   }catch(e){console.warn('BC sync access check failed:',e);}
 }
 
@@ -2355,7 +2365,53 @@ async function rejectBcInviteAsDuplicate(id){
   }catch(e){console.warn('Duplicate reject failed:',e);alert('Failed to reject duplicate.');}
 }
 
+// ─── BC SYNC DEMO MODE ───────────────────────────────────────────────────────
+// Frontend-only preview of the sync flow for when there's no live BC connection.
+// Injects a representative preview payload (new bids + a merge + updates) plus a
+// couple of flagged Proposal Log rows so the UPDATED badge is visible. Enabled
+// via ?bcdemo=1. applyBcSync/acknowledgeBcUpdate short-circuit when bcDemoMode is
+// on, so nothing is ever written to the server.
+let bcDemoMode=false;
+function loadBcSyncDemo(){
+  bcDemoMode=true;
+  const bc=(id)=>`https://app.buildingconnected.com/opportunities/${id}`;
+  bcSyncPreview={
+    totalFound:300, afterFilter:18, sinceDateUsed:null, moreExist:false,
+    preview:[
+      {opportunityId:'demo-1',action:'create',projectName:'ELAC Facilities M & O Replacement',gcCompanyName:'Swinerton Builders',region:'LAX - OCLA',primaryMarket:'Education',dueDate:'2026-08-11',inviteDate:'2026-07-02',anticipatedStart:'2026-09',anticipatedFinish:'2027-05',squareFeet:'85,000',projectAddress:'1301 Avenida Cesar Chavez, Monterey Park, CA',scopeChanges:['Concrete','Framing','Drywall'],bcLink:bc('demo-1'),ndaRequired:false,regionNotConfident:false},
+      {opportunityId:'demo-2',action:'create',projectName:'Confidential Data Center — Phase 2',gcCompanyName:'Swinerton Builders',region:'',regionNotConfident:true,ndaRequired:true,dueDate:'2026-08-20',inviteDate:'2026-07-05',scopeChanges:[],bcLink:bc('demo-2')},
+      {opportunityId:'demo-3',action:'merge',projectName:'Southwest Airlines West Gate TI- 90%',gcCompanyName:'Swinerton Builders',existingEntryId:900003,scopeChanges:['Electrical','Low Voltage'],bcLink:bc('demo-3')},
+      {opportunityId:'demo-4',action:'update',projectName:'JMH Behring Pavillion – Level 2 TI',gcCompanyName:'Swinerton Builders',existingEntryId:900004,fieldChanges:['dueDate: 2026-07-15 → 2026-07-28','gcEstimateLead: none → Priya Anand'],bcLink:bc('demo-4')},
+      {opportunityId:'demo-5',action:'update',projectName:'Mercy General – ED Expansion',gcCompanyName:'Swinerton Builders',existingEntryId:900005,fieldChanges:['squareFeet: 40,000 → 52,500','anticipatedFinish: none → 2027-02','scopes added: Plumbing'],bcLink:bc('demo-5')},
+    ],
+  };
+  bcSyncPreviewSelected=new Set(bcSyncPreview.preview.filter(p=>p.action==='create').map(p=>p.opportunityId));
+  renderBcSyncPreview();
+  injectBcBadgeDemo();
+  if(typeof showToast==='function') showToast('Demo BC data loaded — nothing will be saved');
+}
+
+// Adds a couple of Proposal Log rows carrying the BC "UPDATED" flag + change log
+// so the badge and its modal can be previewed. Rows are marked _demo and vanish
+// on the next server refresh.
+function injectBcBadgeDemo(){
+  if(!Array.isArray(data) || data.some(r=>r._demo)) return;
+  const now=new Date().toISOString();
+  const mk=(name,region,changeLine)=>({
+    projectName:'[DEMO] '+name, region, primaryMarket:'', dueDate:'', inviteDate:'',
+    estimateStatus:'Estimating', proposalTotal:'', owner:'Swinerton Builders',
+    anticipatedStart:'', anticipatedFinish:'', nbsSelectedScopes:'[]', bcLink:'',
+    _demo:true, _bcUpdateFlag:true, _bcChangeLog:JSON.stringify([`${now}: ${changeLine}`]), _bidRounds:[],
+  });
+  data.unshift(
+    mk('JMH Behring Pavillion – Level 2 TI','LAX - OCLA','dueDate: 2026-07-15 → 2026-07-28; gcEstimateLead: none → Priya Anand'),
+    mk('Mercy General – ED Expansion','SAC - Sacramento','squareFeet: 40,000 → 52,500; anticipatedFinish: none → 2027-02; scopes added: Plumbing'),
+  );
+  if(typeof buildRows==='function') buildRows();
+}
+
 async function runBcInvitesSync(){
+  bcDemoMode=false; // a real sync clears demo mode so applies hit the server again
   const btn=document.getElementById('btn-newbids-sync');
   const wrap=document.getElementById('newbids-preview-wrap');
   if(btn){btn.disabled=true;btn.textContent='Checking BuildingConnected...';}
@@ -2595,14 +2651,18 @@ async function applyBcSync(oppIds,opts){
   const origText=btn?btn.textContent:'';
   if(btn){btn.disabled=true;btn.textContent=opts.label||'Working...';}
   try{
-    const res=await fetch('/api/bc/sync/confirm',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
-      body:JSON.stringify({opportunityIds:oppIds,sinceDateUsed:bcSyncPreview?bcSyncPreview.sinceDateUsed:null})});
-    const d=await res.json();
-    const parts=[];
-    if(d.created>0) parts.push(d.created+' pulled in');
-    if(d.merged>0) parts.push(d.merged+' scope-merged');
-    if(d.updated>0) parts.push(d.updated+' field-updated');
-    alert('BC Sync Complete: '+(parts.join(', ')||'No changes made.'));
+    if(bcDemoMode){
+      alert(`Demo: applied ${oppIds.length} item${oppIds.length!==1?'s':''} — no real changes were saved.`);
+    } else {
+      const res=await fetch('/api/bc/sync/confirm',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
+        body:JSON.stringify({opportunityIds:oppIds,sinceDateUsed:bcSyncPreview?bcSyncPreview.sinceDateUsed:null})});
+      const d=await res.json();
+      const parts=[];
+      if(d.created>0) parts.push(d.created+' pulled in');
+      if(d.merged>0) parts.push(d.merged+' scope-merged');
+      if(d.updated>0) parts.push(d.updated+' field-updated');
+      alert('BC Sync Complete: '+(parts.join(', ')||'No changes made.'));
+    }
     const applied=new Set(oppIds);
     oppIds.forEach(id=>bcSyncPreviewSelected.delete(id));
     if(bcSyncPreview&&Array.isArray(bcSyncPreview.preview)){
@@ -2616,7 +2676,7 @@ async function applyBcSync(oppIds,opts){
     } else {
       renderBcSyncPreview();
     }
-    loadBcInvites();
+    if(!bcDemoMode) loadBcInvites();
   }catch(e){
     console.warn('Sync confirm failed:',e);
     alert('Sync failed.');
@@ -4549,7 +4609,9 @@ function openBcChangeLog(oi){
 function closeBcChangeLogModal(){document.getElementById('bc-changelog-modal').style.display='none';}
 async function acknowledgeBcUpdate(){
   const p=data[bcChangeLogOi];
-  if(!p||!p._serverDbId){closeBcChangeLogModal();return;}
+  if(!p){closeBcChangeLogModal();return;}
+  if(p._demo){ p._bcUpdateFlag=false; buildRows(); showToast('Update acknowledged (demo)'); closeBcChangeLogModal(); return; }
+  if(!p._serverDbId){closeBcChangeLogModal();return;}
   try{
     const res=await fetch(`/api/proposal-log/entries/${p._serverDbId}/acknowledge-bc-update`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'}});
     if(res.ok){ p._bcUpdateFlag=false; buildRows(); showToast('Update acknowledged'); }
