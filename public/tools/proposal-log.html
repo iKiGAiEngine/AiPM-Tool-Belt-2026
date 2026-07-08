@@ -851,6 +851,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
       <div style="display:flex;align-items:center;gap:8px;">
         <span id="newbids-bc-status" style="font-size:11px;color:var(--text-dim)"></span>
         <button class="btn-secondary" id="btn-newbids-connect" onclick="connectToBc()" style="display:none;font-size:11px;padding:5px 12px;">Connect to BuildingConnected</button>
+        <button class="btn-secondary" id="btn-newbids-demo" onclick="loadBcSyncDemo()" title="Load sample BC data to preview the sync flow — nothing is saved" style="display:none;font-size:11px;padding:5px 12px;">&#127916; Load Demo Data</button>
         <button class="btn-primary" id="btn-newbids-sync" onclick="runBcInvitesSync()" style="display:none;">&#8635; Sync from BC</button>
       </div>
     </div>
@@ -1482,12 +1483,13 @@ function buildRows() {
         case 'projectName': {
           const testBadge = p._isTest ? '<span style="display:inline-block;font-size:9px;font-weight:700;font-family:Rajdhani,sans-serif;letter-spacing:.5px;background:rgba(201,168,76,.18);color:var(--gold);border:1px solid var(--gold-dim);padding:0 4px;border-radius:3px;margin-right:5px;vertical-align:middle;line-height:16px">TEST</span>' : '';
           const pendingBadge = p._pendingDeletion ? `<span style="display:inline-block;font-size:9px;font-weight:700;font-family:Rajdhani,sans-serif;letter-spacing:.5px;background:rgba(234,88,12,.18);color:#f97316;border:1px solid rgba(234,88,12,.35);padding:0 5px;border-radius:3px;margin-right:5px;vertical-align:middle;line-height:16px">\u23f3 PENDING DELETION${p._pendingDeletionBy?' by '+p._pendingDeletionBy:''}</span>` : '';
+          const bcUpdatedBadge = p._bcUpdateFlag ? `<span onclick="event.stopPropagation();event.preventDefault();openBcChangeLog(${oi})" title="Updated from BuildingConnected \u2014 click to view what changed" style="cursor:pointer;display:inline-block;font-size:9px;font-weight:700;font-family:Rajdhani,sans-serif;letter-spacing:.5px;background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.45);padding:0 5px;border-radius:3px;margin-right:5px;vertical-align:middle;line-height:16px">\u21ba UPDATED</span>` : '';
           const nameText = p._pendingDeletion ? `<span style="text-decoration:line-through;opacity:.6">${p.projectName||'\u2014'}</span>` : (p.projectName||'\u2014');
           const canEstimate = userFeatures.includes('estimating-module');
           const estimateLink = p._serverDbId && !p._pendingDeletion && canEstimate ? `<a class="proj-name-link" href="/estimates/${p._serverDbId}" title="Open Estimate Module">${testBadge}${nameText}</a>` : `${testBadge}${nameText}`;
           const rounds = Array.isArray(p._bidRounds) ? p._bidRounds : [];
           const roundBadge = rounds.length > 0 ? `<span class="bid-rounds-badge" onclick="openBidHistory(${oi})" title="View bid round history">\u21bb ${rounds.length} Round${rounds.length!==1?'s':''}</span>` : '';
-          val=`<div class="proj-name" title="${p.projectName||''}">${pendingBadge}${estimateLink}${roundBadge}</div>`;
+          val=`<div class="proj-name" title="${p.projectName||''}">${pendingBadge}${bcUpdatedBadge}${estimateLink}${roundBadge}</div>`;
           break;
         }
         case 'proposalTotal':
@@ -2097,6 +2099,15 @@ async function checkBcSyncAccess(){
     if(hasBcSync && bcBtn) bcBtn.style.display='';
     if(canReviewBcInvites && newBidsTab) newBidsTab.style.display='';
     if(canReviewBcInvites) refreshBcConnectionStatus();
+    // Demo mode (append ?bcdemo=1 to the URL): expose the BC Invites tab and a
+    // "Load Demo Data" button so the sync flow can be previewed without a live BC
+    // connection. Frontend-only — nothing is written to the server.
+    if(/[?&]bcdemo=1/.test(location.search)){
+      canReviewBcInvites=true;
+      if(newBidsTab) newBidsTab.style.display='';
+      const demoBtn=document.getElementById('btn-newbids-demo');
+      if(demoBtn) demoBtn.style.display='';
+    }
   }catch(e){console.warn('BC sync access check failed:',e);}
 }
 
@@ -2232,6 +2243,7 @@ function renderBcInvites(){
 
       ${canReviewBcInvites?`
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+        <button class="btn-secondary" style="padding:5px 12px;font-size:11px;color:#fb923c;border-color:rgba(249,115,22,.4);${dupMatches.length>0?'background:rgba(249,115,22,.15);':''}" onclick="rejectBcInviteAsDuplicate(${entry.id})" title="${dupMatches.length>0?'Likely duplicate — reject and remove from the list':'Reject this invite as a duplicate'}">&#9888; Duplicate</button>
         <button class="btn-danger" style="padding:5px 12px;font-size:11px;" onclick="rejectBcInvite(${entry.id})">Reject</button>
         <button class="btn-secondary" style="padding:5px 12px;font-size:11px;" onclick="openBcMergePicker(${entry.id})">Merge</button>
         <button class="btn-primary" style="padding:5px 14px;font-size:11px;" onclick="acceptBcInvite(${entry.id})">Accept</button>
@@ -2339,7 +2351,67 @@ async function confirmRejectBcInvite(id){
   }catch(e){console.warn('Reject failed:',e);alert('Failed to reject draft.');}
 }
 
+// Quick-reject an invite as a duplicate — one click + confirm, reason preset to
+// "Duplicate". Reuses the standard reject endpoint (soft-delete, No Bid, logged).
+async function rejectBcInviteAsDuplicate(id){
+  const entry=bcInvites.find(e=>e.id===id);
+  const name=entry&&entry.projectName?entry.projectName:'this invite';
+  if(!confirm(`Reject "${name}" as a duplicate? It will be removed from the invites list.`)) return;
+  try{
+    const res=await fetch(`/api/bc/drafts/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({reason:'Duplicate'})});
+    if(!res.ok){alert('Failed to reject duplicate.');return;}
+    if(typeof showToast==='function') showToast('Rejected as duplicate');
+    loadBcInvites();
+  }catch(e){console.warn('Duplicate reject failed:',e);alert('Failed to reject duplicate.');}
+}
+
+// ─── BC SYNC DEMO MODE ───────────────────────────────────────────────────────
+// Frontend-only preview of the sync flow for when there's no live BC connection.
+// Injects a representative preview payload (new bids + a merge + updates) plus a
+// couple of flagged Proposal Log rows so the UPDATED badge is visible. Enabled
+// via ?bcdemo=1. applyBcSync/acknowledgeBcUpdate short-circuit when bcDemoMode is
+// on, so nothing is ever written to the server.
+let bcDemoMode=false;
+function loadBcSyncDemo(){
+  bcDemoMode=true;
+  const bc=(id)=>`https://app.buildingconnected.com/opportunities/${id}`;
+  bcSyncPreview={
+    totalFound:300, afterFilter:18, sinceDateUsed:null, moreExist:false,
+    preview:[
+      {opportunityId:'demo-1',action:'create',projectName:'ELAC Facilities M & O Replacement',gcCompanyName:'Swinerton Builders',region:'LAX - OCLA',primaryMarket:'Education',dueDate:'2026-08-11',inviteDate:'2026-07-02',anticipatedStart:'2026-09',anticipatedFinish:'2027-05',squareFeet:'85,000',projectAddress:'1301 Avenida Cesar Chavez, Monterey Park, CA',scopeChanges:['Concrete','Framing','Drywall'],bcLink:bc('demo-1'),ndaRequired:false,regionNotConfident:false},
+      {opportunityId:'demo-2',action:'create',projectName:'Confidential Data Center — Phase 2',gcCompanyName:'Swinerton Builders',region:'',regionNotConfident:true,ndaRequired:true,dueDate:'2026-08-20',inviteDate:'2026-07-05',scopeChanges:[],bcLink:bc('demo-2')},
+      {opportunityId:'demo-3',action:'merge',projectName:'Southwest Airlines West Gate TI- 90%',gcCompanyName:'Swinerton Builders',existingEntryId:900003,scopeChanges:['Electrical','Low Voltage'],bcLink:bc('demo-3')},
+      {opportunityId:'demo-4',action:'update',projectName:'JMH Behring Pavillion – Level 2 TI',gcCompanyName:'Swinerton Builders',existingEntryId:900004,fieldChanges:['dueDate: 2026-07-15 → 2026-07-28','gcEstimateLead: none → Priya Anand'],bcLink:bc('demo-4')},
+      {opportunityId:'demo-5',action:'update',projectName:'Mercy General – ED Expansion',gcCompanyName:'Swinerton Builders',existingEntryId:900005,fieldChanges:['squareFeet: 40,000 → 52,500','anticipatedFinish: none → 2027-02','scopes added: Plumbing'],bcLink:bc('demo-5')},
+    ],
+  };
+  bcSyncPreviewSelected=new Set(bcSyncPreview.preview.filter(p=>p.action==='create').map(p=>p.opportunityId));
+  renderBcSyncPreview();
+  injectBcBadgeDemo();
+  if(typeof showToast==='function') showToast('Demo BC data loaded — nothing will be saved');
+}
+
+// Adds a couple of Proposal Log rows carrying the BC "UPDATED" flag + change log
+// so the badge and its modal can be previewed. Rows are marked _demo and vanish
+// on the next server refresh.
+function injectBcBadgeDemo(){
+  if(!Array.isArray(data) || data.some(r=>r._demo)) return;
+  const now=new Date().toISOString();
+  const mk=(name,region,changeLine)=>({
+    projectName:'[DEMO] '+name, region, primaryMarket:'', dueDate:'', inviteDate:'',
+    estimateStatus:'Estimating', proposalTotal:'', owner:'Swinerton Builders',
+    anticipatedStart:'', anticipatedFinish:'', nbsSelectedScopes:'[]', bcLink:'',
+    _demo:true, _bcUpdateFlag:true, _bcChangeLog:JSON.stringify([`${now}: ${changeLine}`]), _bidRounds:[],
+  });
+  data.unshift(
+    mk('JMH Behring Pavillion – Level 2 TI','LAX - OCLA','dueDate: 2026-07-15 → 2026-07-28; gcEstimateLead: none → Priya Anand'),
+    mk('Mercy General – ED Expansion','SAC - Sacramento','squareFeet: 40,000 → 52,500; anticipatedFinish: none → 2027-02; scopes added: Plumbing'),
+  );
+  if(typeof buildRows==='function') buildRows();
+}
+
 async function runBcInvitesSync(){
+  bcDemoMode=false; // a real sync clears demo mode so applies hit the server again
   const btn=document.getElementById('btn-newbids-sync');
   const wrap=document.getElementById('newbids-preview-wrap');
   if(btn){btn.disabled=true;btn.textContent='Checking BuildingConnected...';}
@@ -2347,10 +2419,24 @@ async function runBcInvitesSync(){
     const res=await fetch('/api/bc/sync/preview',{method:'POST',credentials:'include'});
     const d=await res.json();
     bcSyncPreview=d;
-    bcSyncPreviewSelected=new Set((d.preview||[]).map(p=>p.opportunityId));
+    // Pre-select only NEW bids (additive, low-risk). Updates/merges overwrite
+    // existing entries, so they start unchecked and require deliberate review.
+    bcSyncPreviewSelected=new Set((d.preview||[]).filter(p=>p.action==='create').map(p=>p.opportunityId));
     renderBcSyncPreview();
   }catch(e){console.warn('Sync preview failed:',e);alert('Could not fetch opportunities from BuildingConnected.');}
   if(btn){btn.disabled=false;btn.innerHTML='&#8635; Sync from BC';}
+}
+
+// Split preview items into the two review groups.
+//   New Bids  = brand-new projects (create) → pulled into the invites list.
+//   Updates   = changes to something already tracked (update = field diffs,
+//               merge = new scopes on an existing bid) → applied to that entry.
+function bcSyncGroups(){
+  const items=(bcSyncPreview&&bcSyncPreview.preview)||[];
+  return {
+    newBids: items.filter(i=>i.action==='create'),
+    updates: items.filter(i=>i.action==='update'||i.action==='merge'),
+  };
 }
 
 function renderBcSyncPreview(){
@@ -2362,58 +2448,240 @@ function renderBcSyncPreview(){
     wrap.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-dim);font-size:12px;">No new opportunities found. Everything is up to date. <span style="cursor:pointer;color:var(--gold);" onclick="document.getElementById(\'newbids-preview-wrap\').style.display=\'none\'">Dismiss</span></div>';
     return;
   }
-  const actionColor={create:'#4ade80',merge:'#60a5fa',update:'#fbbf24'};
-  const actionLabel={create:'New',merge:'Merge',update:'Update'};
-  wrap.innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg3);">
-      <span style="font-size:11px;color:var(--text-dim);">${bcSyncPreview.totalFound} found, ${bcSyncPreview.afterFilter} from approved GCs</span>
-      <div style="display:flex;gap:8px;">
-        <button class="btn-secondary" style="font-size:10px;padding:4px 10px;" onclick="document.getElementById('newbids-preview-wrap').style.display='none'">Dismiss</button>
-        <button class="btn-primary" style="font-size:10px;padding:4px 10px;" id="btn-pull-selected" onclick="pullBcSyncSelected()">Pull ${bcSyncPreviewSelected.size} Selected Into Log</button>
+  const {newBids,updates}=bcSyncGroups();
+  const newSel=newBids.filter(i=>bcSyncPreviewSelected.has(i.opportunityId)).length;
+  const updSel=updates.filter(i=>bcSyncPreviewSelected.has(i.opportunityId)).length;
+
+  const summary=[`${bcSyncPreview.totalFound} found`,`${bcSyncPreview.afterFilter} from approved GCs`];
+  if(newBids.length) summary.push(newBids.length+' new');
+  if(updates.length) summary.push(updates.length+' update'+(updates.length!==1?'s':''));
+
+  let html=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg3);">
+      <span style="font-size:11px;color:var(--text-dim);">${summary.join(' · ')}</span>
+      <button class="btn-secondary" style="font-size:10px;padding:4px 10px;" onclick="document.getElementById('newbids-preview-wrap').style.display='none'">Dismiss</button>
+    </div>`;
+
+  if(newBids.length){
+    html+=`<div style="padding:10px 12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+        <label style="font-size:11px;font-weight:600;color:#4ade80;text-transform:uppercase;letter-spacing:.5px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" ${newBids.length&&newSel===newBids.length?'checked':''} onchange="bcSyncSelectAll('create',this.checked)"> New Bids (${newBids.length})
+        </label>
+        <button class="btn-primary" style="font-size:10px;padding:4px 10px;" id="btn-pull-new" ${newSel===0?'disabled':''} onclick="pullBcNewBids()">Pull ${newSel} Into Invites List</button>
+      </div>
+      ${newBids.map(renderBcNewBidCard).join('')}
+    </div>`;
+  }
+
+  if(updates.length){
+    html+=`<div style="padding:10px 12px;${newBids.length?'border-top:1px solid var(--border);':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+        <label style="font-size:11px;font-weight:600;color:#fbbf24;text-transform:uppercase;letter-spacing:.5px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" ${updates.length&&updSel===updates.length?'checked':''} onchange="bcSyncSelectAll('update',this.checked)"> Updates to Existing (${updates.length})
+        </label>
+        <button class="btn-secondary" style="font-size:10px;padding:4px 10px;" id="btn-apply-updates" ${updSel===0?'disabled':''} onclick="reviewBcUpdates()">Review &amp; Apply ${updSel} Update${updSel!==1?'s':''}</button>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;">These overwrite the existing bid's current values. Nothing is applied until you confirm.</div>
+      <div id="bc-update-confirm" style="display:none;"></div>
+      ${updates.map(renderBcUpdateCard).join('')}
+    </div>`;
+  }
+
+  wrap.innerHTML=html;
+  wrap.style.display='';
+}
+
+// A New Bid card — surfaces the project context a reviewer needs to decide
+// whether it's worth pulling in. Blank fields are omitted to keep it clean.
+function renderBcNewBidCard(item){
+  const checked=bcSyncPreviewSelected.has(item.opportunityId);
+  const regionHtml=item.region
+    ? bcEscHtml(item.region)+(item.regionNotConfident?' <span style="color:#fb923c;" title="Region needs review">&#9888;</span>':'')
+    : '<span style="color:#fb923c;">No region</span>';
+  const nda=item.ndaRequired?' <span class="badge" style="background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.35);">&#128274; NDA</span>':'';
+  const bc=item.bcLink?` <a href="${bcEscHtml(item.bcLink)}" target="_blank" rel="noopener noreferrer" style="color:#60a5fa;font-size:11px;text-decoration:none;white-space:nowrap;">&#128279; View on BC</a>`:'';
+  const meta=[];
+  if(item.gcCompanyName) meta.push(bcEscHtml(item.gcCompanyName));
+  if(item.primaryMarket) meta.push(bcEscHtml(item.primaryMarket));
+  if(item.dueDate) meta.push('Due '+bcEscHtml(item.dueDate));
+  if(item.inviteDate) meta.push('Invited '+bcEscHtml(item.inviteDate));
+  const detail=[];
+  if(item.anticipatedStart||item.anticipatedFinish) detail.push('Anticipated '+bcEscHtml(item.anticipatedStart||'?')+' &rarr; '+bcEscHtml(item.anticipatedFinish||'?'));
+  if(item.squareFeet) detail.push(bcEscHtml(item.squareFeet)+' SF');
+  if(item.projectAddress||item.location) detail.push(bcEscHtml(item.projectAddress||item.location));
+  const scopes=item.scopeChanges||[];
+  const scopeHtml=scopes.length?`<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;">${scopes.map(s=>`<span style="font-size:10px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 6px;color:var(--text-dim);">${bcEscHtml(s)}</span>`).join('')}</div>`:'';
+  return `<div style="border:1px solid var(--border);border-radius:6px;background:var(--bg);padding:10px;margin:8px 0;">
+    <div style="display:flex;align-items:flex-start;gap:8px;">
+      <input type="checkbox" style="margin-top:3px;" ${checked?'checked':''} onchange="toggleBcSyncSelect('${item.opportunityId}',this.checked)">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-weight:600;font-size:13px;">${bcEscHtml(item.projectName||'(untitled)')}</span>
+          <span style="font-size:11px;">${regionHtml}</span>${nda}${bc}
+        </div>
+        ${meta.length?`<div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${meta.join(' &middot; ')}</div>`:''}
+        ${detail.length?`<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${detail.join(' &middot; ')}</div>`:''}
+        ${scopeHtml}
       </div>
     </div>
-    <table style="width:100%;font-size:11px;">
-      <thead><tr style="border-bottom:1px solid var(--border);">
-        <th style="width:24px;padding:6px;"></th><th style="text-align:left;padding:6px;">Action</th><th style="text-align:left;padding:6px;">Project</th><th style="text-align:left;padding:6px;">GC</th><th style="text-align:left;padding:6px;">Region</th><th style="text-align:left;padding:6px;">Due Date</th>
-      </tr></thead>
-      <tbody>${items.map(item=>`
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:6px;"><input type="checkbox" ${bcSyncPreviewSelected.has(item.opportunityId)?'checked':''} onchange="toggleBcSyncSelect('${item.opportunityId}',this.checked)"></td>
-          <td style="padding:6px;"><span class="badge" style="background:${actionColor[item.action]}22;color:${actionColor[item.action]};border:1px solid ${actionColor[item.action]}55;">${actionLabel[item.action]}</span></td>
-          <td style="padding:6px;">${item.projectName}</td>
-          <td style="padding:6px;color:var(--text-dim);">${item.gcCompanyName||item.gcEstimateLead||'—'}</td>
-          <td style="padding:6px;">${item.region?item.region:'<span style="color:#fb923c;">No region</span>'}${item.regionNotConfident&&item.region?' <span style="color:#fb923c;" title="Region needs review">&#9888;</span>':''}</td>
-          <td style="padding:6px;color:var(--text-dim);">${item.dueDate||'—'}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>`;
-  wrap.style.display='';
+  </div>`;
+}
+
+// An Update card — shows which existing bid is affected and exactly what changes.
+function renderBcUpdateCard(item){
+  const checked=bcSyncPreviewSelected.has(item.opportunityId);
+  const bc=item.bcLink?` <a href="${bcEscHtml(item.bcLink)}" target="_blank" rel="noopener noreferrer" style="color:#60a5fa;font-size:11px;text-decoration:none;white-space:nowrap;">&#128279; View on BC</a>`:'';
+  return `<div style="border:1px solid var(--border);border-radius:6px;background:var(--bg);padding:10px;margin:8px 0;">
+    <div style="display:flex;align-items:flex-start;gap:8px;">
+      <input type="checkbox" style="margin-top:3px;" ${checked?'checked':''} onchange="toggleBcSyncSelect('${item.opportunityId}',this.checked)">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-weight:600;font-size:13px;">${bcEscHtml(item.projectName||'(untitled)')}</span>
+          ${bcUpdateTargetTag(item)}${bc}
+        </div>
+        <div style="margin-top:5px;">${renderBcSyncChanges(item)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Tags where an update lands: still a draft in the invites queue, or already a
+// live bid in the Proposal Log (the higher-stakes case). Uses the drafts list
+// already loaded in this tab.
+function bcUpdateTargetTag(item){
+  if(!item.existingEntryId) return '';
+  const inDraft=bcInvites.some(e=>e.id===item.existingEntryId);
+  return inDraft
+    ? '<span class="badge" style="background:rgba(148,163,184,.15);color:#94a3b8;border:1px solid rgba(148,163,184,.35);">Draft</span>'
+    : '<span class="badge" style="background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.35);">In Proposal Log</span>';
+}
+
+// Human-readable labels for the raw field keys returned in item.fieldChanges
+// (e.g. "dueDate: 2026-07-15 → 2026-08-11" → "Due Date: 2026-07-15 → 2026-08-11").
+const BC_CHANGE_LABELS={dueDate:'Due Date',gcEstimateLead:'GC Lead',anticipatedStart:'Anticipated Start',anticipatedFinish:'Anticipated Finish',projectAddress:'Project Address',squareFeet:'Square Feet',ndaRequired:'NDA',region:'Region','scopes added':'Scopes added'};
+
+function bcEscHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// Renders the per-item change summary for the BC sync preview so a reviewer can
+// see WHAT an Update actually changes before pulling it into the log.
+//   • update → the field-level diffs from detectFieldChanges (dueDate, GC lead, …)
+//   • merge  → the scopes that will be added to the existing bid
+//   • create → nothing to diff; it's an entirely new project
+function renderBcSyncChanges(item){
+  if(item.action==='update'){
+    const changes=item.fieldChanges||[];
+    if(changes.length===0) return '<span style="color:var(--text-dim);">—</span>';
+    return changes.map(ch=>{
+      const idx=String(ch).indexOf(':');
+      const key=idx>=0?ch.slice(0,idx).trim():'';
+      const rest=idx>=0?ch.slice(idx+1).trim():ch;
+      const label=BC_CHANGE_LABELS[key]||key;
+      return `<div style="line-height:1.5;">${label?`<span style="color:var(--text-dim);">${bcEscHtml(label)}:</span> `:''}<span style="color:#fbbf24;">${bcEscHtml(rest)}</span></div>`;
+    }).join('');
+  }
+  if(item.action==='merge'){
+    const scopes=item.scopeChanges||[];
+    if(scopes.length===0) return '<span style="color:var(--text-dim);">—</span>';
+    return `<div style="line-height:1.5;"><span style="color:var(--text-dim);">Scopes added:</span> <span style="color:#60a5fa;">${bcEscHtml(scopes.join(', '))}</span></div>`;
+  }
+  return '<span style="color:var(--text-dim);">New project</span>';
 }
 
 function toggleBcSyncSelect(oppId,checked){
   if(checked) bcSyncPreviewSelected.add(oppId); else bcSyncPreviewSelected.delete(oppId);
-  const btn=document.getElementById('btn-pull-selected');
-  if(btn) btn.textContent='Pull '+bcSyncPreviewSelected.size+' Selected Into Log';
+  renderBcSyncPreview(); // re-render so section counts / button states stay in sync
 }
 
-async function pullBcSyncSelected(){
-  if(bcSyncPreviewSelected.size===0) return;
-  const btn=document.getElementById('btn-pull-selected');
-  if(btn){btn.disabled=true;btn.textContent='Pulling...';}
+// Select-all for one group: 'create' (new bids) or 'update' (updates + merges).
+function bcSyncSelectAll(group,checked){
+  const {newBids,updates}=bcSyncGroups();
+  (group==='create'?newBids:updates).forEach(i=>{
+    if(checked) bcSyncPreviewSelected.add(i.opportunityId); else bcSyncPreviewSelected.delete(i.opportunityId);
+  });
+  renderBcSyncPreview();
+}
+
+function bcSelectedIds(group){
+  const {newBids,updates}=bcSyncGroups();
+  return (group==='create'?newBids:updates)
+    .filter(i=>bcSyncPreviewSelected.has(i.opportunityId))
+    .map(i=>i.opportunityId);
+}
+
+// New bids are additive — pull them straight in, no confirm needed.
+function pullBcNewBids(){
+  applyBcSync(bcSelectedIds('create'),{btnId:'btn-pull-new',label:'Pulling...'});
+}
+
+// Updates overwrite existing bids — surface an in-panel confirmation listing
+// exactly what will change before anything is applied (#1 confirm-before-apply).
+function reviewBcUpdates(){
+  const {updates}=bcSyncGroups();
+  const selected=updates.filter(i=>bcSyncPreviewSelected.has(i.opportunityId));
+  if(selected.length===0) return;
+  const box=document.getElementById('bc-update-confirm');
+  if(!box) return;
+  box.style.display='';
+  box.innerHTML=`<div style="border:1px solid #fbbf24;background:rgba(251,191,36,.08);border-radius:6px;padding:10px;margin-bottom:8px;">
+    <div style="font-size:12px;font-weight:600;color:#fbbf24;margin-bottom:8px;">Apply changes to ${selected.length} existing bid${selected.length!==1?'s':''}? This overwrites their current values.</div>
+    <div style="max-height:200px;overflow:auto;">${selected.map(item=>`<div style="font-size:11px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);"><div style="font-weight:600;margin-bottom:2px;">${bcEscHtml(item.projectName||'(untitled)')} ${bcUpdateTargetTag(item)}</div>${renderBcSyncChanges(item)}</div>`).join('')}</div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
+      <button class="btn-secondary" style="font-size:10px;padding:4px 10px;" onclick="cancelBcUpdateConfirm()">Cancel</button>
+      <button class="btn-primary" style="font-size:10px;padding:4px 10px;" id="btn-confirm-updates" onclick="confirmApplyBcUpdates()">Confirm Apply</button>
+    </div>
+  </div>`;
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function cancelBcUpdateConfirm(){
+  const box=document.getElementById('bc-update-confirm');
+  if(box){box.style.display='none';box.innerHTML='';}
+}
+
+function confirmApplyBcUpdates(){
+  applyBcSync(bcSelectedIds('update'),{btnId:'btn-confirm-updates',label:'Applying...'});
+}
+
+// Sends the given opportunity IDs to the confirm endpoint, then removes just
+// those items from the preview so the other group can still be reviewed.
+async function applyBcSync(oppIds,opts){
+  opts=opts||{};
+  if(!oppIds||oppIds.length===0) return;
+  const btn=opts.btnId?document.getElementById(opts.btnId):null;
+  const origText=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent=opts.label||'Working...';}
   try{
-    const res=await fetch('/api/bc/sync/confirm',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
-      body:JSON.stringify({opportunityIds:Array.from(bcSyncPreviewSelected),sinceDateUsed:bcSyncPreview?bcSyncPreview.sinceDateUsed:null})});
-    const d=await res.json();
-    const parts=[];
-    if(d.created>0) parts.push(d.created+' pulled in');
-    if(d.merged>0) parts.push(d.merged+' scope-merged');
-    if(d.updated>0) parts.push(d.updated+' field-updated');
-    alert('BC Sync Complete: '+(parts.join(', ')||'No changes made.'));
-    bcSyncPreview=null;
-    document.getElementById('newbids-preview-wrap').style.display='none';
-    loadBcInvites();
-  }catch(e){console.warn('Sync confirm failed:',e);alert('Sync failed.');}
-  if(btn) btn.disabled=false;
+    if(bcDemoMode){
+      alert(`Demo: applied ${oppIds.length} item${oppIds.length!==1?'s':''} — no real changes were saved.`);
+    } else {
+      const res=await fetch('/api/bc/sync/confirm',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
+        body:JSON.stringify({opportunityIds:oppIds,sinceDateUsed:bcSyncPreview?bcSyncPreview.sinceDateUsed:null})});
+      const d=await res.json();
+      const parts=[];
+      if(d.created>0) parts.push(d.created+' pulled in');
+      if(d.merged>0) parts.push(d.merged+' scope-merged');
+      if(d.updated>0) parts.push(d.updated+' field-updated');
+      alert('BC Sync Complete: '+(parts.join(', ')||'No changes made.'));
+    }
+    const applied=new Set(oppIds);
+    oppIds.forEach(id=>bcSyncPreviewSelected.delete(id));
+    if(bcSyncPreview&&Array.isArray(bcSyncPreview.preview)){
+      bcSyncPreview.preview=bcSyncPreview.preview.filter(i=>!applied.has(i.opportunityId));
+    }
+    cancelBcUpdateConfirm();
+    if(!bcSyncPreview||!bcSyncPreview.preview||bcSyncPreview.preview.length===0){
+      bcSyncPreview=null;
+      const wrap=document.getElementById('newbids-preview-wrap');
+      if(wrap) wrap.style.display='none';
+    } else {
+      renderBcSyncPreview();
+    }
+    if(!bcDemoMode) loadBcInvites();
+  }catch(e){
+    console.warn('Sync confirm failed:',e);
+    alert('Sync failed.');
+    if(btn){btn.disabled=false;btn.textContent=origText;}
+  }
 }
 
 async function forceSync(){
@@ -4010,6 +4278,8 @@ function serverEntryToLocal(e, existingLocal) {
     _pendingDeletion: e.pendingDeletion || false,
     _pendingDeletionBy: e.pendingDeletionBy || '',
     _bidRounds: Array.isArray(e.bidRounds) ? e.bidRounds : [],
+    _bcUpdateFlag: e.bcUpdateFlag || false,
+    _bcChangeLog: e.bcChangeLog || '',
   });
 }
 
@@ -4302,6 +4572,54 @@ function openBidHistory(oi){
 
 function closeBidHistoryModal(){document.getElementById('bid-history-modal').style.display='none';}
 
+// ─── BC UPDATE CHANGE LOG ────────────────────────────────────────────────────
+// The "UPDATED" badge on a Proposal Log row means BuildingConnected pushed field
+// changes (bcUpdateFlag). Clicking it opens the change history (bcChangeLog) so a
+// reviewer can see exactly what changed, then acknowledge to clear the flag.
+let bcChangeLogOi=-1;
+function openBcChangeLog(oi){
+  const p=data[oi]; if(!p) return;
+  bcChangeLogOi=oi;
+  document.getElementById('bc-changelog-title').textContent=`BuildingConnected Updates — ${p.projectName||''}`;
+  let log=[];
+  try{ log=p._bcChangeLog?JSON.parse(p._bcChangeLog):[]; }catch(e){ log=[]; }
+  const body=document.getElementById('bc-changelog-body');
+  if(!log.length){
+    body.innerHTML='<div style="color:var(--text-dim);font-size:12px;padding:12px 0">No change details recorded.</div>';
+  } else {
+    body.innerHTML=log.slice().reverse().map(entry=>{
+      const s=String(entry);
+      const m=s.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z):\s*(.*)$/);
+      const when=m?new Date(m[1]).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'Update';
+      const rest=m?m[2]:s;
+      const parts=rest.split(';').map(x=>x.trim()).filter(Boolean).map(part=>{
+        const idx=part.indexOf(':');
+        const key=idx>=0?part.slice(0,idx).trim():'';
+        const val=idx>=0?part.slice(idx+1).trim():part;
+        const label=BC_CHANGE_LABELS[key]||key;
+        return `<div style="line-height:1.5;">${label?`<span style="color:var(--text-dim);">${bcEscHtml(label)}:</span> `:''}<span style="color:#fbbf24;">${bcEscHtml(val)}</span></div>`;
+      }).join('');
+      return `<div class="bid-round-row"><div class="bid-round-detail"><strong>${when}</strong>${parts}</div></div>`;
+    }).join('');
+  }
+  const ackBtn=document.getElementById('bc-changelog-ack');
+  if(ackBtn) ackBtn.style.display=can('editRow')?'':'none';
+  document.getElementById('bc-changelog-modal').style.display='flex';
+}
+function closeBcChangeLogModal(){document.getElementById('bc-changelog-modal').style.display='none';}
+async function acknowledgeBcUpdate(){
+  const p=data[bcChangeLogOi];
+  if(!p){closeBcChangeLogModal();return;}
+  if(p._demo){ p._bcUpdateFlag=false; buildRows(); showToast('Update acknowledged (demo)'); closeBcChangeLogModal(); return; }
+  if(!p._serverDbId){closeBcChangeLogModal();return;}
+  try{
+    const res=await fetch(`/api/proposal-log/entries/${p._serverDbId}/acknowledge-bc-update`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'}});
+    if(res.ok){ p._bcUpdateFlag=false; buildRows(); showToast('Update acknowledged'); }
+    else showToast('Could not acknowledge update','error');
+  }catch(e){ showToast('Could not acknowledge update','error'); }
+  closeBcChangeLogModal();
+}
+
 checkAuth();
 </script>
 
@@ -4323,6 +4641,21 @@ checkAuth();
       <button class="btn-row" onclick="closeBidHistoryModal()">&#10005;</button>
     </div>
     <div id="bid-history-body"></div>
+  </div>
+</div>
+
+<!-- BuildingConnected Update Change Log Modal -->
+<div class="bid-history-modal-overlay" id="bc-changelog-modal" style="display:none" onclick="if(event.target===this)closeBcChangeLogModal()">
+  <div class="bid-history-modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div class="bid-history-title" id="bc-changelog-title">BuildingConnected Updates</div>
+      <button class="btn-row" onclick="closeBcChangeLogModal()">&#10005;</button>
+    </div>
+    <div id="bc-changelog-body"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button class="btn-secondary" style="font-size:11px;padding:5px 12px;" onclick="closeBcChangeLogModal()">Close</button>
+      <button class="btn-primary" id="bc-changelog-ack" style="font-size:11px;padding:5px 12px;" onclick="acknowledgeBcUpdate()">Acknowledge &amp; Clear</button>
+    </div>
   </div>
 </div>
 

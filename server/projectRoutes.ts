@@ -1852,6 +1852,26 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
+  // POST /api/proposal-log/entries/:id/acknowledge-bc-update — clear the "UPDATED"
+  // flag once a reviewer has seen the BuildingConnected changes. The change history
+  // (bcChangeLog) is preserved; only the flag is cleared.
+  app.post("/api/proposal-log/entries/:id/acknowledge-bc-update", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+      const [existing] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!existing) return res.status(404).json({ message: "Entry not found" });
+      const [updated] = await db.update(proposalLogEntries)
+        .set({ bcUpdateFlag: false })
+        .where(eq(proposalLogEntries.id, id))
+        .returning();
+      res.json({ ok: true, id, bcUpdateFlag: updated?.bcUpdateFlag ?? false });
+    } catch (err) {
+      console.error("Acknowledge BC update error:", err);
+      res.status(500).json({ message: "Failed to acknowledge BC update" });
+    }
+  });
+
   app.post("/api/proposal-log/entries/bulk", async (req: Request, res: Response) => {
     try {
       const { entries, checkDuplicates } = req.body;
