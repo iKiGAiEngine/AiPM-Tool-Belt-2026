@@ -79,6 +79,7 @@ interface ReviewPage {
   whyFlagged: string;
   matchType?: string;
   thumbnailPath?: string;
+  ocrSnippet?: string;
 }
 
 const PROCESSING_STATUSES = ["processing_plans", "processing_specs", "spec_pass", "callout_pass", "generating_report"];
@@ -608,6 +609,12 @@ export default function BidDocsIntakePage() {
                       <Badge variant="secondary" className="text-xs">{p.confidence}%</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-3" title={p.whyFlagged}>{p.whyFlagged}</p>
+                    {p.ocrSnippet && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-muted-foreground">Extracted text</summary>
+                        <p className="mt-1 whitespace-pre-wrap text-muted-foreground/80 font-mono text-[11px] leading-relaxed">{p.ocrSnippet}</p>
+                      </details>
+                    )}
                   </div>
                 ))}
                 {flaggedPages.length === 0 && (
@@ -618,21 +625,31 @@ export default function BidDocsIntakePage() {
               {reviewPages.filter(p => !p.isRelevant).length > 0 && (
                 <details className="text-sm">
                   <summary className="cursor-pointer text-muted-foreground">
-                    Not flagged ({reviewPages.filter(p => !p.isRelevant).length} pages) — add any the parser missed
+                    Not flagged ({reviewPages.filter(p => !p.isRelevant).length} pages) — add any the parser missed, or check what text was actually extracted
                   </summary>
-                  <div className="mt-2 max-h-48 overflow-auto divide-y rounded-md border">
+                  <div className="mt-2 max-h-64 overflow-auto divide-y rounded-md border">
                     {reviewPages.filter(p => !p.isRelevant).map(p => (
-                      <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-1.5">
-                        <span className="text-xs truncate">p.{p.pageNumber} · {p.originalFilename}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => patchPage.mutate({ pageId: p.id, isRelevant: true })}
-                          data-testid={`button-add-page-${p.id}`}
-                        >
-                          <Eye className="h-3 w-3 mr-1" /> Include
-                        </Button>
+                      <div key={p.id} className="px-3 py-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs truncate">p.{p.pageNumber} · {p.originalFilename}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs shrink-0"
+                            onClick={() => patchPage.mutate({ pageId: p.id, isRelevant: true })}
+                            data-testid={`button-add-page-${p.id}`}
+                          >
+                            <Eye className="h-3 w-3 mr-1" /> Include
+                          </Button>
+                        </div>
+                        {p.ocrSnippet ? (
+                          <details className="text-xs mt-1">
+                            <summary className="cursor-pointer text-muted-foreground">Extracted text</summary>
+                            <p className="mt-1 whitespace-pre-wrap text-muted-foreground/80 font-mono text-[11px] leading-relaxed">{p.ocrSnippet}</p>
+                          </details>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground/60 mt-1">No text extracted from this page</p>
+                        )}
                       </div>
                     ))}
                   </div>

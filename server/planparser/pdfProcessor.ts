@@ -70,7 +70,13 @@ async function extractTextAndWordsFromPdf(
 ): Promise<{ text: string; words: PositionedWord[] }> {
   try {
     const textContent = await page.getTextContent();
-    const text = textContent.items.map((item: any) => item.str).join(" ");
+    // CAD/Revit-exported PDFs often emit each word (or word fragment) as a
+    // separate positioned text-showing operation; joining every item with a
+    // forced single space produces doubled/irregular spacing. Collapsing
+    // whitespace runs doesn't fix items that are missing a space entirely
+    // (classifier.ts's fuzzy fallback handles that), but it keeps the
+    // common case clean.
+    const text = textContent.items.map((item: any) => item.str).join(" ").replace(/\s+/g, " ");
     return { text, words: wordsFromPdfjsTextContent(textContent) };
   } catch (error) {
     return { text: "", words: [] };

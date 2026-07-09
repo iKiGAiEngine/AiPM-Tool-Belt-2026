@@ -10,31 +10,40 @@ export interface ClassificationResult {
   keywordHits: { keyword: string; scope: string; count: number }[];
 }
 
+// Tolerates a single word being split across adjacent PDF text-positioning
+// runs (common in CAD/Revit exports, e.g. "ACCESSORIES" rendered as two
+// items and joined as "ACCESSOR IES") by allowing any single stray
+// character between each letter.
+function wordFuzzyRegex(word: string): RegExp {
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(escaped.split('').join('.?'), 'i');
+}
+
+// Multi-word keywords only need every word present somewhere on the page
+// (not necessarily adjacent) — pdfjs's item-join can also drop the space
+// between two words entirely, fusing them, so exact-substring matching on
+// the full phrase silently fails even though a human reading the sheet
+// would see it clearly.
 function fuzzyMatch(text: string, keyword: string): boolean {
   const lowerText = text.toLowerCase();
   const lowerKeyword = keyword.toLowerCase();
-  
+
   if (lowerText.includes(lowerKeyword)) {
     return true;
   }
-  
-  const words = lowerKeyword.split(/\s+/);
+
+  const words = lowerKeyword.split(/\s+/).filter(Boolean);
   if (words.length > 1) {
-    const allWordsPresent = words.every(word => {
-      const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(escapedWord.split('').join('.?'), 'i');
-      return regex.test(lowerText);
-    });
-    if (allWordsPresent) return true;
+    return words.every(word => wordFuzzyRegex(word).test(lowerText));
   }
-  
-  return false;
+
+  return words.length === 1 ? wordFuzzyRegex(words[0]).test(lowerText) : false;
 }
 
 function countKeywordHits(text: string, keywords: string[]): { keyword: string; count: number }[] {
   const hits: { keyword: string; count: number }[] = [];
   const lowerText = text.toLowerCase();
-  
+
   for (const keyword of keywords) {
     const lowerKeyword = keyword.toLowerCase();
     const escapedKeyword = lowerKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -42,9 +51,15 @@ function countKeywordHits(text: string, keywords: string[]): { keyword: string; 
     const matches = lowerText.match(regex);
     if (matches && matches.length > 0) {
       hits.push({ keyword, count: matches.length });
+    } else if (fuzzyMatch(text, keyword)) {
+      // Exact substring match found nothing — CAD-exported PDFs frequently
+      // split words or drop spaces between them across text-positioning
+      // runs. A fuzzy hit still counts, just as a single occurrence (we
+      // can't reliably count repeats once we're not doing exact matching).
+      hits.push({ keyword, count: 1 });
     }
   }
-  
+
   return hits;
 }
 
