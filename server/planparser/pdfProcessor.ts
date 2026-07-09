@@ -97,6 +97,30 @@ async function performOcrWithWords(
   };
 }
 
+/**
+ * Best-effort thumbnail. Rendering uses the `canvas` native module, which
+ * depends on system libraries (cairo/pango/etc.) that may not be present in
+ * every deployment environment. A failure here must NEVER cost a page its
+ * classification — only the thumbnail is lost, logged once per job.
+ */
+async function tryRenderThumbnail(
+  page: pdfjs.PDFPageProxy,
+  thumbnailDir: string,
+  filename: string,
+  pageNum: number,
+): Promise<string | undefined> {
+  try {
+    const thumbnailBuffer = await renderPageToImage(page, 0.5);
+    const thumbFilename = `${filename.replace(/\.pdf$/i, "")}_page_${pageNum}.png`;
+    const thumbnailPath = path.join(thumbnailDir, thumbFilename);
+    fs.writeFileSync(thumbnailPath, thumbnailBuffer);
+    return thumbnailPath;
+  } catch (err) {
+    console.error(`[PlanParser] Thumbnail render failed for ${filename} p${pageNum} (page will still be classified):`, err instanceof Error ? err.message : err);
+    return undefined;
+  }
+}
+
 export async function processJob(
   jobId: string,
   pdfBuffers: { filename: string; buffer: Buffer }[],
@@ -150,47 +174,68 @@ export async function processJob(
     
     for (const { filename, doc } of pdfDocs) {
       for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
+        // Text/OCR extraction, thumbnail rendering, and highlight-box
+        // computation are independent concerns — a failure in one (most
+        // commonly canvas rendering, which depends on system libraries that
+        // may be missing in a given deployment) must never silently drop
+        // the page's classification. Each stage below is isolated so the
+        // worst case is a missing thumbnail or missing highlights, never a
+        // vanished page.
+        let page: pdfjs.PDFPageProxy | undefined;
         try {
-          const page = await doc.getPage(pageNum);
+          page = await doc.getPage(pageNum);
+        } catch (err) {
+          console.error(`[PlanParser] Could not load page ${pageNum} of ${filename} — skipping:`, err instanceof Error ? err.message : err);
+          processedCount++;
+          continue;
+        }
 
-          let { text: ocrText, words } = await extractTextAndWordsFromPdf(page);
+        let ocrText = "";
+        let words: PositionedWord[] = [];
+        try {
+          const extracted = await extractTextAndWordsFromPdf(page);
+          ocrText = extracted.text;
+          words = extracted.words;
+        } catch (err) {
+          console.error(`[PlanParser] Text-layer extraction failed for ${filename} p${pageNum}:`, err instanceof Error ? err.message : err);
+        }
 
-          let thumbnailPath: string | undefined;
-
-          if (!ocrText || ocrText.trim().length < 50) {
+        if (!ocrText || ocrText.trim().length < 50) {
+          try {
             const renderScale = 2.0;
             const imageBuffer = await renderPageToImage(page, renderScale);
             const pageHeightPts = page.getViewport({ scale: 1.0 }).height;
             const ocrResult = await performOcrWithWords(imageBuffer, renderScale, pageHeightPts);
             ocrText = ocrResult.text;
             words = ocrResult.words;
-
-            const thumbnailBuffer = await renderPageToImage(page, 0.5);
-            const thumbFilename = `${filename.replace(/\.pdf$/i, "")}_page_${pageNum}.png`;
-            thumbnailPath = path.join(thumbnailDir, thumbFilename);
-            fs.writeFileSync(thumbnailPath, thumbnailBuffer);
-          } else {
-            const thumbnailBuffer = await renderPageToImage(page, 0.5);
-            const thumbFilename = `${filename.replace(/\.pdf$/i, "")}_page_${pageNum}.png`;
-            thumbnailPath = path.join(thumbnailDir, thumbFilename);
-            fs.writeFileSync(thumbnailPath, thumbnailBuffer);
+          } catch (err) {
+            console.error(`[PlanParser] OCR failed for ${filename} p${pageNum} — page will be created with whatever text was found (possibly none):`, err instanceof Error ? err.message : err);
           }
+        }
 
-          // Word positions are kept as a sidecar so later passes (callout
-          // expansion, highlight export) can compute boxes without re-OCR.
-          savePositionedWords(jobDir, filename, pageNum, words);
+        const thumbnailPath = await tryRenderThumbnail(page, thumbnailDir, filename, pageNum);
 
-          const classification = classifyPage(ocrText, classificationConfig);
+        // Word positions are kept as a sidecar so later passes (callout
+        // expansion, highlight export) can compute boxes without re-OCR.
+        savePositionedWords(jobDir, filename, pageNum, words);
 
-          const matchBoxes = classification.isRelevant
-            ? findMatchBoxes(
-                words,
-                classification.keywordHits.map(h => ({ term: h.keyword, scope: h.scope })),
-              )
-            : [];
+        const classification = classifyPage(ocrText, classificationConfig);
 
-          const ocrSnippet = ocrText.substring(0, 500).trim();
+        let matchBoxes: ReturnType<typeof findMatchBoxes> = [];
+        if (classification.isRelevant) {
+          try {
+            matchBoxes = findMatchBoxes(
+              words,
+              classification.keywordHits.map(h => ({ term: h.keyword, scope: h.scope })),
+            );
+          } catch (err) {
+            console.error(`[PlanParser] Highlight box computation failed for ${filename} p${pageNum} (page stays flagged, just unhighlighted):`, err instanceof Error ? err.message : err);
+          }
+        }
 
+        const ocrSnippet = ocrText.substring(0, 500).trim();
+
+        try {
           await planParserStorage.createPage({
             jobId,
             originalFilename: filename,
@@ -207,30 +252,28 @@ export async function processJob(
             matchBoxes,
             matchType: classification.isRelevant ? "keyword" : "none"
           });
-          
+
           if (classification.isRelevant) {
             flaggedCount++;
             for (const tag of classification.tags) {
               scopeCounts[tag] = (scopeCounts[tag] || 0) + 1;
             }
           }
-          
-          processedCount++;
-          
-          const progressPercent = Math.round((processedCount / totalPages) * 100);
-          await planParserStorage.updateJob(jobId, {
-            processedPages: processedCount,
-            flaggedPages: flaggedCount,
-            scopeCounts,
-            message: `Analyzing page ${processedCount} of ${totalPages}...`
-          });
-          
-          options.onProgress?.(processedCount, totalPages, `${progressPercent}%`);
-          
-        } catch (pageError) {
-          console.error(`Error processing page ${pageNum} of ${filename}:`, pageError);
-          processedCount++;
+        } catch (err) {
+          console.error(`[PlanParser] Failed to save page ${filename} p${pageNum}:`, err instanceof Error ? err.message : err);
         }
+
+        processedCount++;
+
+        const progressPercent = Math.round((processedCount / totalPages) * 100);
+        await planParserStorage.updateJob(jobId, {
+          processedPages: processedCount,
+          flaggedPages: flaggedCount,
+          scopeCounts,
+          message: `Analyzing page ${processedCount} of ${totalPages}...`
+        });
+
+        options.onProgress?.(processedCount, totalPages, `${progressPercent}%`);
       }
     }
     

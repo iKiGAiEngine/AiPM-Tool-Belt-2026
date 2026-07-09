@@ -4,7 +4,12 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["qpdf", "tesseract", "libuuid", "poppler_utils"]
+# cairo/pango/libjpeg/giflib/librsvg/pixman/pkg-config: runtime shared libraries
+# the `canvas` npm package (node-canvas) needs to render PDF pages to images
+# for Plan Parser thumbnails and OCR. Without these, createCanvas() throws at
+# runtime even though the module itself loads fine — which silently dropped
+# every processed page before pdfProcessor.ts was made resilient to it.
+packages = ["qpdf", "tesseract", "libuuid", "poppler_utils", "cairo", "pango", "libjpeg", "giflib", "librsvg", "pixman", "pkg-config"]
 
 [[ports]]
 localPort = 5000
