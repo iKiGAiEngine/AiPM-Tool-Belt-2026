@@ -1,5 +1,13 @@
 import { createWorker, Worker } from "tesseract.js";
-import * as pdfjs from "pdfjs-dist";
+// The bare "pdfjs-dist" specifier resolves to the browser build, which
+// assumes Web APIs like DOMMatrix exist globally — they don't in Node, and
+// the crash only surfaces on PDFs whose content streams actually exercise
+// that code path (pattern fills, gradients, complex vector transforms —
+// common in dense CAD-exported architectural sheets), so small test PDFs
+// can silently appear to work while real plan sets fail every time. The
+// legacy build ships its own Node-compatible fallbacks. Matches the import
+// specExtractorEngine.ts already uses correctly.
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { createCanvas } from "canvas";
 import fs from "fs";
 import path from "path";
@@ -17,7 +25,11 @@ import {
   type PositionedWord,
 } from "../biddocs/highlighter";
 
-pdfjs.GlobalWorkerOptions.workerSrc = "";
+// Deliberately NOT setting GlobalWorkerOptions.workerSrc: the legacy build
+// auto-detects a Node environment and uses its own synchronous fake-worker
+// fallback. Setting workerSrc to an empty string (as this used to) disables
+// that detection and makes every getDocument() call throw "Setting up fake
+// worker failed: No GlobalWorkerOptions.workerSrc specified."
 
 const STANDARD_FONT_DATA_URL = path.join(process.cwd(), "node_modules/pdfjs-dist/standard_fonts/");
 

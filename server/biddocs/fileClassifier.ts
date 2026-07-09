@@ -1,4 +1,7 @@
-import * as pdfjs from "pdfjs-dist";
+// See the comment in server/planparser/pdfProcessor.ts — the bare
+// "pdfjs-dist" specifier resolves to the browser build (requires DOMMatrix,
+// not defined in Node). Must use the legacy build here too.
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import path from "path";
 import type { BidDocsFileClass } from "@shared/schema";
 
