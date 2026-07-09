@@ -32,9 +32,9 @@ export function registerTaxRateRoutes(app: Express) {
 
       sheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return; // skip header
-        // Strip ZIP+4 suffix (e.g. "12345-6789" → "12345") to fit varchar(10)
-        const zip = String(row.getCell(1).value ?? "").trim().replace(/-.*$/, "").trim().slice(0, 10);
-        if (!zip) return;
+        const zip = String(row.getCell(1).value ?? "").trim().slice(0, 10);
+        // Skip footer rows or anything that isn't a zip code (must start with a digit)
+        if (!zip || !/^\d/.test(zip)) return;
         zips.push(zip);
         states.push(String(row.getCell(2).value ?? "").trim() || null);
         counties.push(String(row.getCell(3).value ?? "").trim() || null);
@@ -42,7 +42,11 @@ export function registerTaxRateRoutes(app: Express) {
         const rawTax = row.getCell(15).value;
         let totalUseTax: string | null = null;
         if (rawTax !== null && rawTax !== undefined && rawTax !== "") {
-          const num = parseFloat(String(rawTax));
+          // ExcelJS returns formula cells as { formula, result } objects
+          const taxVal = (typeof rawTax === "object" && rawTax !== null && "result" in (rawTax as any))
+            ? (rawTax as any).result
+            : rawTax;
+          const num = parseFloat(String(taxVal));
           if (!isNaN(num)) totalUseTax = String(num);
         }
         taxes.push(totalUseTax);
