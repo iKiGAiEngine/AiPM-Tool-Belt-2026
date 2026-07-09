@@ -1129,6 +1129,10 @@ export const bidDocsRuns = pgTable("bid_docs_runs", {
   selectedScopes: jsonb("selected_scopes").notNull().$type<string[]>().default([]),
   harvestedCallouts: jsonb("harvested_callouts").$type<Record<string, string[]>>().default({}),
   scopeDetails: jsonb("scope_details").$type<ScopeMaterialDetails[]>().default([]),
+  // Selected scopes with zero keyword coverage at run time (should be rare
+  // after the merge-not-replace fix, but surfaced so a misconfigured scope
+  // dictionary is visible on-screen instead of silently yielding 0 matches).
+  scopeCoverageWarnings: jsonb("scope_coverage_warnings").$type<string[]>().default([]),
   message: text("message").notNull().default(""),
   error: text("error"),
   createdBy: varchar("created_by", { length: 200 }),

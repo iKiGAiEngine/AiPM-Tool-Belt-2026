@@ -14,7 +14,7 @@ import {
 } from "@shared/schema";
 import { planParserStorage } from "../planparser/storage";
 import { processJob, reprocessJobWithSpecBoost } from "../planparser/pdfProcessor";
-import type { SpecBoostData } from "../planparser/classificationConfig";
+import { getClassificationConfigFromDB, type SpecBoostData } from "../planparser/classificationConfig";
 import { storage } from "../storage";
 import { runExtraction, extractPages, extractSectionPdf, type SectionRange } from "../specExtractorEngine";
 import { updateProject } from "../scopeDictionaryStorage";
@@ -158,6 +158,25 @@ async function processRun(runId: string): Promise<void> {
       planBuffers.push({ filename: f.filename, buffer });
     }
     if (planBuffers.length === 0) throw new Error("Selected plan files are missing from the run's source directory");
+
+    // Surface a misconfigured scope dictionary on-screen instead of a
+    // silent "0 pages flagged" — check keyword coverage for every scope the
+    // user selected before spending time on OCR/classification.
+    if (run.selectedScopes && run.selectedScopes.length > 0) {
+      try {
+        const effectiveConfig = await getClassificationConfigFromDB();
+        const warnings = run.selectedScopes.filter(scope => {
+          const cfg = effectiveConfig.scopes.find(s => s.name === scope);
+          return !cfg || cfg.includeKeywords.length === 0;
+        });
+        if (warnings.length > 0) {
+          console.warn(`[BidDocs] Scope coverage warning for run ${runId}: no keywords for ${warnings.join(", ")}`);
+          await updateRun(runId, { scopeCoverageWarnings: warnings });
+        }
+      } catch (err) {
+        console.warn(`[BidDocs] Could not compute scope coverage warnings:`, err);
+      }
+    }
 
     await processJob(planJob.id, planBuffers);
 

@@ -211,16 +211,28 @@ export async function getClassificationConfigFromDB(): Promise<ClassificationCon
       return DEFAULT_CLASSIFICATION_CONFIG;
     }
 
-    const scopes: ScopeConfig[] = activeDicts.map((dict) => ({
-      name: dict.scopeName as PlanParserScope,
-      includeKeywords: dict.includeKeywords || [],
-      boostPhrases: dict.boostPhrases || [],
-      weight: (dict.weight ?? 100) / 100,
-    }));
+    // Merge DB rows onto the full default scope set rather than replacing it
+    // wholesale. Central Settings lets admins create/edit dictionaries one
+    // scope at a time — if even one active row exists, a naive replace would
+    // silently zero out keyword coverage for every OTHER scope that has no
+    // DB row yet, making them permanently unmatchable regardless of PDF
+    // content. Any scope with a DB row uses the DB version (customization
+    // still works); any scope without one keeps its default keywords.
+    const scopeMap = new Map<string, ScopeConfig>(
+      DEFAULT_CLASSIFICATION_CONFIG.scopes.map((s) => [s.name, s]),
+    );
+    for (const dict of activeDicts) {
+      scopeMap.set(dict.scopeName, {
+        name: dict.scopeName as PlanParserScope,
+        includeKeywords: dict.includeKeywords || [],
+        boostPhrases: dict.boostPhrases || [],
+        weight: (dict.weight ?? 100) / 100,
+      });
+    }
 
     return {
       ...DEFAULT_CLASSIFICATION_CONFIG,
-      scopes,
+      scopes: Array.from(scopeMap.values()),
     };
   } catch (err) {
     console.error("Failed to load scope dictionaries from DB, using defaults:", err);

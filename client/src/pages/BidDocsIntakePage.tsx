@@ -55,6 +55,7 @@ interface RunState {
   error: string | null;
   selectedScopes: string[];
   harvestedCallouts: Record<string, string[]>;
+  scopeCoverageWarnings: string[];
   planparserJobId: string | null;
   files: RunFile[];
   planParserJob: {
@@ -510,6 +511,21 @@ export default function BidDocsIntakePage() {
                   </label>
                 ))}
               </div>
+
+              {run.scopeCoverageWarnings && run.scopeCoverageWarnings.length > 0 && (
+                <div
+                  className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-500"
+                  data-testid="banner-scope-coverage-warning"
+                >
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>
+                    <strong>{run.scopeCoverageWarnings.join(", ")}</strong> — no keywords are configured for{" "}
+                    {run.scopeCoverageWarnings.length === 1 ? "this scope" : "these scopes"} in Central Settings, so no
+                    pages can match. Open <span className="underline">Central Settings → Scope Dictionaries</span> and
+                    click "Seed Defaults" or add keywords, then re-run.
+                  </span>
+                </div>
+              )}
 
               <div className="flex flex-wrap items-center gap-3">
                 <Button
