@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star, FileSearch, Save, History, RotateCcw, Tag, CheckCircle, ClipboardList, FileUp, AlertTriangle, Mail, FileText, ShieldCheck, ShieldX, ThumbsDown } from "lucide-react";
+import { Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star, FileSearch, Save, History, RotateCcw, Tag, CheckCircle, ClipboardList, FileUp, AlertTriangle, Mail, FileText, ShieldCheck, ShieldX, ThumbsDown, ThumbsUp, Sparkles, BadgeCheck } from "lucide-react";
 import { BackNav } from "@/components/BackNav";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
@@ -3328,6 +3328,10 @@ function QuoteParserSettingsSection() {
   const { toast } = useToast();
   const [promptDraft, setPromptDraft] = useState<string>("");
   const [promptLoaded, setPromptLoaded] = useState(false);
+  const [rulesVendorId, setRulesVendorId] = useState<number | null>(null);
+  const [rulesVendorName, setRulesVendorName] = useState<string>("");
+  const [rulesDraft, setRulesDraft] = useState<string>("");
+  const [ruleSuggestion, setRuleSuggestion] = useState<{ feedbackId: number; suggestion: string; vendorId: number | null; vendorName: string } | null>(null);
 
   const { data: promptData, refetch: refetchPrompt } = useQuery<{ prompt: string }>({
     queryKey: ["/api/quoteparser/system-prompt"],
@@ -3338,7 +3342,19 @@ function QuoteParserSettingsSection() {
     },
   });
 
-  const { data: vendorMemory } = useQuery<Array<{ id: number; name: string; parseCount: number; lastSeen: string | null }>>({
+  const { data: stats } = useQuery<{
+    totalRuns: number; verified: number; mathPass: number; thumbsUp: number; thumbsDown: number;
+    avgDurationMs: number; priceRows: number; openFeedback: number;
+  }>({
+    queryKey: ["/api/quoteparser/stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/quoteparser/stats");
+      if (!res.ok) throw new Error("Failed to load");
+      return res.json();
+    },
+  });
+
+  const { data: vendorMemory } = useQuery<Array<{ id: number | null; name: string; parseCount: number; lastSeen: string | null; thumbsUp: number; thumbsDown: number }>>({
     queryKey: ["/api/quoteparser/vendor-memory"],
     queryFn: async () => {
       const res = await fetch("/api/quoteparser/vendor-memory");
@@ -3376,6 +3392,64 @@ function QuoteParserSettingsSection() {
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
+  const openVendorRules = async (vendorId: number, vendorName: string) => {
+    setRulesVendorId(vendorId);
+    setRulesVendorName(vendorName);
+    setRulesDraft("Loading…");
+    const res = await fetch(`/api/quoteparser/vendor-rules/${vendorId}`);
+    const data = res.ok ? await res.json() : { rules: "" };
+    setRulesDraft(data.rules || "");
+  };
+
+  const saveVendorRulesMutation = useMutation({
+    mutationFn: async () => {
+      if (rulesVendorId === null) return;
+      const res = await fetch(`/api/quoteparser/vendor-rules/${rulesVendorId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rules: rulesDraft }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+    },
+    onSuccess: () => toast({ title: "Vendor rules saved", description: `Applied to every future ${rulesVendorName} parse.` }),
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
+  });
+
+  const draftRuleMutation = useMutation({
+    mutationFn: async (feedbackId: number) => {
+      const res = await fetch(`/api/quoteparser/feedback/${feedbackId}/draft-rule`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to draft rule");
+      return { feedbackId, ...(await res.json()) };
+    },
+    onSuccess: (data) => {
+      if (!data.suggestion) {
+        toast({ title: "No reusable rule found", description: "This complaint doesn't reveal a repeatable vendor format rule — handle it manually." });
+        return;
+      }
+      setRuleSuggestion({ feedbackId: data.feedbackId, suggestion: data.suggestion, vendorId: data.vendorId, vendorName: data.vendorName });
+    },
+    onError: (e: Error) => toast({ title: "Draft failed", description: e.message, variant: "destructive" }),
+  });
+
+  const applySuggestion = async () => {
+    if (!ruleSuggestion || ruleSuggestion.vendorId === null) return;
+    const res = await fetch(`/api/quoteparser/vendor-rules/${ruleSuggestion.vendorId}`);
+    const existing = res.ok ? (await res.json()).rules || "" : "";
+    const merged = existing ? `${existing}\n${ruleSuggestion.suggestion}` : ruleSuggestion.suggestion;
+    const put = await fetch(`/api/quoteparser/vendor-rules/${ruleSuggestion.vendorId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rules: merged }),
+    });
+    if (!put.ok) {
+      toast({ title: "Could not save rule", variant: "destructive" });
+      return;
+    }
+    await updateFeedback(ruleSuggestion.feedbackId, "applied");
+    toast({ title: "Rule added", description: `${ruleSuggestion.vendorName} now parses with this rule.` });
+    setRuleSuggestion(null);
+  };
+
   const updateFeedback = async (id: number, status: string) => {
     await fetch(`/api/quoteparser/feedback/${id}`, {
       method: "PATCH",
@@ -3383,36 +3457,101 @@ function QuoteParserSettingsSection() {
       body: JSON.stringify({ status }),
     });
     refetchFeedback();
-    toast({ title: status === "applied" ? "Marked as applied" : "Marked as reviewed" });
+    if (status !== "applied") toast({ title: "Marked as reviewed" });
   };
 
   const openFeedback = feedbackItems?.filter((f: any) => f.status === "open") ?? [];
-  const resolvedFeedback = feedbackItems?.filter((f: any) => f.status !== "open") ?? [];
+  const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) + "%" : "—");
 
   return (
     <div className="space-y-6">
 
+      {/* Accuracy Scorecard */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-heading flex items-center gap-2">
+            <BadgeCheck className="w-4 h-4 text-muted-foreground" />
+            Accuracy Scorecard
+          </CardTitle>
+          <CardDescription>Every parse is logged and measured. These numbers come from real usage — not estimates.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="border rounded-md p-3">
+              <p className="text-2xl font-semibold">{stats?.totalRuns ?? 0}</p>
+              <p className="text-muted-foreground text-xs">Quotes parsed</p>
+            </div>
+            <div className="border rounded-md p-3">
+              <p className="text-2xl font-semibold">{pct(stats?.verified ?? 0, stats?.totalRuns ?? 0)}</p>
+              <p className="text-muted-foreground text-xs">Fully verified (all checks green)</p>
+            </div>
+            <div className="border rounded-md p-3">
+              <p className="text-2xl font-semibold">{pct(stats?.mathPass ?? 0, stats?.totalRuns ?? 0)}</p>
+              <p className="text-muted-foreground text-xs">Math check pass rate</p>
+            </div>
+            <div className="border rounded-md p-3">
+              <p className="text-2xl font-semibold flex items-center gap-2">
+                <span className="flex items-center gap-1 text-green-600"><ThumbsUp className="w-4 h-4" />{stats?.thumbsUp ?? 0}</span>
+                <span className="flex items-center gap-1 text-destructive"><ThumbsDown className="w-4 h-4" />{stats?.thumbsDown ?? 0}</span>
+              </p>
+              <p className="text-muted-foreground text-xs">User feedback</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            {stats?.priceRows ?? 0} price records collected for trend analysis · {stats?.openFeedback ?? 0} open feedback item{(stats?.openFeedback ?? 0) === 1 ? "" : "s"}
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Vendor Memory */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-heading">Vendor Memory</CardTitle>
-          <CardDescription>Vendors the Quote Parser has seen and learned from. Parse count increases automatically on each successful parse.</CardDescription>
+          <CardTitle className="text-base font-heading">Vendor Memory & Rules</CardTitle>
+          <CardDescription>Vendors the Quote Parser has seen. Each vendor can carry its own parsing rules — corrections applied here fix every future quote from that vendor.</CardDescription>
         </CardHeader>
         <CardContent>
           {vendorMemory && vendorMemory.length > 0 ? (
             <div className="space-y-2">
-              {vendorMemory.map(v => (
-                <div key={v.id} className="flex items-center justify-between text-sm py-2 border-b last:border-0">
+              {vendorMemory.map((v, i) => (
+                <div key={v.id ?? `name-${i}`} className="flex items-center justify-between text-sm py-2 border-b last:border-0 gap-2 flex-wrap">
                   <span className="font-medium">{v.name}</span>
-                  <div className="flex items-center gap-4 text-muted-foreground">
+                  <div className="flex items-center gap-3 text-muted-foreground">
                     <span>{v.parseCount} {v.parseCount === 1 ? "parse" : "parses"}</span>
+                    {(v.thumbsUp > 0 || v.thumbsDown > 0) && (
+                      <span className="flex items-center gap-2 text-xs">
+                        <span className="flex items-center gap-0.5 text-green-600"><ThumbsUp className="w-3 h-3" />{v.thumbsUp}</span>
+                        <span className="flex items-center gap-0.5 text-destructive"><ThumbsDown className="w-3 h-3" />{v.thumbsDown}</span>
+                      </span>
+                    )}
                     {v.lastSeen && <span>Last: {new Date(v.lastSeen).toLocaleDateString()}</span>}
+                    {v.id !== null && (
+                      <Button size="sm" variant="outline" onClick={() => openVendorRules(v.id!, v.name)}>Rules</Button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No vendor parses recorded yet. Parse a quote to start building vendor memory.</p>
+          )}
+
+          {rulesVendorId !== null && (
+            <div className="mt-4 border rounded-md p-4 space-y-3">
+              <p className="text-sm font-medium">Parsing rules for {rulesVendorName}</p>
+              <p className="text-xs text-muted-foreground">Injected into the AI's instructions whenever a {rulesVendorName} quote is detected. Keep them short and about the vendor's quote FORMAT (e.g. "Freight is hidden in the last line item").</p>
+              <Textarea
+                value={rulesDraft}
+                onChange={(e) => setRulesDraft(e.target.value)}
+                className="min-h-[120px] font-mono text-xs"
+                placeholder={`- Example: ${rulesVendorName} lists freight inside the last product line — split it out.`}
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => saveVendorRulesMutation.mutate()} disabled={saveVendorRulesMutation.isPending} className="gap-2">
+                  <Save className="w-3.5 h-3.5" />Save Rules
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setRulesVendorId(null)}>Close</Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -3425,25 +3564,46 @@ function QuoteParserSettingsSection() {
               <ThumbsDown className="w-4 h-4 text-muted-foreground" />
               Open Feedback ({openFeedback.length})
             </CardTitle>
-            <CardDescription>Issues reported by users. Review each one, then add a rule to the handbook below and mark it applied.</CardDescription>
+            <CardDescription>Issues reported by users, with the quote text attached. "Draft Rule with AI" turns a complaint into a reusable vendor rule you approve with one click.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {openFeedback.map((f: any) => (
+            {openFeedback.map((f: any) => {
+              const suggestion = ruleSuggestion?.feedbackId === f.id ? ruleSuggestion : null;
+              return (
               <div key={f.id} className="border rounded-md p-3 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm">
                     {f.vendorName && <span className="font-medium">{f.vendorName} </span>}
                     {f.quoteNumber && <span className="text-muted-foreground">#{f.quoteNumber} </span>}
                     <span className="text-muted-foreground text-xs">· {new Date(f.createdAt).toLocaleDateString()}</span>
+                    {f.rawTextSnippet && <span className="text-muted-foreground text-xs"> · quote text attached</span>}
                   </div>
                 </div>
                 <p className="text-sm">{f.issueDescription}</p>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => updateFeedback(f.id, "applied")}>Mark Applied</Button>
-                  <Button size="sm" variant="ghost" onClick={() => updateFeedback(f.id, "reviewed")}>Dismiss</Button>
-                </div>
+                {suggestion ? (
+                  <div className="border rounded-md p-3 bg-muted/40 space-y-2">
+                    <p className="text-xs font-medium flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" />Suggested rule for {suggestion.vendorName}:</p>
+                    <pre className="text-xs whitespace-pre-wrap font-mono">{suggestion.suggestion}</pre>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={applySuggestion} disabled={suggestion.vendorId === null}>
+                        {suggestion.vendorId === null ? "Vendor not in system" : "Approve & Apply"}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setRuleSuggestion(null)}>Discard</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 flex-wrap">
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => draftRuleMutation.mutate(f.id)} disabled={draftRuleMutation.isPending}>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      {draftRuleMutation.isPending ? "Drafting…" : "Draft Rule with AI"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { updateFeedback(f.id, "applied"); toast({ title: "Marked as applied" }); }}>Mark Applied</Button>
+                    <Button size="sm" variant="ghost" onClick={() => updateFeedback(f.id, "reviewed")}>Dismiss</Button>
+                  </div>
+                )}
               </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       )}
@@ -3453,7 +3613,7 @@ function QuoteParserSettingsSection() {
         <CardHeader>
           <CardTitle className="text-base font-heading">AI Parsing Handbook</CardTitle>
           <CardDescription>
-            This is the system prompt sent to GPT-4o on every parse. It defines all rules for how quotes are read. Edit this to add vendor-specific rules, fix recurring issues, or refine behavior. Changes take effect immediately on the next parse.
+            The master instructions sent to the AI on every parse. Vendor-specific rules (above) and the pricing/honesty contract are appended automatically — this handbook covers the general rules. Changes take effect on the next parse. Admin only.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
