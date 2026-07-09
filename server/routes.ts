@@ -12,6 +12,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { registerPlanParserRoutes } from "./planparser/routes";
+import { registerBidDocsRoutes } from "./biddocs/routes";
 import { registerQuoteParserRoutes } from "./quoteparser/routes";
 import { registerCentralSettingsRoutes } from "./centralSettingsRoutes";
 import { registerProjectRoutes } from "./projectRoutes";
@@ -311,6 +312,7 @@ export async function registerRoutes(
   });
 
   registerPlanParserRoutes(app);
+  registerBidDocsRoutes(app);
   registerQuoteParserRoutes(app);
   registerCentralSettingsRoutes(app);
   registerProjectRoutes(app);

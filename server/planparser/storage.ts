@@ -56,6 +56,8 @@ function dbRowToPage(row: any): ParsedPage {
     ocrText: row.ocrText ?? "",
     thumbnailPath: row.thumbnailPath ?? undefined,
     userModified: row.userModified ?? false,
+    matchBoxes: (row.matchBoxes as ParsedPage["matchBoxes"]) || [],
+    matchType: row.matchType ?? "none",
   };
 }
 
@@ -138,6 +140,8 @@ export class PlanParserDbStorage implements IPlanParserStorage {
       ocrText: data.ocrText ?? "",
       thumbnailPath: data.thumbnailPath ?? null,
       userModified: data.userModified ?? false,
+      matchBoxes: data.matchBoxes || [],
+      matchType: data.matchType ?? "none",
     }).returning();
     return dbRowToPage(result[0]);
   }
@@ -165,6 +169,8 @@ export class PlanParserDbStorage implements IPlanParserStorage {
     if (data.ocrText !== undefined) updateData.ocrText = data.ocrText;
     if (data.thumbnailPath !== undefined) updateData.thumbnailPath = data.thumbnailPath;
     if (data.userModified !== undefined) updateData.userModified = data.userModified;
+    if (data.matchBoxes !== undefined) updateData.matchBoxes = data.matchBoxes;
+    if (data.matchType !== undefined) updateData.matchType = data.matchType;
 
     if (Object.keys(updateData).length === 0) {
       return this.getPage(id);

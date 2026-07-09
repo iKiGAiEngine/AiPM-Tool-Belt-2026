@@ -6,7 +6,7 @@ import {
   Loader2, FlaskConical,
   TableProperties, Sparkles, Users, Activity, FileBarChart,
   FolderOpenDot, Check, PackageCheck, Shield, Calculator, Link2, Mail, Paperclip,
-  BookOpen, LifeBuoy, MapPin, Settings as SettingsIcon
+  BookOpen, LifeBuoy, MapPin, Settings as SettingsIcon, FolderSearch
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -149,6 +149,15 @@ const tools: ToolTile[] = [
     comingSoon: true,
     adminOnly: true,
     feature: "plan-parser",
+  },
+  {
+    id: "biddocs",
+    title: "Bid Docs Intake",
+    description: "BC files → identified plans & specs → per-scope highlighted plan sets + Scope Short Order report",
+    icon: FolderSearch,
+    href: "/bid-docs",
+    available: true,
+    feature: "bid-docs",
   },
   {
     id: "submittalbuilder",

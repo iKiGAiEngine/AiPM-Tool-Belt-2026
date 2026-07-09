@@ -200,6 +200,19 @@ export const planParserJobSchema = z.object({
 export type PlanParserJob = z.infer<typeof planParserJobSchema>;
 export type InsertPlanParserJob = Omit<PlanParserJob, "id">;
 
+// A single keyword/callout hit location on a page, in PDF points (origin
+// bottom-left). Captured from pdfjs text items (vector pages) or tesseract
+// word bboxes (OCR pages) so exports can draw highlight overlays.
+export const matchBoxSchema = z.object({
+  keyword: z.string(),
+  scope: z.string(),
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
+});
+export type MatchBox = z.infer<typeof matchBoxSchema>;
+
 export const parsedPageSchema = z.object({
   id: z.string(),
   jobId: z.string(),
@@ -214,6 +227,8 @@ export const parsedPageSchema = z.object({
   ocrText: z.string().default(""),
   thumbnailPath: z.string().optional(),
   userModified: z.boolean().default(false),
+  matchBoxes: z.array(matchBoxSchema).default([]),
+  matchType: z.enum(["keyword", "callout", "both", "none"]).default("none"),
 });
 export type ParsedPage = z.infer<typeof parsedPageSchema>;
 export type InsertParsedPage = Omit<ParsedPage, "id">;
@@ -445,6 +460,10 @@ export const scopeDictionaries = pgTable("scope_dictionaries", {
   excludeKeywords: jsonb("exclude_keywords").notNull().$type<string[]>().default([]),
   weight: integer("weight").notNull().default(100),
   specSectionNumbers: jsonb("spec_section_numbers").notNull().$type<string[]>().default([]),
+  // Type-mark prefixes for schedule-driven callout expansion (e.g. Wall
+  // Protection → ["WP","CG","CR"]): marks like "WP-1" harvested from a Div 10
+  // schedule are only trusted when their prefix is listed here.
+  calloutPrefixes: jsonb("callout_prefixes").notNull().$type<string[]>().default([]),
   isActive: boolean("is_active").notNull().default(true),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -826,6 +845,8 @@ export const parsedPages = pgTable("parsed_pages", {
   ocrText: text("ocr_text").notNull().default(""),
   thumbnailPath: varchar("thumbnail_path", { length: 500 }),
   userModified: boolean("user_modified").notNull().default(false),
+  matchBoxes: jsonb("match_boxes").$type<MatchBox[]>().default([]),
+  matchType: varchar("match_type", { length: 20 }).notNull().default("none"),
 });
 
 // =====================================================
@@ -1057,6 +1078,102 @@ export const bcSyncState = pgTable("bc_sync_state", {
 
 export type BcSyncState = typeof bcSyncState.$inferSelect;
 
+// =====================================================
+// BID DOCS INTAKE - BC files → Plan Parser + Spec Extractor runs
+// =====================================================
+
+export const BID_DOCS_RUN_STATUSES = [
+  "intake",
+  "inventoried",
+  "selecting",
+  "processing_plans",
+  "processing_specs",
+  "spec_pass",
+  "callout_pass",
+  "review",
+  "generating_report",
+  "complete",
+  "error",
+] as const;
+export type BidDocsRunStatus = typeof BID_DOCS_RUN_STATUSES[number];
+
+// Per-scope material details pulled by the AI pass for the Scope Short Order
+// report. Every detail carries its source (sheet number / spec section) so an
+// estimator can verify before sending out for quotes.
+export interface ScopeMaterialDetails {
+  scope: string;
+  specSectionNumber: string | null;
+  specSectionTitle: string | null;
+  requiredManufacturers: string[];
+  items: Array<{
+    typeMark: string | null;
+    description: string;
+    material: string | null;
+    dimensions: string | null;
+    modelNumber: string | null;
+    manufacturer: string | null;
+    quantity: string | null;
+    source: string;
+    notes: string | null;
+  }>;
+  sheetReferences: string[];
+}
+
+export const bidDocsRuns = pgTable("bid_docs_runs", {
+  id: varchar("id", { length: 100 }).primaryKey(),
+  proposalLogEntryId: integer("proposal_log_entry_id").references(() => proposalLogEntries.id),
+  projectDbId: integer("project_db_id").references(() => projects.id),
+  status: varchar("status", { length: 50 }).notNull().default("intake"),
+  planparserJobId: varchar("planparser_job_id", { length: 100 }),
+  specsiftSessionId: varchar("specsift_session_id", { length: 100 }),
+  selectedScopes: jsonb("selected_scopes").notNull().$type<string[]>().default([]),
+  harvestedCallouts: jsonb("harvested_callouts").$type<Record<string, string[]>>().default({}),
+  scopeDetails: jsonb("scope_details").$type<ScopeMaterialDetails[]>().default([]),
+  message: text("message").notNull().default(""),
+  error: text("error"),
+  createdBy: varchar("created_by", { length: 200 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type BidDocsRun = typeof bidDocsRuns.$inferSelect;
+export type InsertBidDocsRun = typeof bidDocsRuns.$inferInsert;
+
+export const BID_DOCS_FILE_CLASSES = ["plan", "spec", "other"] as const;
+export type BidDocsFileClass = typeof BID_DOCS_FILE_CLASSES[number];
+
+export const bidDocsFiles = pgTable("bid_docs_files", {
+  id: serial("id").primaryKey(),
+  runId: varchar("run_id", { length: 100 }).notNull(),
+  filename: varchar("filename", { length: 500 }).notNull(),
+  relativePath: varchar("relative_path", { length: 1000 }).notNull().default(""),
+  sizeBytes: integer("size_bytes").notNull().default(0),
+  pageCount: integer("page_count").notNull().default(0),
+  classification: varchar("classification", { length: 20 }).notNull().default("other"),
+  classificationConfidence: integer("classification_confidence").notNull().default(0),
+  classificationReason: text("classification_reason").notNull().default(""),
+  userClassification: varchar("user_classification", { length: 20 }),
+  selected: boolean("selected").notNull().default(false),
+  sheetNumbersSample: jsonb("sheet_numbers_sample").$type<string[]>().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type BidDocsFile = typeof bidDocsFiles.$inferSelect;
+export type InsertBidDocsFile = typeof bidDocsFiles.$inferInsert;
+
+export const bidDocsLearning = pgTable("bid_docs_learning", {
+  id: serial("id").primaryKey(),
+  scopeName: varchar("scope_name", { length: 100 }).notNull(),
+  term: varchar("term", { length: 200 }).notNull(),
+  occurrences: integer("occurrences").notNull().default(1),
+  source: varchar("source", { length: 30 }).notNull(), // 'page_added' | 'page_removed'
+  status: varchar("status", { length: 20 }).notNull().default("suggested"), // 'suggested' | 'accepted' | 'dismissed'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type BidDocsLearning = typeof bidDocsLearning.$inferSelect;
+export type InsertBidDocsLearning = typeof bidDocsLearning.$inferInsert;
+
 // Intake ledger for drag-and-dropped bid-invite emails (.eml/.msg).
 // A row is inserted with status "processing" BEFORE any parsing happens and
 // updated at each pipeline stage, so a crash mid-pipeline still leaves a
@@ -1287,6 +1404,7 @@ export const FEATURES = {
   SPEC_EXTRACTOR: "spec-extractor",
   QUOTE_PARSER: "quote-parser",
   PLAN_PARSER: "plan-parser",
+  BID_DOCS: "bid-docs",
   BC_SYNC: "bc-sync",
   DRAFT_REVIEW: "draft-review",
   CENTRAL_SETTINGS: "central-settings",

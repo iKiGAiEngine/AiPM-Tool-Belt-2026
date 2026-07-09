@@ -14,6 +14,7 @@ import { Loader2 } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import HomePage from "@/pages/HomePage";
 import PlanParserPage from "@/pages/PlanParserPage";
+import BidDocsIntakePage from "@/pages/BidDocsIntakePage";
 import CentralSettingsPage from "@/pages/CentralSettingsPage";
 import QuoteParserPage from "@/pages/QuoteParserPage";
 import ProjectStartPage from "@/pages/ProjectStartPage";
@@ -98,6 +99,7 @@ function Router() {
       <Route path="/" component={HomePage} />
       <Route path="/home" component={HomePage} />
       <Route path="/planparser" component={PlanParserPage} />
+      <Route path="/bid-docs" component={BidDocsIntakePage} />
       <Route path="/quoteparser" component={QuoteParserPage} />
       <Route path="/settings">{() => <SettingsRoute component={CentralSettingsPage} />}</Route>
       <Route path="/project-start" component={ProjectStartPage} />

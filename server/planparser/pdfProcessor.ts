@@ -8,6 +8,14 @@ import { classifyPage } from "./classifier";
 import { getClassificationConfigFromDB } from "./classificationConfig";
 import type { PlanParserJob, ParsedPage, PlanParserScope } from "@shared/schema";
 import { PLAN_PARSER_SCOPES } from "@shared/schema";
+import {
+  wordsFromPdfjsTextContent,
+  wordsFromTesseract,
+  findMatchBoxes,
+  savePositionedWords,
+  loadPositionedWords,
+  type PositionedWord,
+} from "../biddocs/highlighter";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "";
 
@@ -57,10 +65,36 @@ async function extractTextFromPdf(page: pdfjs.PDFPageProxy): Promise<string> {
   }
 }
 
+async function extractTextAndWordsFromPdf(
+  page: pdfjs.PDFPageProxy,
+): Promise<{ text: string; words: PositionedWord[] }> {
+  try {
+    const textContent = await page.getTextContent();
+    const text = textContent.items.map((item: any) => item.str).join(" ");
+    return { text, words: wordsFromPdfjsTextContent(textContent) };
+  } catch (error) {
+    return { text: "", words: [] };
+  }
+}
+
 async function performOcr(imageBuffer: Buffer): Promise<string> {
   const worker = await getOcrWorker();
   const result = await worker.recognize(imageBuffer);
   return result.data.text;
+}
+
+async function performOcrWithWords(
+  imageBuffer: Buffer,
+  renderScale: number,
+  pageHeightPts: number,
+): Promise<{ text: string; words: PositionedWord[] }> {
+  const worker = await getOcrWorker();
+  // blocks:true is required on tesseract.js v5+ to get word bounding boxes
+  const result = await worker.recognize(imageBuffer, {}, { text: true, blocks: true } as any);
+  return {
+    text: result.data.text,
+    words: wordsFromTesseract(result.data, renderScale, pageHeightPts),
+  };
 }
 
 export async function processJob(
@@ -118,15 +152,19 @@ export async function processJob(
       for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
         try {
           const page = await doc.getPage(pageNum);
-          
-          let ocrText = await extractTextFromPdf(page);
-          
+
+          let { text: ocrText, words } = await extractTextAndWordsFromPdf(page);
+
           let thumbnailPath: string | undefined;
-          
+
           if (!ocrText || ocrText.trim().length < 50) {
-            const imageBuffer = await renderPageToImage(page, 2.0);
-            ocrText = await performOcr(imageBuffer);
-            
+            const renderScale = 2.0;
+            const imageBuffer = await renderPageToImage(page, renderScale);
+            const pageHeightPts = page.getViewport({ scale: 1.0 }).height;
+            const ocrResult = await performOcrWithWords(imageBuffer, renderScale, pageHeightPts);
+            ocrText = ocrResult.text;
+            words = ocrResult.words;
+
             const thumbnailBuffer = await renderPageToImage(page, 0.5);
             const thumbFilename = `${filename.replace(/\.pdf$/i, "")}_page_${pageNum}.png`;
             thumbnailPath = path.join(thumbnailDir, thumbFilename);
@@ -137,11 +175,22 @@ export async function processJob(
             thumbnailPath = path.join(thumbnailDir, thumbFilename);
             fs.writeFileSync(thumbnailPath, thumbnailBuffer);
           }
-          
+
+          // Word positions are kept as a sidecar so later passes (callout
+          // expansion, highlight export) can compute boxes without re-OCR.
+          savePositionedWords(jobDir, filename, pageNum, words);
+
           const classification = classifyPage(ocrText, classificationConfig);
-          
+
+          const matchBoxes = classification.isRelevant
+            ? findMatchBoxes(
+                words,
+                classification.keywordHits.map(h => ({ term: h.keyword, scope: h.scope })),
+              )
+            : [];
+
           const ocrSnippet = ocrText.substring(0, 500).trim();
-          
+
           await planParserStorage.createPage({
             jobId,
             originalFilename: filename,
@@ -154,7 +203,9 @@ export async function processJob(
             ocrSnippet,
             ocrText,
             thumbnailPath,
-            userModified: false
+            userModified: false,
+            matchBoxes,
+            matchType: classification.isRelevant ? "keyword" : "none"
           });
           
           if (classification.isRelevant) {
@@ -237,6 +288,8 @@ export async function reprocessJobWithSpecBoost(
   const scopeCounts: Record<string, number> = {};
   PLAN_PARSER_SCOPES.forEach(scope => { scopeCounts[scope] = 0; });
 
+  const jobDir = planParserStorage.getJobDirectory(jobId);
+
   for (const page of pages) {
     const ocrText = page.ocrText || page.ocrSnippet || "";
 
@@ -247,12 +300,25 @@ export async function reprocessJobWithSpecBoost(
 
     const classification = classifyPage(ocrText, boostedConfig);
 
+    let matchBoxes = page.matchBoxes || [];
+    if (classification.isRelevant) {
+      const words = loadPositionedWords(jobDir, page.originalFilename, page.pageNumber);
+      if (words.length > 0) {
+        matchBoxes = findMatchBoxes(
+          words,
+          classification.keywordHits.map(h => ({ term: h.keyword, scope: h.scope })),
+        );
+      }
+    }
+
     await planParserStorage.updatePage(page.id, {
       isRelevant: classification.isRelevant,
       tags: classification.tags,
       confidence: classification.confidence,
       whyFlagged: classification.whyFlagged,
       signageOverrideApplied: classification.signageOverrideApplied,
+      matchBoxes,
+      matchType: classification.isRelevant ? "keyword" : "none",
     });
 
     if (classification.isRelevant) {

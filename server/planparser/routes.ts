@@ -367,7 +367,7 @@ export function registerPlanParserRoutes(app: Express): void {
       ];
 
       for (const page of demoPages) {
-        await planParserStorage.createPage(page);
+        await planParserStorage.createPage({ ...page, matchBoxes: [], matchType: "keyword" });
       }
 
       res.json(job);

@@ -56,6 +56,7 @@ export async function updateScopeDictionary(id: number, data: Partial<InsertScop
   if (data.excludeKeywords !== undefined) updateData.excludeKeywords = data.excludeKeywords;
   if (data.weight !== undefined) updateData.weight = data.weight;
   if (data.specSectionNumbers !== undefined) updateData.specSectionNumbers = data.specSectionNumbers;
+  if (data.calloutPrefixes !== undefined) updateData.calloutPrefixes = data.calloutPrefixes;
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
   const result = await db
