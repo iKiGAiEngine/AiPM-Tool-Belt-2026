@@ -1,12 +1,13 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
-import { Link } from "wouter";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { Link, useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ScanSearch, Receipt, FolderPlus, ClipboardList,
   Loader2, FlaskConical,
   TableProperties, Sparkles, Users, Activity, FileBarChart,
   FolderOpenDot, Check, PackageCheck, Shield, Calculator, Link2, Mail, Paperclip,
-  BookOpen, LifeBuoy, MapPin, Settings as SettingsIcon, FolderSearch
+  BookOpen, LifeBuoy, MapPin, Settings as SettingsIcon, FolderSearch,
+  Search, Star
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -28,155 +29,189 @@ interface ToolTile {
   adminOnly?: boolean;
   isExternal?: boolean;
   feature?: string;
+  isNew?: boolean;
 }
 
-const tools: ToolTile[] = [
+interface ToolSection {
+  label: string;
+  tools: ToolTile[];
+}
+
+// Tools grouped by workflow stage — the order estimating work actually flows.
+const TOOL_SECTIONS: ToolSection[] = [
   {
-    id: "proposallog",
-    title: "Proposal Log Dashboard",
-    description: "NBS bid tracking, pipeline analytics & estimating workflow, plus BC Invites review",
-    icon: FileBarChart,
-    href: "/tools/proposal-log",
-    available: true,
-    isExternal: true,
-    feature: "proposal-log",
+    label: "Pipeline",
+    tools: [
+      {
+        id: "proposallog",
+        title: "Proposal Log Dashboard",
+        description: "Bid tracking, pipeline analytics & BC invites review",
+        icon: FileBarChart,
+        href: "/tools/proposal-log",
+        available: true,
+        isExternal: true,
+        feature: "proposal-log",
+      },
+      {
+        id: "projectstart",
+        title: "Project Start",
+        description: "Create a new project with plans and specs",
+        icon: FolderPlus,
+        href: "/project-start",
+        available: true,
+        feature: "project-start",
+      },
+      {
+        id: "biddocs",
+        title: "Bid Docs Intake",
+        description: "BC files → scope plan sets + Scope Short Order report",
+        icon: FolderSearch,
+        href: "/bid-docs",
+        available: true,
+        feature: "bid-docs",
+        isNew: true,
+      },
+    ],
   },
   {
-    id: "projectstart",
-    title: "Project Start",
-    description: "Create a new project with plans and specs",
-    icon: FolderPlus,
-    href: "/project-start",
-    available: true,
-    feature: "project-start",
+    label: "Document AI",
+    tools: [
+      {
+        id: "specextractor",
+        title: "Spec Extractor",
+        description: "Division 10 spec extraction with folder export",
+        icon: ClipboardList,
+        href: "/spec-extractor",
+        available: true,
+        feature: "spec-extractor",
+      },
+      {
+        id: "planparser",
+        title: "Plan Parser",
+        description: "OCR and classify construction plan pages by scope",
+        icon: ScanSearch,
+        href: "/planparser",
+        available: true,
+        comingSoon: true,
+        adminOnly: true,
+        feature: "plan-parser",
+      },
+      {
+        id: "quoteparser",
+        title: "Quote Parser",
+        description: "Parse vendor quotes into structured estimate tables",
+        icon: Receipt,
+        href: "/quoteparser",
+        available: true,
+        feature: "quote-parser",
+      },
+      {
+        id: "scheduleconverter",
+        title: "Schedule Converter",
+        description: "Extract schedule screenshots into estimate tables",
+        icon: TableProperties,
+        href: "/schedule-converter",
+        available: true,
+        feature: "schedule-converter",
+      },
+    ],
   },
   {
-    id: "specextractor",
-    title: "Spec Extractor",
-    description: "Division 10 spec extraction with folder export",
-    icon: ClipboardList,
-    href: "/spec-extractor",
-    available: true,
-    feature: "spec-extractor",
+    label: "Estimate & Deliver",
+    tools: [
+      {
+        id: "buyoutbot",
+        title: "Buyout Tracker",
+        description: "Estimate → trackable buyout: RFQs, quotes, awards & POs",
+        icon: PackageCheck,
+        href: "/buyout-bot",
+        available: true,
+      },
+      {
+        id: "submittalbuilder",
+        title: "Submittal Builder",
+        description: "Assemble and export Division 10 submittal packages",
+        icon: PackageCheck,
+        href: "/submittal-builder",
+        available: true,
+        feature: "submittal-builder",
+      },
+    ],
   },
   {
-    id: "quoteparser",
-    title: "Quote Parser",
-    description: "Parse vendor quotes into structured estimate tables",
-    icon: Receipt,
-    href: "/quoteparser",
-    available: true,
-    feature: "quote-parser",
-  },
-  {
-    id: "scheduleconverter",
-    title: "Schedule Converter",
-    description: "Extract schedule screenshots into estimate tables",
-    icon: TableProperties,
-    href: "/schedule-converter",
-    available: true,
-    feature: "schedule-converter",
-  },
-  {
-    id: "vendordatabase",
-    title: "Vendor Database",
-    description: "Manufacturers, contacts, products, tax & compliance",
-    icon: Shield,
-    href: "/vendor-database",
-    available: true,
-    feature: "vendor-database",
-  },
-  {
-    id: "buyoutbot",
-    title: "Buyout Tracker",
-    description: "Parse an NBS estimate into a trackable buyout: RFQs, quotes, awards & POs",
-    icon: PackageCheck,
-    href: "/buyout-bot",
-    available: true,
-  },
-  {
-    id: "procurementprocess",
-    title: "Procurement Process",
-    description: "Reference docs: how it works, how it's organized, reporting",
-    icon: BookOpen,
-    href: "/tools/procurement-process/",
-    available: true,
-    isExternal: true,
-    feature: "procurement-process",
-  },
-  {
-    id: "settings",
-    title: "Regional Contacts",
-    description: "Manage Self Perform Champions, Estimators, and GC Contacts by Region",
-    icon: SettingsIcon,
-    href: "/settings",
-    available: true,
-    feature: "central-settings",
-  },
-  {
-    id: "regions",
-    title: "Regional Profiles",
-    description: "Manage regional codes, names, aliases & self-perform estimators",
-    icon: MapPin,
-    href: "/settings",
-    available: true,
-    feature: "settings-regions",
-  },
-  {
-    id: "taxratelookup",
-    title: "Tax Rate Lookup",
-    description: "Look up Avalara use tax rates by zip code",
-    icon: Calculator,
-    href: "/tools/tax-rate-lookup",
-    available: true,
-    feature: "tax-rate-lookup",
-  },
-  {
-    id: "helpcenter",
-    title: "Help Center",
-    description: "Step-by-step SOPs for the team — how to use each tool",
-    icon: LifeBuoy,
-    href: "/help-center",
-    available: true,
-  },
-  {
-    id: "planparser",
-    title: "Plan Parser",
-    description: "OCR and classify construction plan pages by scope",
-    icon: ScanSearch,
-    href: "/planparser",
-    available: true,
-    comingSoon: true,
-    adminOnly: true,
-    feature: "plan-parser",
-  },
-  {
-    id: "biddocs",
-    title: "Bid Docs Intake",
-    description: "BC files → identified plans & specs → per-scope highlighted plan sets + Scope Short Order report",
-    icon: FolderSearch,
-    href: "/bid-docs",
-    available: true,
-    feature: "bid-docs",
-  },
-  {
-    id: "submittalbuilder",
-    title: "Submittal Builder",
-    description: "Assemble and export Division 10 submittal packages",
-    icon: PackageCheck,
-    href: "/submittal-builder",
-    available: true,
-    feature: "submittal-builder",
-  },
-  {
-    id: "comingsoon",
-    title: "Coming Soon",
-    description: "New tools and features are on the way.",
-    icon: Sparkles,
-    href: "#",
-    available: false,
+    label: "Reference & Setup",
+    tools: [
+      {
+        id: "vendordatabase",
+        title: "Vendor Database",
+        description: "Manufacturers, contacts, products, tax & compliance",
+        icon: Shield,
+        href: "/vendor-database",
+        available: true,
+        feature: "vendor-database",
+      },
+      {
+        id: "procurementprocess",
+        title: "Procurement Process",
+        description: "Reference docs: how it works, how it's organized",
+        icon: BookOpen,
+        href: "/tools/procurement-process/",
+        available: true,
+        isExternal: true,
+        feature: "procurement-process",
+      },
+      {
+        id: "taxratelookup",
+        title: "Tax Rate Lookup",
+        description: "Look up Avalara use tax rates by zip code",
+        icon: Calculator,
+        href: "/tools/tax-rate-lookup",
+        available: true,
+        feature: "tax-rate-lookup",
+      },
+      {
+        id: "settings",
+        title: "Regional Contacts",
+        description: "Champions, estimators & GC contacts by region",
+        icon: SettingsIcon,
+        href: "/settings",
+        available: true,
+        feature: "central-settings",
+      },
+      {
+        id: "regions",
+        title: "Regional Profiles",
+        description: "Regional codes, names, aliases & self-perform estimators",
+        icon: MapPin,
+        href: "/settings",
+        available: true,
+        feature: "settings-regions",
+      },
+      {
+        id: "helpcenter",
+        title: "Help Center",
+        description: "Step-by-step SOPs — how to use each tool",
+        icon: LifeBuoy,
+        href: "/help-center",
+        available: true,
+      },
+    ],
   },
 ];
+
+const tools: ToolTile[] = TOOL_SECTIONS.flatMap((s) => s.tools);
+
+const PINNED_STORAGE_KEY = "aipm.pinnedTools";
+
+function loadPinnedIds(): string[] {
+  try {
+    const raw = localStorage.getItem(PINNED_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 interface UsageSummary {
   [toolId: string]: { totalUses: number; uniqueUsers: number };
@@ -381,6 +416,55 @@ export default function HomePage() {
   const queryClient = useQueryClient();
   const [selectedToolForStats, setSelectedToolForStats] = useState<string | null>(null);
   const effectiveTestMode = isAdmin && !isViewer && isTestMode;
+  const [, navigate] = useLocation();
+
+  // ── Quick launcher + pinned favorites ──
+  const [toolQuery, setToolQuery] = useState("");
+  const [pinnedIds, setPinnedIds] = useState<string[]>(loadPinnedIds);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const togglePin = useCallback((toolId: string) => {
+    setPinnedIds((prev) => {
+      const next = prev.includes(toolId) ? prev.filter((id) => id !== toolId) : [...prev, toolId];
+      try { localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const isTileVisible = useCallback((tool: ToolTile): boolean => {
+    if (!isAdmin && tool.feature && !hasFeature(tool.feature)) return false;
+    if (tool.id === "regions" && (isAdmin || hasFeature("central-settings"))) return false;
+    return true;
+  }, [isAdmin, hasFeature]);
+
+  const matchesQuery = useCallback((tool: ToolTile): boolean => {
+    const q = toolQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (tool.title + " " + tool.description).toLowerCase().includes(q);
+  }, [toolQuery]);
+
+  const openTool = useCallback((tool: ToolTile) => {
+    if (!tool.available) return;
+    if (tool.isExternal) {
+      window.location.href = tool.href;
+    } else {
+      navigate(tool.href);
+    }
+  }, [navigate]);
+
+  // "/" focuses the launcher from anywhere on the page
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const el = document.activeElement;
+      const typing = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || (el as HTMLElement | null)?.isContentEditable;
+      if (typing) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const { data: usageSummary } = useQuery<UsageSummary>({
     queryKey: ["/api/tool-usage/summary"],
@@ -578,60 +662,131 @@ export default function HomePage() {
       <div className="main-layout">
         <ReadOnlyBanner />
         <div className="tools-col">
-          {tools.map((tool, i) => {
-            const Icon = tool.icon;
-            const isDisabled = !tool.available;
-            const isComingSoon = tool.comingSoon === true;
-            const isAdminRestricted = tool.adminOnly === true && !isAdmin;
+          <div className="tool-launcher">
+            <Search className="tool-launcher-icon" style={{ width: 14, height: 14 }} />
+            <input
+              ref={searchRef}
+              value={toolQuery}
+              onChange={(e) => setToolQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setToolQuery("");
+                  (e.target as HTMLInputElement).blur();
+                } else if (e.key === "Enter") {
+                  const first = tools.find((t) => isTileVisible(t) && matchesQuery(t) && t.available && !(t.comingSoon && !isAdmin));
+                  if (first) openTool(first);
+                }
+              }}
+              placeholder="Find a tool…  ( / )"
+              aria-label="Find a tool"
+              data-testid="input-tool-search"
+            />
+          </div>
 
-            // Hide tile entirely if the user lacks the required feature (admins always see everything)
-            if (!isAdmin && tool.feature && !hasFeature(tool.feature)) return null;
-            if (tool.id === "regions" && (isAdmin || hasFeature("central-settings"))) return null;
+          {(() => {
+            const pinnedTools = pinnedIds
+              .map((id) => tools.find((t) => t.id === id))
+              .filter((t): t is ToolTile => !!t && isTileVisible(t) && matchesQuery(t));
 
-            if (isDisabled || (isComingSoon && isAdminRestricted)) {
+            const renderCard = (tool: ToolTile, i: number) => {
+              const Icon = tool.icon;
+              const isComingSoon = tool.comingSoon === true;
+              const isAdminRestricted = tool.adminOnly === true && !isAdmin;
+              const isLocked = !tool.available || (isComingSoon && isAdminRestricted);
+              const isPinned = pinnedIds.includes(tool.id);
+
+              const inner = (
+                <>
+                  <div className="tr-icon">
+                    <Icon style={{ width: 17, height: 17, color: isLocked ? "var(--text-dim)" : "var(--gold)" }} />
+                  </div>
+                  <div className="tr-text">
+                    <div className="tr-name">
+                      {tool.title}
+                      {tool.isNew && <span className="csb tr-chip">New</span>}
+                      {isComingSoon && <span className="csb tr-chip tr-chip-dim">Coming Soon</span>}
+                    </div>
+                    <div className="tr-desc">{tool.description}</div>
+                  </div>
+                  <div className="tr-acts">
+                    <button
+                      type="button"
+                      className={`tr-act ${isPinned ? "tr-act-on" : ""}`}
+                      title={isPinned ? "Unpin" : "Pin to top"}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); togglePin(tool.id); }}
+                      data-testid={`button-pin-${tool.id}`}
+                    >
+                      <Star style={{ width: 12, height: 12 }} fill={isPinned ? "currentColor" : "none"} />
+                    </button>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        className="tr-act"
+                        title="Usage stats"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedToolForStats(tool.id); }}
+                        data-testid={`button-stats-${tool.id}`}
+                      >
+                        <Activity style={{ width: 12, height: 12 }} />
+                      </button>
+                    )}
+                  </div>
+                </>
+              );
+
+              if (isLocked) {
+                return (
+                  <div key={tool.id} className="tool-row disabled" style={{ ["--i" as any]: i }} data-testid={`tile-${tool.id}`}>
+                    {inner}
+                  </div>
+                );
+              }
+
+              const Wrapper = tool.isExternal ? "a" : Link;
               return (
-                <div
+                <Wrapper
                   key={tool.id}
-                  className="tool-card disabled"
+                  href={tool.href}
+                  className={`tool-row ${isComingSoon ? "tool-row-coming" : ""}`}
                   style={{ ["--i" as any]: i }}
                   data-testid={`tile-${tool.id}`}
                 >
-                  <div className="tool-icon">
-                    <Icon style={{ width: 22, height: 22, color: "var(--text-dim)" }} />
-                  </div>
-                  <div className="tool-text">
-                    {(isComingSoon || isDisabled) && <div className="csb">Coming Soon</div>}
-                    <div className="tool-name">{tool.title}</div>
-                    <div className="tool-desc">{tool.description}</div>
-                  </div>
-                </div>
+                  {inner}
+                </Wrapper>
               );
-            }
+            };
 
-            const Wrapper = tool.isExternal ? "a" : Link;
-            const wrapperProps = tool.isExternal
-              ? { href: tool.href }
-              : { href: tool.href };
-
+            let cardIndex = 0;
             return (
-              <Wrapper
-                key={tool.id}
-                {...wrapperProps}
-                className={`tool-card ${isComingSoon ? "tool-card-coming" : ""}`}
-                style={{ ["--i" as any]: i }}
-                data-testid={`tile-${tool.id}`}
-              >
-                <div className="tool-icon">
-                  <Icon style={{ width: 22, height: 22, color: "var(--gold)" }} />
-                </div>
-                <div className="tool-text">
-                  {isComingSoon && <div className="csb">Coming Soon</div>}
-                  <div className="tool-name">{tool.title}</div>
-                  <div className="tool-desc">{tool.description}</div>
-                </div>
-              </Wrapper>
+              <>
+                {pinnedTools.length > 0 && (
+                  <div className="tool-section" data-testid="section-pinned">
+                    <div className="section-head">
+                      <span className="section-lbl">★ Pinned</span>
+                      <span className="section-ln" />
+                    </div>
+                    <div className="cards-grid">
+                      {pinnedTools.map((t) => renderCard(t, cardIndex++))}
+                    </div>
+                  </div>
+                )}
+                {TOOL_SECTIONS.map((section) => {
+                  const visible = section.tools.filter((t) => isTileVisible(t) && matchesQuery(t));
+                  if (visible.length === 0) return null;
+                  return (
+                    <div key={section.label} className="tool-section" data-testid={`section-${section.label.replace(/\s+&?\s*/g, "-").toLowerCase()}`}>
+                      <div className="section-head">
+                        <span className="section-lbl">{section.label}</span>
+                        <span className="section-ln" />
+                      </div>
+                      <div className="cards-grid">
+                        {visible.map((t) => renderCard(t, cardIndex++))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
             );
-          })}
+          })()}
         </div>
 
         <div className="hud-col">
