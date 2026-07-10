@@ -26,6 +26,48 @@ const GC_ALLOWLIST = [
 
 const MAX_SYNC_ENTRIES = 50;
 
+// BuildingConnected shows bid due dates in the office's time zone. `dueAt` from
+// the API is a UTC instant, so the calendar date must be read in this zone —
+// see deriveBidDueDate below.
+const BC_DISPLAY_TIMEZONE = "America/Los_Angeles";
+
+/**
+ * Derive the bid due DATE exactly as BuildingConnected displays it.
+ *
+ * BC's `dueAt` is a UTC instant for the deadline; the BC UI renders the date in
+ * the office time zone (BC_DISPLAY_TIMEZONE). Previously we took the raw UTC
+ * calendar date (`dueAt.split("T")[0]`), which pushed any late-in-the-day
+ * deadline one day forward — e.g. a 5 PM Pacific deadline is `00:00Z` the next
+ * day, so the stored date was a day later than BC showed. Because the sync
+ * re-derives the date every run, that mismatch resurfaced as a perpetual
+ * "due date +1 day" update and risked treating a bid as due later than it is.
+ *
+ * We instead convert the instant to BC_DISPLAY_TIMEZONE and take that calendar
+ * date. Pure date-only strings (no time component) are passed through unchanged.
+ */
+export function deriveBidDueDate(raw: string | undefined, timeZone: string = BC_DISPLAY_TIMEZONE): string {
+  if (!raw) return "";
+  const s = String(raw).trim();
+  if (!s) return "";
+  // Date-only value (no time) — nothing to convert; just normalize the shape.
+  if (!s.includes("T")) {
+    const [y, m, d] = s.split("-").map(Number);
+    if (!y || !m || !d) return "";
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+  const instant = new Date(s);
+  if (isNaN(instant.getTime())) return "";
+  // en-CA renders as YYYY-MM-DD; formatToParts avoids locale-format surprises.
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(instant);
+  const y = parts.find(p => p.type === "year")?.value;
+  const m = parts.find(p => p.type === "month")?.value;
+  const d = parts.find(p => p.type === "day")?.value;
+  if (!y || !m || !d) return "";
+  return `${y}-${m}-${d}`;
+}
+
 export async function guessRegionFromLocation(location: string): Promise<string> {
   const result = await matchRegionWithFallback(location, "");
   return result.code;
@@ -626,13 +668,7 @@ export async function mapOpportunityToEntry(opp: BcOpportunity) {
   ].filter(Boolean).join(" ");
   const primaryMarket = guessMarket(projectName, marketContext);
 
-  let dueDate = "";
-  if (opp.bidDueDate) {
-    const dateOnly = opp.bidDueDate.split("T")[0];
-    const [year, month, day] = dateOnly.split("-").map(Number);
-    const d = new Date(year, month - 1, day);
-    dueDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }
+  const dueDate = deriveBidDueDate(opp.bidDueDate);
 
   let inviteDate = "";
   if (opp.invitedDate) {

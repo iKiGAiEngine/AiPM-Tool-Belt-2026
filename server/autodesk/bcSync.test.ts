@@ -1,5 +1,5 @@
 import assert from "assert";
-import { normalizeOpportunity, filterByGcAllowlist, guessRegionFromLocation, looksLikeNdaInvite } from "./bcSync.js";
+import { normalizeOpportunity, filterByGcAllowlist, guessRegionFromLocation, looksLikeNdaInvite, deriveBidDueDate } from "./bcSync.js";
 
 const swinertonV2Payload = {
   id: "6627779ac415eba5996c5723",
@@ -306,5 +306,41 @@ console.log("PASS: NDA detection — normal invite with full location is not fla
 const ndaFiltered = filterByGcAllowlist([ndaByName, ndaByMissingLocation, ndaByExplicitNda]);
 assert.strictEqual(ndaFiltered.length, 3, "NDA invites with visible Swinerton GC must pass the allowlist");
 console.log("PASS: NDA invites with visible Swinerton GC pass the allowlist filter (not auto-skipped)");
+
+// ─── Bid due date timezone handling ───────────────────────────────────────
+// BC `dueAt` is a UTC instant; the due DATE must be read in the office zone
+// (Pacific) to match what BC displays. Regression for the "+1 day" bug.
+
+// 5:00 PM Pacific (PDT, summer) == 00:00Z the next day → must stay the earlier
+// local day, NOT roll forward to the UTC date.
+assert.strictEqual(deriveBidDueDate("2026-07-28T00:00:00.000Z"), "2026-07-27",
+  "midnight-UTC (5pm PDT prior day) must resolve to the Pacific date, not the UTC date");
+
+// 7:00 PM Pacific (PDT) == 02:00Z next day → still the earlier local day.
+assert.strictEqual(deriveBidDueDate("2026-07-28T02:00:00.000Z"), "2026-07-27",
+  "late-evening Pacific deadline must not roll the date forward");
+
+// Winter (PST, UTC-8): 6:00 PM PST Jan 14 == 02:00Z Jan 15.
+assert.strictEqual(deriveBidDueDate("2026-01-15T02:00:00.000Z"), "2026-01-14",
+  "PST deadline must resolve to the Pacific date");
+
+// Afternoon business-hours deadline that does NOT cross midnight UTC — unchanged.
+assert.strictEqual(deriveBidDueDate("2026-07-30T21:00:00.000Z"), "2026-07-30",
+  "2pm PDT deadline stays on the same day");
+
+// Date-only strings (no time component) pass through, normalized.
+assert.strictEqual(deriveBidDueDate("2026-05-01"), "2026-05-01", "date-only value passes through");
+assert.strictEqual(deriveBidDueDate("2026-5-1"), "2026-05-01", "date-only value is zero-padded");
+
+// Empty / invalid input yields empty string.
+assert.strictEqual(deriveBidDueDate(""), "", "empty input → empty string");
+assert.strictEqual(deriveBidDueDate(undefined), "", "undefined input → empty string");
+assert.strictEqual(deriveBidDueDate("not-a-date"), "", "unparseable input → empty string");
+
+// Idempotency: feeding a full instant twice yields a stable date (no drift).
+const once = deriveBidDueDate("2026-07-28T00:00:00.000Z");
+assert.strictEqual(deriveBidDueDate(once + "T12:00:00.000Z"), once,
+  "re-deriving from a noon-UTC instant of the resolved date is stable");
+console.log("PASS: Bid due date resolves in Pacific — no more spurious +1 day updates");
 
 console.log("\nAll tests passed!");
