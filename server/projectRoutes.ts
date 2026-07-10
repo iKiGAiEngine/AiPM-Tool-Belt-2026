@@ -52,6 +52,7 @@ import { users, proposalLogEntries, regions, proposalChangeLog, estimateTemplate
 import { eq, sql } from "drizzle-orm";
 import { resolveChangedByName, recordFieldChanges, recordEntryCreation, recordEntryDeletion, recordDeletionRequested, recordDeletionRejected, recordDeleteCancelled } from "./changeLogger";
 import { db } from "./db";
+import { auditLog } from "./auditService";
 import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemplate, sendProjectWonEmail, getProjectWonTemplate, saveProjectWonTemplate } from "./emailService";
 import { createNotification, createNotificationForAdmins } from "./notificationRoutes";
 import { userCanAccessProject } from "./projectAccessControl";
@@ -1865,6 +1866,26 @@ export function registerProjectRoutes(app: Express) {
         .set({ bcUpdateFlag: false })
         .where(eq(proposalLogEntries.id, id))
         .returning();
+
+      const userId = (req.session as any)?.userId;
+      let actorEmail: string | null = null;
+      if (userId) {
+        const [u] = await db.select().from(users).where(eq(users.id, userId));
+        actorEmail = u?.email ?? null;
+      }
+      await auditLog({
+        actionType: "bc_update_acknowledged",
+        actorUserId: userId ?? null,
+        actorEmail,
+        entityType: "bc_invite",
+        entityId: String(id),
+        summary: `Acknowledged BuildingConnected update on "${existing.projectName}"`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
       res.json({ ok: true, id, bcUpdateFlag: updated?.bcUpdateFlag ?? false });
     } catch (err) {
       console.error("Acknowledge BC update error:", err);

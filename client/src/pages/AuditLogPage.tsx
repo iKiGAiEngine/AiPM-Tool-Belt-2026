@@ -81,8 +81,8 @@ export default function AuditLogPage() {
   const getActionBadgeColor = (action: string) => {
     if (action.includes("login")) return "text-blue-600 border-blue-600/30 bg-blue-500/10";
     if (action.includes("logout")) return "text-gray-600 border-gray-600/30 bg-gray-500/10";
-    if (action.includes("delete") || action.includes("deactivat")) return "text-red-600 border-red-600/30 bg-red-500/10";
-    if (action.includes("create") || action.includes("activat")) return "text-green-600 border-green-600/30 bg-green-500/10";
+    if (action.includes("delete") || action.includes("deactivat") || action.includes("reject")) return "text-red-600 border-red-600/30 bg-red-500/10";
+    if (action.includes("create") || action.includes("activat") || action.includes("accept")) return "text-green-600 border-green-600/30 bg-green-500/10";
     return "text-muted-foreground";
   };
 
