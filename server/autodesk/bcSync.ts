@@ -3,6 +3,7 @@ import { db } from "../db";
 import { proposalLogEntries, bcSyncLog, bcSyncState, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { resolveChangedByName, recordFieldChanges } from "../changeLogger";
+import { auditLog } from "../auditService";
 import { getValidToken, hasValidConnection } from "./tokenManager";
 import { createNotification, createNotificationForAdmins } from "../notificationRoutes";
 import { guessMarket } from "../proposalLogService";
@@ -71,6 +72,32 @@ export function deriveBidDueDate(raw: string | undefined, timeZone: string = BC_
 export async function guessRegionFromLocation(location: string): Promise<string> {
   const result = await matchRegionWithFallback(location, "");
   return result.code;
+}
+
+// Records a BC Invites action to the central Audit Log (Admin → Audit Log) so
+// there's a referenceable who/when/what trail for accept / reject / pull / etc.
+// Never throws — auditLog already swallows its own errors.
+async function bcAudit(
+  req: Request,
+  actor: { id?: number; email?: string | null } | null | undefined,
+  actionType: string,
+  entityId: number | string | null | undefined,
+  summary: string,
+  metadata?: Record<string, any>,
+): Promise<void> {
+  await auditLog({
+    actionType,
+    actorUserId: actor?.id ?? null,
+    actorEmail: actor?.email ?? null,
+    entityType: "bc_invite",
+    entityId: entityId != null ? String(entityId) : undefined,
+    summary,
+    metadata,
+    ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+    userAgent: req.headers["user-agent"] || "",
+    requestPath: req.path,
+    requestMethod: req.method,
+  });
 }
 
 export interface BcOpportunity {
@@ -1249,6 +1276,16 @@ export function registerBcSyncRoutes(app: Express) {
         });
       }
 
+      if (created.length || merged.length || updated.length) {
+        const parts: string[] = [];
+        if (created.length) parts.push(`${created.length} new bid${created.length !== 1 ? "s" : ""} pulled in`);
+        if (merged.length) parts.push(`${merged.length} scope-merged`);
+        if (updated.length) parts.push(`${updated.length} field-updated`);
+        await bcAudit(req, user, "bc_sync_applied", null,
+          `Applied BuildingConnected sync: ${parts.join(", ")}`,
+          { createdIds: created, mergedIds: merged, updatedIds: updated });
+      }
+
       res.json({
         created: created.length,
         merged: merged.length,
@@ -1411,6 +1448,9 @@ export function registerBcSyncRoutes(app: Express) {
         await db.update(proposalLogEntries)
           .set({ deletedAt: new Date(), isDraft: false, duplicateOverrideNote: `Merged into entry #${mergeIntoId} as bid round by ${approverNameAC}` })
           .where(eq(proposalLogEntries.id, id));
+        await bcAudit(req, user, "bc_draft_merged", id,
+          `Merged BC bid "${entry.projectName}" into entry #${mergeIntoId} as a bid round`,
+          { mergeIntoId });
         return res.json({ merged: true, mergeIntoId });
       }
 
@@ -1647,6 +1687,10 @@ export function registerBcSyncRoutes(app: Express) {
         metadata: { entryId: id, estimateNumber, projectDbId: project.id, approvedBy: approverName },
       });
 
+      await bcAudit(req, user, "bc_draft_accepted", id,
+        `Accepted BC bid "${finalProjectName}" → project ${estimateNumber}`,
+        { estimateNumber, projectDbId: project.id, region: finalRegionDisplay, mergedIntoId: mergeIntoId ?? null });
+
       res.json({
         entry: updated,
         project: {
@@ -1699,6 +1743,11 @@ export function registerBcSyncRoutes(app: Express) {
         message: `"${entry.projectName}" rejected by ${rejectorName}${reason ? `: ${reason}` : ""}.`,
         metadata: { entryId: id, rejectedBy: rejectorName, reason: reason || null },
       });
+
+      const isDuplicate = (reason || "").trim().toLowerCase() === "duplicate";
+      await bcAudit(req, user, isDuplicate ? "bc_draft_rejected_duplicate" : "bc_draft_rejected", id,
+        `${isDuplicate ? "Rejected BC bid as duplicate" : "Rejected BC bid"} "${entry.projectName}"${reason && !isDuplicate ? `: ${reason}` : ""}`,
+        { reason: reason || null });
 
       res.json(updated);
     } catch (err) {
