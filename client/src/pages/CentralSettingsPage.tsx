@@ -3263,7 +3263,12 @@ function TaxRatesSection() {
       let data: any;
       try { data = JSON.parse(text); } catch { throw new Error(`Server error (${res.status}): ${text.slice(0, 200) || "empty response"}`); }
       if (!res.ok) throw new Error(data.error || "Upload failed");
-      toast({ title: "Tax rates uploaded", description: `${data.rowCount.toLocaleString()} records loaded successfully.` });
+      const s = data.stats;
+      const description = s
+        ? `${s.validRows.toLocaleString()} rows loaded (${s.uniqueZips.toLocaleString()} unique ZIPs, ${s.duplicateJurisdictionRows.toLocaleString()} extra jurisdiction rows). `
+          + `Skipped ${s.skippedRows.toLocaleString()}, invalid rates ${s.invalidTaxRows.toLocaleString()}. Took ${(s.durationMs / 1000).toFixed(1)}s.`
+        : `${data.rowCount.toLocaleString()} records loaded successfully.`;
+      toast({ title: "Tax rates uploaded", description });
       refetchStatus();
     } catch (err: any) {
       toast({ title: "Upload failed", description: err.message, variant: "destructive" });
@@ -3279,7 +3284,7 @@ function TaxRatesSection() {
         <CardHeader>
           <CardTitle className="text-base font-heading">Avalara Tax Rate Spreadsheet</CardTitle>
           <CardDescription>
-            Upload the Avalara tax rate Excel file. All existing records will be replaced. Columns used: A (Zip), B (State), C (County), D (City), O (Total Use Tax %).
+            Upload the Avalara tax rate Excel file (.xlsx). All existing records are replaced in a single transaction — a failed upload leaves the current data untouched. Columns are matched by header name (Zip Code, State, County, City, In/Out City/Local, Total Use Tax %). ZIP+4 codes are normalized to 5 digits; the footer/blank rows are skipped automatically.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

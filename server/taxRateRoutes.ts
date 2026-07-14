@@ -1,96 +1,108 @@
 import type { Express } from "express";
 import multer from "multer";
-import ExcelJS from "exceljs";
-import pg from "pg";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { taxRates } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
-import { requireAuth } from "./authRoutes";
+import { and, eq, sql } from "drizzle-orm";
+import { requireAuth, requireAdmin } from "./authRoutes";
+import { parseAvalaraWorkbook, normalizeZip } from "./taxRates/parser";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 export function registerTaxRateRoutes(app: Express) {
-  // Upload & replace all tax rates from an Excel file
-  app.post("/api/tax-rates/upload", requireAuth, (req, res, next) => {
+  // Upload & replace all tax rates from the Avalara Excel export.
+  // Destructive (replaces the entire nationwide dataset) → admin only.
+  app.post("/api/tax-rates/upload", requireAdmin, (req, res, next) => {
     upload.single("file")(req, res, (err) => {
       if (err) return res.status(400).json({ error: err.message || "File upload error" });
       next();
     });
   }, async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file provided" });
+    const startedAt = Date.now();
 
+    // ── Parse + validate FULLY before touching the database ──────────────────
+    let parsed;
     try {
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(req.file.buffer);
-      const sheet = workbook.worksheets[0];
-
-      const zips: string[] = [];
-      const states: (string | null)[] = [];
-      const counties: (string | null)[] = [];
-      const cities: (string | null)[] = [];
-      const taxes: (string | null)[] = [];
-
-      sheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return; // skip header
-        const zip = String(row.getCell(1).value ?? "").trim().slice(0, 10);
-        // Skip footer rows or anything that isn't a zip code (must start with a digit)
-        if (!zip || !/^\d/.test(zip)) return;
-        zips.push(zip);
-        states.push(String(row.getCell(2).value ?? "").trim() || null);
-        counties.push(String(row.getCell(3).value ?? "").trim() || null);
-        cities.push(String(row.getCell(4).value ?? "").trim() || null);
-        const rawTax = row.getCell(15).value;
-        let totalUseTax: string | null = null;
-        if (rawTax !== null && rawTax !== undefined && rawTax !== "") {
-          // ExcelJS returns formula cells as { formula, result } objects
-          const taxVal = (typeof rawTax === "object" && rawTax !== null && "result" in (rawTax as any))
-            ? (rawTax as any).result
-            : rawTax;
-          const num = parseFloat(String(taxVal));
-          if (!isNaN(num)) totalUseTax = String(num);
-        }
-        taxes.push(totalUseTax);
-      });
-
-      if (zips.length === 0) return res.status(400).json({ error: "No data rows found in spreadsheet" });
-      console.log(`[tax-rates] Parsed ${zips.length} rows from Excel`);
-
-      // Use raw pg with unnest() — sends data as arrays, Postgres expands server-side
-      // This avoids any JS call-stack issues with large datasets
-      const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-      const pgClient = await pool.connect();
-      console.log(`[tax-rates] DB connected, starting transaction`);
-      try {
-        await pgClient.query("BEGIN");
-        await pgClient.query("DELETE FROM tax_rates");
-        console.log(`[tax-rates] Deleted existing rows, inserting ${zips.length} rows via unnest`);
-        await pgClient.query(
-          `INSERT INTO tax_rates (zip_code, state, county, city, total_use_tax)
-           SELECT * FROM unnest($1::varchar[], $2::text[], $3::text[], $4::text[], $5::numeric[])`,
-          [zips, states, counties, cities, taxes]
-        );
-        await pgClient.query("COMMIT");
-        console.log(`[tax-rates] Insert complete`);
-      } catch (e) {
-        await pgClient.query("ROLLBACK");
-        throw e;
-      } finally {
-        pgClient.release();
-        await pool.end();
-      }
-
-      res.json({ success: true, rowCount: zips.length });
+      parsed = await parseAvalaraWorkbook(req.file.buffer);
     } catch (err: any) {
-      console.error("Tax rate upload error:", err);
-      res.status(500).json({ error: err.message || "Failed to parse file" });
+      console.error("[tax-rates] parse error:", err);
+      return res.status(400).json({ error: err?.message || "Failed to parse file" });
     }
+    if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+
+    const { rows, stats } = parsed;
+    const zips = rows.map((r) => r.zip);
+    const states = rows.map((r) => r.state);
+    const counties = rows.map((r) => r.county);
+    const cities = rows.map((r) => r.city);
+    const inOut = rows.map((r) => r.inOutCityLocal);
+    const taxes = rows.map((r) => r.totalUseTax);
+    console.log(`[tax-rates] Parsed ${rows.length} valid rows (${stats.skippedRows} skipped) from Excel`);
+
+    // ── Replace in a single transaction; roll back delete + insert on any failure ─
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("DELETE FROM tax_rates");
+      // unnest() expands parallel arrays server-side — one round-trip, no per-row
+      // parameter limits or JS call-stack issues for the full 54k dataset.
+      await client.query(
+        `INSERT INTO tax_rates (zip_code, state, county, city, in_out_city_local, total_use_tax)
+         SELECT * FROM unnest($1::varchar[], $2::text[], $3::text[], $4::text[], $5::text[], $6::numeric[])`,
+        [zips, states, counties, cities, inOut, taxes]
+      );
+      // Sanity check inside the transaction — if the row count doesn't match what
+      // we parsed, something is wrong; abort so we never commit a partial load.
+      const check = await client.query("SELECT count(*)::int AS n FROM tax_rates");
+      const inserted = check.rows[0]?.n ?? 0;
+      if (inserted !== rows.length) {
+        throw new Error(`Row count mismatch after insert: expected ${rows.length}, got ${inserted}`);
+      }
+      await client.query("COMMIT");
+      console.log(`[tax-rates] Insert complete: ${inserted} rows in ${Date.now() - startedAt}ms`);
+    } catch (e: any) {
+      await client.query("ROLLBACK").catch(() => {});
+      console.error("[tax-rates] transaction failed, rolled back:", e?.message);
+      return res.status(500).json({ error: `Upload failed — existing data preserved. ${e?.message || ""}`.trim() });
+    } finally {
+      client.release();
+    }
+
+    res.json({
+      success: true,
+      rowCount: rows.length,
+      stats: {
+        validRows: stats.validRows,
+        uniqueZips: stats.uniqueZips,
+        duplicateJurisdictionRows: stats.duplicateJurisdictionRows,
+        skippedRows: stats.skippedRows,
+        invalidTaxRows: stats.invalidTaxRows,
+        zeroTaxRows: stats.zeroTaxRows,
+        durationMs: Date.now() - startedAt,
+      },
+    });
   });
 
-  // Lookup by zip code
+  // Lookup by zip code — returns ALL matching jurisdiction rows, deterministically
+  // ordered. Optional state/county/city/inOut filters narrow multi-jurisdiction ZIPs.
   app.get("/api/tax-rates/lookup", requireAuth, async (req, res) => {
-    const zip = String(req.query.zip ?? "").trim();
-    if (!zip) return res.status(400).json({ error: "zip query param required" });
-    const results = await db.select().from(taxRates).where(eq(taxRates.zipCode, zip));
+    const zip = normalizeZip(req.query.zip);
+    if (!zip) return res.status(400).json({ error: "A valid 5-digit zip code is required" });
+
+    const filters = [eq(taxRates.zipCode, zip)];
+    const state = String(req.query.state ?? "").trim();
+    const county = String(req.query.county ?? "").trim();
+    const city = String(req.query.city ?? "").trim();
+    if (state) filters.push(eq(taxRates.state, state));
+    if (county) filters.push(eq(taxRates.county, county));
+    if (city) filters.push(eq(taxRates.city, city));
+
+    const results = await db
+      .select()
+      .from(taxRates)
+      .where(and(...filters))
+      // Deterministic order so the client never sees an arbitrary first row.
+      .orderBy(taxRates.state, taxRates.county, taxRates.city, taxRates.id);
     res.json(results);
   });
 
