@@ -1737,6 +1737,9 @@ export const taxRates = pgTable("tax_rates", {
   state: text("state"),
   county: text("county"),
   city: text("city"),
+  // Inside/outside city limits ("I" = inside, null/"" = outside). A single ZIP
+  // legitimately has separate inside- and outside-city jurisdiction rows.
+  inOutCityLocal: text("in_out_city_local"),
   totalUseTax: numeric("total_use_tax", { precision: 10, scale: 4 }),
   uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
 }, (table) => ({
