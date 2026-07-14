@@ -44,6 +44,16 @@ const PAYLOAD_A = {
     country: "US", complete: "4800 Sunset Ridge Dr, Frisco, TX 75034",
   },
 };
+// The live GET-by-id endpoint returns a lean summary that omits the
+// office/company expansion (region source), expected start/finish dates,
+// square footage, trade, and location — the email-intake path must backfill
+// those from the list fetch (the source BC Sync uses). PAYLOAD_A above is the
+// full list-endpoint record; this is what GET-by-id actually answers with.
+const PAYLOAD_A_LEAN = {
+  id: OPP_A,
+  name: PAYLOAD_A.name,
+  dueAt: PAYLOAD_A.dueAt,
+};
 const PAYLOAD_B = {
   id: OPP_B,
   name: "Riverside Community College - Building C Renovation",
@@ -86,12 +96,13 @@ function installFetchStub() {
     const json = (body: any, status = 200) =>
       new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-    // GET-by-id
-    if (url.includes(`/opportunities/${OPP_A}`)) return json(PAYLOAD_A);
+    // GET-by-id — answers with the lean summary shape (regression: the full
+    // record must come from the list backfill, not from GET-by-id)
+    if (url.includes(`/opportunities/${OPP_A}`)) return json(PAYLOAD_A_LEAN);
     if (url.includes(`/opportunities/${OPP_D}`)) return json(PAYLOAD_D_NDA);
     if (url.includes(`/opportunities/${OPP_B}`)) return json({ message: "not found" }, 404); // force list-fallback
-    // List endpoints (fallback path) — only B lives here
-    if (url.includes("/opportunities?")) return json({ results: [PAYLOAD_B], pagination: { totalResults: 1 } });
+    // List endpoints — the expanded records (A's full payload lives ONLY here)
+    if (url.includes("/opportunities?")) return json({ results: [PAYLOAD_A, PAYLOAD_B], pagination: { totalResults: 2 } });
     return json({ message: "not found" }, 404);
   }) as typeof fetch;
 }

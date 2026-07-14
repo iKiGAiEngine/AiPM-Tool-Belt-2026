@@ -34,6 +34,8 @@ const DISPLAY_FIELDS: Array<{ key: string; label: string }> = [
   { key: "region", label: "Region" },
   { key: "dueDate", label: "Due" },
   { key: "inviteDate", label: "Invited" },
+  { key: "anticipatedStart", label: "Start" },
+  { key: "anticipatedFinish", label: "Finish" },
   { key: "gcEstimateLead", label: "GC Lead" },
   { key: "owner", label: "GC / Owner" },
   { key: "projectAddress", label: "Location" },
