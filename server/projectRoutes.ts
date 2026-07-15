@@ -2221,35 +2221,31 @@ export function registerProjectRoutes(app: Express) {
       }
 
       if (updates.nbsEstimator !== undefined) {
-        const newEstimator = updates.nbsEstimator?.trim() || null;
-        const oldEst = oldEstimator?.trim() || null;
+        const splitEstimators = (v: string | null) =>
+          (v || "").split(/[,;/|]+/).map((t) => t.trim().toUpperCase()).filter(Boolean);
+        const newEstimators = splitEstimators(updates.nbsEstimator);
+        const oldEstimators = new Set(splitEstimators(oldEstimator));
+        const addedEstimators = newEstimators.filter((initials) => !oldEstimators.has(initials));
 
-        if (newEstimator && newEstimator !== oldEst) {
+        if (addedEstimators.length) {
           (async () => {
-            try {
-              const initials = newEstimator.toUpperCase();
-              let email: string | null = null;
-              let displayName: string = initials;
-
-              const [estimatorUser] = await db.select().from(users).where(eq(users.initials, initials));
-              if (estimatorUser?.email) {
-                email = estimatorUser.email;
-                displayName = estimatorUser.displayName || initials;
+            for (const initials of addedEstimators) {
+              try {
+                const [estimatorUser] = await db.select().from(users).where(eq(users.initials, initials));
+                if (estimatorUser?.email) {
+                  await sendBidAssignmentEmail(estimatorUser.email, estimatorUser.displayName || initials, {
+                    estimatorInitials: initials,
+                    projectName: updated.projectName,
+                    estimateNumber: updated.estimateNumber || "",
+                    dueDate: updated.dueDate || "",
+                    gcLead: updated.gcEstimateLead || "",
+                  });
+                } else {
+                  console.log(`[Email] No user found for estimator initials: ${initials}`);
+                }
+              } catch (err) {
+                console.error("[Email] Failed to send bid assignment email:", err);
               }
-
-              if (email) {
-                await sendBidAssignmentEmail(email, displayName, {
-                  estimatorInitials: initials,
-                  projectName: updated.projectName,
-                  estimateNumber: updated.estimateNumber || "",
-                  dueDate: updated.dueDate || "",
-                  gcLead: updated.gcEstimateLead || "",
-                });
-              } else {
-                console.log(`[Email] No user found for estimator initials: ${initials}`);
-              }
-            } catch (err) {
-              console.error("[Email] Failed to send bid assignment email:", err);
             }
           })();
         }
