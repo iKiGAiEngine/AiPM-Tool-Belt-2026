@@ -486,6 +486,9 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
 #edit-popup .ep-item .ep-radio{width:14px;height:14px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .15s;}
 #edit-popup .ep-item.ep-selected .ep-radio{border-color:var(--gold);}
 #edit-popup .ep-item.ep-selected .ep-radio::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--gold);}
+#edit-popup .ep-item .ep-checkbox{width:14px;height:14px;border-radius:3px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .15s,background .15s;}
+#edit-popup .ep-item.ep-selected .ep-checkbox{border-color:var(--gold);background:var(--gold);}
+#edit-popup .ep-item.ep-selected .ep-checkbox::after{content:'\2713';font-size:10px;line-height:1;color:var(--bg2);}
 #edit-popup .ep-footer{padding:8px 14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;}
 .loss-summary-mini{font-size:9px;color:var(--text-dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
@@ -1022,10 +1025,8 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
       </div>
       <div class="modal-section">Team &amp; Financials</div>
       <div class="form-row">
-        <div class="form-group"><label class="fl">NBS Estimator</label>
-          <select class="fi" id="f-nbsEstimator">
-            <option value="">&mdash; Select &mdash;</option>
-          </select>
+        <div class="form-group"><label class="fl">NBS Estimator <span style="font-weight:400;opacity:.6">(ctrl/cmd-click for multiple)</span></label>
+          <select class="fi" id="f-nbsEstimator" multiple size="4" style="height:auto;"></select>
         </div>
         <div class="form-group"><label class="fl">GC Estimate Lead</label><input type="text" class="fi" id="f-gcEstimateLead" placeholder="GC lead name"></div>
       </div>
@@ -2002,8 +2003,13 @@ function openModal(idx=null) {
   document.getElementById('modal-title').textContent=idx!==null?'EDIT PROPOSAL':'NEW PROPOSAL';
   const p=idx!==null?data[idx]:{};
   resetLossPanel();
-  FIELDS.filter(k=>!['lossWho','lossReason','lossDetail','lossCompetitor','lossNotes'].includes(k))
+  FIELDS.filter(k=>!['lossWho','lossReason','lossDetail','lossCompetitor','lossNotes','nbsEstimator'].includes(k))
     .forEach(k=>{ const el=document.getElementById(fieldElId(k)); if(el) el.value=p[k]||''; });
+  const estSel=document.getElementById('f-nbsEstimator');
+  if(estSel){
+    const cur=estimatorCodes(p);
+    Array.from(estSel.options).forEach(o=>{ o.selected=cur.includes(o.value); });
+  }
   onStatusChange(p.estimateStatus||'');
   if(p.estimateStatus==='Lost - Note Why in Comments' && p.lossWho) {
     selectLossWho(p.lossWho);
@@ -2021,7 +2027,12 @@ async function saveProposal(){
   const name=document.getElementById('f-projectName').value.trim();
   if(!name){alert('Project name is required.');return;}
   const formVals={};
-  FIELDS.forEach(k=>{const el=document.getElementById(fieldElId(k));if(el)formVals[k]=el.value.trim();});
+  FIELDS.filter(k=>k!=='nbsEstimator').forEach(k=>{const el=document.getElementById(fieldElId(k));if(el)formVals[k]=el.value.trim();});
+  const estSel=document.getElementById('f-nbsEstimator');
+  if(estSel){
+    const order=ESTIMATORS.map(e=>e.code);
+    formVals.nbsEstimator=Array.from(estSel.selectedOptions).map(o=>o.value).sort((a,b)=>order.indexOf(a)-order.indexOf(b)).join('/');
+  }
   if(Number(formVals.proposalTotal)>0 && formVals.estimateStatus==='Estimating'){
     formVals.estimateStatus='Submitted';
   }
@@ -3003,7 +3014,7 @@ function renderNewlyAssigned() {
   if (layout !== 'estimator' || !myInitials) { wrap.style.display = 'none'; return; }
 
   const unacked = data.filter(p =>
-    p.nbsEstimator === myInitials &&
+    estimatorCodes(p).includes(myInitials) &&
     p._serverDbId &&
     !acknowledgedEntryIds.has(p._serverDbId)
   );
@@ -3251,11 +3262,14 @@ function renderDash() {
 
   const estMap={};
   all.forEach(p=>{
-    if(!p.nbsEstimator) return;
+    const codes=estimatorCodes(p);
+    if(!codes.length) return;
     if(!isActiveStatus(p.estimateStatus)) return;
-    if(!estMap[p.nbsEstimator]) estMap[p.nbsEstimator]={count:0,val:0};
-    estMap[p.nbsEstimator].count++;
-    estMap[p.nbsEstimator].val+=(Number(p.proposalTotal)||0);
+    codes.forEach(code=>{
+      if(!estMap[code]) estMap[code]={count:0,val:0};
+      estMap[code].count++;
+      estMap[code].val+=(Number(p.proposalTotal)||0);
+    });
   });
   const estList=Object.entries(estMap).sort((a,b)=>b[1].val-a[1].val);
   const estMaxVal=estList[0]?estList[0][1].val:1;
@@ -3505,6 +3519,7 @@ let ESTIMATORS=[
   {code:'GM',label:'GM \u2014 Gonzalo Martinez'},
   {code:'GT',label:'GT \u2014 Gene Trabert'},
 ];
+function estimatorCodes(p){ return (p&&p.nbsEstimator||'').split('/').map(s=>s.trim()).filter(Boolean); }
 (async function loadEstimators(){
   try{
     const res=await fetch('/api/estimators',{credentials:'include'});
@@ -3515,10 +3530,10 @@ let ESTIMATORS=[
   }catch(e){console.warn('Could not load estimators from server, using defaults');}
   const sel=document.getElementById('f-nbsEstimator');
   if(sel){
-    sel.innerHTML='<option value="">\u2014 Select \u2014</option>'+ESTIMATORS.map(e=>`<option value="${e.code}">${e.label}</option>`).join('');
+    sel.innerHTML=ESTIMATORS.map(e=>`<option value="${e.code}">${e.label}</option>`).join('');
   }
 })();
-const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',gcEstimateLead:'text',selfPerformEstimator:'select-sp-estimator',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date',estimateNumber:'text',filePath:'text',sourceType:'text',sourceEmail:'text',sourceEmailSubject:'text',sourceAttachmentUrl:'text'};
+const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator-multi',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',gcEstimateLead:'text',selfPerformEstimator:'select-sp-estimator',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date',estimateNumber:'text',filePath:'text',sourceType:'text',sourceEmail:'text',sourceEmailSubject:'text',sourceAttachmentUrl:'text'};
 const FIELD_LABELS={proposalTotal:'Proposal Total',estimateStatus:'Status',nbsEstimator:'NBS Estimator',anticipatedStart:'Est. Start',anticipatedFinish:'Est. End',dueDate:'Due Date',notes:'Notes',bcLink:'BC Link',gcEstimateLead:'GC Estimate Lead',selfPerformEstimator:'SP Estimator',finalReviewer:'Final Reviewer',swinertonProject:'Swinerton?',region:'Region',primaryMarket:'Primary Market',inviteDate:'Invite Date',estimateNumber:'Estimate #',filePath:'File Path'};
 let editPopupState=null;
 
@@ -3555,9 +3570,10 @@ function openEditPopup(e,oi,field){
     const STATUS_OPTS=['Estimating','Submitted','Revising','Won','Lost','No Bid'];
     const cur=p.estimateStatus==='Lost - Note Why in Comments'?'Lost':(p[field]||'Estimating');
     body.innerHTML=STATUS_OPTS.map(s=>`<div class="ep-item${cur===s?' ep-selected':''}" onclick="epSelectItem(this,'${s}')" data-value="${s}"><span class="ep-radio"></span>${s}</div>`).join('');
-  } else if(type==='select-estimator'){
-    const cur=p[field]||'';
-    body.innerHTML=[{code:'',label:'\u2014 None \u2014'},...ESTIMATORS].map(est=>`<div class="ep-item${cur===est.code?' ep-selected':''}" onclick="epSelectItem(this,'${est.code.replace(/'/g,"\\'")}')" data-value="${est.code}"><span class="ep-radio"></span>${est.label}</div>`).join('');
+  } else if(type==='select-estimator-multi'){
+    const cur=estimatorCodes(p);
+    subtitle.textContent='Select one or more, then Done';
+    body.innerHTML=ESTIMATORS.map(est=>`<div class="ep-item${cur.includes(est.code)?' ep-selected':''}" onclick="epToggleItem(this)" data-value="${est.code.replace(/'/g,"\\'")}"><span class="ep-checkbox"></span>${est.label}</div>`).join('');
   } else if(type==='select-yn'){
     const cur=p[field]||'';
     body.innerHTML=[{v:'',l:'\u2014 None \u2014'},{v:'Y',l:'Yes'},{v:'N',l:'No'}].map(o=>`<div class="ep-item${cur===o.v?' ep-selected':''}" onclick="epSelectItem(this,'${o.v}')" data-value="${o.v}"><span class="ep-radio"></span>${o.l}</div>`).join('');
@@ -3584,6 +3600,9 @@ function openEditPopup(e,oi,field){
   setTimeout(()=>{const inp=document.getElementById('ep-input');if(inp){inp.focus();if(inp.select)inp.select();}},30);
 }
 
+function epToggleItem(el){
+  el.classList.toggle('ep-selected');
+}
 function epSelectItem(el,val){
   el.closest('.ep-body').querySelectorAll('.ep-item').forEach(i=>i.classList.remove('ep-selected'));
   el.classList.add('ep-selected');
@@ -3621,7 +3640,10 @@ function commitEditPopup(){
   if(!editPopupState)return;
   const{oi,field,type}=editPopupState;
   let v='';
-  if(type==='select-status'||type==='select-estimator'||type==='select-yn'||type==='select-region'||type==='select-market'||type==='select-sp-estimator'){
+  if(type==='select-estimator-multi'){
+    const order=ESTIMATORS.map(e=>e.code);
+    v=Array.from(document.querySelectorAll('#ep-body .ep-item.ep-selected')).map(el=>el.dataset.value).sort((a,b)=>order.indexOf(a)-order.indexOf(b)).join('/');
+  } else if(type==='select-status'||type==='select-yn'||type==='select-region'||type==='select-market'||type==='select-sp-estimator'){
     const customInp=document.getElementById('ep-sp-custom');
     if(customInp&&customInp.value.trim()){
       v=customInp.value.trim();
