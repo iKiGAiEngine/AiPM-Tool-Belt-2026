@@ -1,1 +1,10 @@
 artifacts/
+.local/
+.cache/
+.git/
+attached_assets/
+backups/
+project_screenshots/
+projects/
+screenshots/
+data/
