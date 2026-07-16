@@ -453,7 +453,11 @@ export default function HomePage() {
         if (!p.dueDate || !activeStatuses.includes(p.estimateStatus || "")) return false;
         if (p._isTest && !effectiveTestMode) return false;
         if (!p._isTest && effectiveTestMode) return false;
-        if (!p.nbsEstimator || p.nbsEstimator.trim().toUpperCase() !== userEstimatorCode) return false;
+        const estimatorCodes = (p.nbsEstimator || "")
+          .split(/[,;/|]+/)
+          .map((s) => s.trim().toUpperCase())
+          .filter(Boolean);
+        if (!estimatorCodes.includes(userEstimatorCode)) return false;
         return true;
       })
       .map((p) => ({ ...p, _bizDays: bizDaysUntil(p.dueDate!) }))
