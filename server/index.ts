@@ -109,6 +109,9 @@ app.use((req, res, next) => {
   const { startNightlyBackup } = await import("./nightlyBackup");
   startNightlyBackup();
 
+  const { startQaAuditScheduler } = await import("./qaAudit/scheduler");
+  startQaAuditScheduler();
+
   const { isGoogleSheetConfigured, syncProposalLogToSheet } = await import("./googleSheetSync");
   if (isGoogleSheetConfigured()) {
     syncProposalLogToSheet().then(() => {

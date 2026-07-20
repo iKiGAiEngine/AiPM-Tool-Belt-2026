@@ -35,6 +35,7 @@ import { registerScopeManufacturerRoutes } from "./scopeManufacturerRoutes";
 import { registerErrorRoutes } from "./errorRoutes";
 import { registerChatRoutes } from "./chatRoutes";
 import { registerTaxRateRoutes } from "./taxRateRoutes";
+import { registerQaAuditRoutes } from "./qaAudit/routes";
 import { auditLog } from "./auditService";
 import { db } from "./db";
 import { users as usersTable } from "@shared/schema";
@@ -328,6 +329,7 @@ export async function registerRoutes(
   registerEstimateAnalyticsRoutes(app);
   registerBuyoutRoutes(app);
   registerEstimateMigrationRoutes(app);
+  registerQaAuditRoutes(app);
 
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {

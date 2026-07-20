@@ -1784,3 +1784,24 @@ export const insertBuyoutProjectSchema = createInsertSchema(buyoutProjects).omit
   updatedAt: true,
 });
 export type InsertBuyoutProjectInput = z.infer<typeof insertBuyoutProjectSchema>;
+
+// Automated QA / synthetic-monitoring audit runs. One row per audit execution
+// (scheduled twice daily + any on-demand runs), keeping a rolling history so the
+// admin can see the green/yellow/red trend and drill into what was checked.
+export const qaAuditRuns = pgTable("qa_audit_runs", {
+  id: serial("id").primaryKey(),
+  ranAt: timestamp("ran_at").notNull().defaultNow(),
+  status: varchar("status", { length: 10 }).notNull(), // GREEN | YELLOW | RED
+  headline: text("headline").notNull(),
+  environment: varchar("environment", { length: 30 }),
+  target: varchar("target", { length: 200 }),
+  durationMs: integer("duration_ms").notNull().default(0),
+  passCount: integer("pass_count").notNull().default(0),
+  warnCount: integer("warn_count").notNull().default(0),
+  failCount: integer("fail_count").notNull().default(0),
+  skipCount: integer("skip_count").notNull().default(0),
+  // Full QaAuditReport (checks + evidence) for drill-down.
+  report: jsonb("report").$type<Record<string, unknown>>().notNull(),
+});
+export type QaAuditRun = typeof qaAuditRuns.$inferSelect;
+export type InsertQaAuditRun = typeof qaAuditRuns.$inferInsert;

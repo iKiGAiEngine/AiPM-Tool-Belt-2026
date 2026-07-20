@@ -1,0 +1,83 @@
+name: QA Audit
+
+# Automated twice-daily health/QA audit of the live AiPM site.
+# Produces a GREEN / YELLOW / RED verdict, lists every check performed, and
+# fails the job (which notifies via GitHub) when the site is RED.
+#
+# Setup: add a repository variable QA_AUDIT_BASE_URL (Settings → Secrets and
+# variables → Actions → Variables) pointing at the deployed site, e.g.
+#   https://your-aipm-app.replit.app
+# Optionally add QA_AUDIT_STRICT=1 to also fail on YELLOW.
+
+on:
+  schedule:
+    # 15:00 and 23:00 UTC ≈ 08:00 and 16:00 America/Los_Angeles.
+    - cron: "0 15 * * *"
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Base URL to audit (overrides the QA_AUDIT_BASE_URL variable)"
+        required: false
+        type: string
+      strict:
+        description: "Fail on YELLOW as well as RED"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install tsx
+        run: npm install -g tsx
+
+      - name: Run QA audit
+        id: audit
+        env:
+          QA_AUDIT_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_AUDIT_BASE_URL }}
+          QA_AUDIT_STRICT: ${{ (github.event.inputs.strict == 'true' || vars.QA_AUDIT_STRICT == '1') && '1' || '0' }}
+          QA_AUDIT_OUT: qa-audit-report
+        run: |
+          if [ -z "$QA_AUDIT_BASE_URL" ]; then
+            echo "::error::QA_AUDIT_BASE_URL is not set. Add it as a repository variable."
+            exit 1
+          fi
+          tsx scripts/qa-audit.ts --json | tee qa-audit-console.json
+        continue-on-error: true
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-audit-report
+          path: |
+            qa-audit-report/
+            qa-audit-console.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summarize
+        if: always()
+        run: |
+          echo "## AiPM QA Audit" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f qa-audit-report/report.md ]; then
+            cat qa-audit-report/report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report file produced — see the audit step logs." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Fail if audit did not pass
+        if: steps.audit.outcome != 'success'
+        run: |
+          echo "::error::QA audit reported a failing verdict (RED, or YELLOW under strict mode). See the job summary."
+          exit 1

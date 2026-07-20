@@ -12,7 +12,7 @@ projects/backups/
 test-results/
 playwright-report/
 .cache/ms-playwright/
-<<<<<<< HEAD
+
+# Local backups + QA audit report artifacts
 backups/
-=======
->>>>>>> 291a914 (Task #47: Add e2e test for vendor scope/manufacturer tag → RFQ picker flow)
+qa-audit-report/
