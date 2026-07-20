@@ -140,6 +140,8 @@ async function persistRun(report: QaAuditReport): Promise<void> {
       warnCount: report.counts.warn,
       failCount: report.counts.fail,
       skipCount: report.counts.skip,
+      costLast24hMicros: Math.round((report.cost?.total24hUsd ?? 0) * 1e6),
+      costProjectedMonthlyMicros: Math.round((report.cost?.projectedMonthlyUsd ?? 0) * 1e6),
       report: report as unknown as Record<string, unknown>,
     });
   } catch (err: any) {

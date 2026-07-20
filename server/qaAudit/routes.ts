@@ -49,11 +49,22 @@ export function registerQaAuditRoutes(app: Express): void {
           warnCount: qaAuditRuns.warnCount,
           failCount: qaAuditRuns.failCount,
           skipCount: qaAuditRuns.skipCount,
+          costLast24hMicros: qaAuditRuns.costLast24hMicros,
+          costProjectedMonthlyMicros: qaAuditRuns.costProjectedMonthlyMicros,
         })
         .from(qaAuditRuns)
         .orderBy(desc(qaAuditRuns.ranAt))
         .limit(limit);
-      res.json(rows);
+      // Oldest → newest so the chart reads left-to-right; expose USD directly.
+      const shaped = rows
+        .slice()
+        .reverse()
+        .map((r) => ({
+          ...r,
+          costLast24hUsd: (r.costLast24hMicros ?? 0) / 1e6,
+          projectedMonthlyUsd: (r.costProjectedMonthlyMicros ?? 0) / 1e6,
+        }));
+      res.json(shaped);
     } catch (err: any) {
       res.status(500).json({ message: err?.message || "Failed to load audit history." });
     }

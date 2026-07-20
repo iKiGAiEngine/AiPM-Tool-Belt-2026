@@ -1800,7 +1800,11 @@ export const qaAuditRuns = pgTable("qa_audit_runs", {
   warnCount: integer("warn_count").notNull().default(0),
   failCount: integer("fail_count").notNull().default(0),
   skipCount: integer("skip_count").notNull().default(0),
-  // Full QaAuditReport (checks + evidence) for drill-down.
+  // Cost snapshot in micro-dollars (USD * 1e6) so the trend chart can query
+  // cheaply without unpacking the full report JSON.
+  costLast24hMicros: integer("cost_last_24h_micros").notNull().default(0),
+  costProjectedMonthlyMicros: integer("cost_projected_monthly_micros").notNull().default(0),
+  // Full QaAuditReport (checks + evidence + cost) for drill-down.
   report: jsonb("report").$type<Record<string, unknown>>().notNull(),
 });
 export type QaAuditRun = typeof qaAuditRuns.$inferSelect;

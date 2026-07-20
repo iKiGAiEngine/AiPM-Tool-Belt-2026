@@ -38,6 +38,7 @@ import BuyoutBotPage from "@/pages/BuyoutBotPage";
 import EstimateMigratorPage from "@/pages/EstimateMigratorPage";
 import AdminEstimatorAnalyticsPage from "@/pages/AdminEstimatorAnalyticsPage";
 import AdminPortfolioVisitsPage from "@/pages/AdminPortfolioVisitsPage";
+import AdminQaAuditPage from "@/pages/AdminQaAuditPage";
 import HelpCenterPage from "@/pages/HelpCenterPage";
 import TaxRateLookupPage from "@/pages/TaxRateLookupPage";
 import NotFound from "@/pages/not-found";
@@ -115,6 +116,7 @@ function Router() {
       <Route path="/admin/estimator-analytics">{() => <AdminRoute component={AdminEstimatorAnalyticsPage} />}</Route>
       <Route path="/admin/backup">{() => <AdminRoute component={AdminBackupPage} />}</Route>
       <Route path="/admin/portfolio-visits">{() => <AdminRoute component={AdminPortfolioVisitsPage} />}</Route>
+      <Route path="/admin/qa-audit">{() => <AdminRoute component={AdminQaAuditPage} />}</Route>
       <Route path="/admin/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
       <Route path="/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
       <Route path="/submittal-builder" component={SubmittalBuilderPage} />
