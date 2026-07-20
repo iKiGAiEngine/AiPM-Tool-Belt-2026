@@ -22,8 +22,8 @@ export const SUMMARY_SHEET_NAME = "Summary Sheet";
 
 // Cell locations on the Summary Sheet (column A holds the label, column B the value).
 export const SUMMARY_CELLS = {
-  projectName: "B1", // auto-derives from filename formula — do not stamp
-  bidDueDate: "B2",  // auto-derives from filename formula — do not stamp
+  projectName: "B1", // stamped as literal text (overrides the filename formula)
+  bidDueDate: "B2",  // stamped as an Excel date serial (mm-dd-yy formatted)
   shipTo: "B4",      // project address
   gcEstimator: "B6",
   taxRate: "B8",     // stored as a fraction (0.0925 == 9.25%)
@@ -140,6 +140,21 @@ export async function stampWorkbookCells(buffer: Buffer, sheetName: string, cell
 
   zip.file(sheetPath, sheetXml);
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+}
+
+// Convert an ISO date string (yyyy-mm-dd) to an Excel date serial number — the
+// number of days since 1899-12-30. Written into a date-formatted cell it renders
+// as a real date. Returns null for anything that isn't a valid yyyy-mm-dd date.
+export function excelDateSerial(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  const utc = Date.UTC(y, mo - 1, d);
+  const date = new Date(utc);
+  // Reject values that rolled over (e.g. month 13, day 32).
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
+  return Math.round((utc - Date.UTC(1899, 11, 30)) / 86400000);
 }
 
 // Pull the most likely 5-digit ZIP out of a free-form address string. Prefers the

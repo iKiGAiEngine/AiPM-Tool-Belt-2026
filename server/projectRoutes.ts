@@ -41,7 +41,7 @@ import type { SpecBoostData } from "./planparser/classificationConfig";
 import { processJob } from "./planparser/pdfProcessor";
 import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "./templateStorage";
-import { stampWorkbookCells, lookupTaxRateFraction, SUMMARY_SHEET_NAME, SUMMARY_CELLS, type StampCell } from "./estimateTemplateStamp";
+import { stampWorkbookCells, lookupTaxRateFraction, excelDateSerial, SUMMARY_SHEET_NAME, SUMMARY_CELLS, type StampCell } from "./estimateTemplateStamp";
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { matchRegionWithFallback } from "./regionMatcher";
@@ -500,10 +500,11 @@ export function registerProjectRoutes(app: Express) {
               console.warn("[ProjectCreate] Tax rate lookup failed:", taxErr);
             }
 
-            // Header fields to stamp on the Summary Sheet. Project name (B1) and
-            // bid due date (B2) auto-derive from the filename via formulas, so they
-            // are intentionally not stamped here.
+            // Header fields to stamp on the Summary Sheet.
             const stampCells: StampCell[] = [];
+            if (safeName) stampCells.push({ ref: SUMMARY_CELLS.projectName, value: safeName, type: "string" });
+            const dueDateSerial = excelDateSerial(dueDate);
+            if (dueDateSerial != null) stampCells.push({ ref: SUMMARY_CELLS.bidDueDate, value: dueDateSerial, type: "number" });
             if (screenshotLocation) stampCells.push({ ref: SUMMARY_CELLS.shipTo, value: screenshotLocation, type: "string" });
             if (gcEstimator) stampCells.push({ ref: SUMMARY_CELLS.gcEstimator, value: gcEstimator, type: "string" });
             if (taxRateFraction != null) stampCells.push({ ref: SUMMARY_CELLS.taxRate, value: taxRateFraction, type: "number" });
@@ -1752,9 +1753,11 @@ export function registerProjectRoutes(app: Express) {
         console.warn("[download-estimate] Tax rate lookup failed:", taxErr);
       }
 
-      // Header fields on the Summary Sheet. Project name (B1) and bid due date
-      // (B2) auto-derive from the filename via formulas, so they are not stamped.
+      // Header fields on the Summary Sheet.
       const stampCells: StampCell[] = [];
+      if (project.projectName) stampCells.push({ ref: SUMMARY_CELLS.projectName, value: project.projectName, type: "string" });
+      const dueDateSerial = excelDateSerial(project.dueDate);
+      if (dueDateSerial != null) stampCells.push({ ref: SUMMARY_CELLS.bidDueDate, value: dueDateSerial, type: "number" });
       if (projectAddress) stampCells.push({ ref: SUMMARY_CELLS.shipTo, value: projectAddress, type: "string" });
       if (proposalEntry?.gcEstimateLead) stampCells.push({ ref: SUMMARY_CELLS.gcEstimator, value: proposalEntry.gcEstimateLead, type: "string" });
       if (taxRateFraction != null) stampCells.push({ ref: SUMMARY_CELLS.taxRate, value: taxRateFraction, type: "number" });
