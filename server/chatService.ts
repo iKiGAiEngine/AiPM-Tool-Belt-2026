@@ -1,6 +1,7 @@
 import OpenAI from "openai";
+import { instrumentOpenAI } from "./aiUsage";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = instrumentOpenAI(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }), "chat");
 
 const MODEL = "gpt-4o-mini";
 const TEMPERATURE = 0.7;

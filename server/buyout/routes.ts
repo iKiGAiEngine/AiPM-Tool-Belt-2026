@@ -217,7 +217,8 @@ export function registerBuyoutRoutes(app: Express) {
       if (!scopeName) return res.status(400).json({ error: "scopeName required" });
       if (!process.env.OPENAI_API_KEY) return res.json({ suggestions: [] });
       const { default: OpenAI } = await import("openai");
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const { instrumentOpenAI } = await import("../aiUsage");
+      const openai = instrumentOpenAI(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }), "buyout");
       const items = Array.isArray(sampleItems) ? sampleItems.slice(0, 6).join("; ") : "";
       const response = await openai.chat.completions.create({
         model: "gpt-4o",

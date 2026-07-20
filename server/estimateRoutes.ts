@@ -10,6 +10,7 @@ import {
   rfqLog, insertRfqLogSchema,
 } from "@shared/schema";
 import OpenAI from "openai";
+import { instrumentOpenAI } from "./aiUsage";
 import multer from "multer";
 import { extractPdfText } from "./pdfUtils";
 import { extractScheduleWithAI } from "./openaiScheduleExtractor";
@@ -310,7 +311,7 @@ function extractDiv10Segments(fullText: string, maxChars = 50000): string {
   return parts.join("\n\n--- Section Break ---\n\n");
 }
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = instrumentOpenAI(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }), "estimate");
 
 async function getFullEstimate(estimateId: number) {
   const [est] = await db.select().from(estimates).where(eq(estimates.id, estimateId));

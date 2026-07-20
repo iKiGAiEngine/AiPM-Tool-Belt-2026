@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { instrumentOpenAI } from "../aiUsage";
 import {
   type ExtractedProjectDetails,
   parseJsonFromResponse,
@@ -205,7 +206,7 @@ export function floorExtraction(email: ParsedEmail): ExtractedProjectDetails {
 }
 
 async function extractWithLLM(emailText: string, subject: string, apiKey: string): Promise<ExtractedProjectDetails> {
-  const openai = new OpenAI({ apiKey });
+  const openai = instrumentOpenAI(new OpenAI({ apiKey }), "email-intake");
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     max_tokens: 1500,

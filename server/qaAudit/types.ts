@@ -37,6 +37,31 @@ export interface CheckResult {
   evidence?: Record<string, unknown>;
 }
 
+/** One cost driver (AI model, email, infra) in the Cost & Usage report. */
+export interface CostLine {
+  driver: string;
+  /** true = derived from measured data (the AI ledger / real row counts); false = estimated proxy. */
+  measured: boolean;
+  /** Human usage descriptor, e.g. "1.2M in / 0.4M out tokens · 320 calls". */
+  usage: string;
+  last24hUsd: number;
+  last30dUsd: number;
+  /** How the number was computed (assumptions, rates). */
+  basis: string;
+}
+
+export interface CostSummary {
+  currency: string;
+  /** Whether the AI line is backed by real ledger data (vs. a pre-instrumentation estimate). */
+  hasMeasuredAi: boolean;
+  lines: CostLine[];
+  total24hUsd: number;
+  total30dUsd: number;
+  /** Projected monthly run-rate: variable (24h×30) + fixed monthly infra. */
+  projectedMonthlyUsd: number;
+  note: string;
+}
+
 export interface QaAuditReport {
   status: OverallStatus;
   /** One-sentence headline, e.g. "All systems green — 22/22 checks passed." */
@@ -57,6 +82,8 @@ export interface QaAuditReport {
   };
   /** Every check that ran, in execution order. This is the "what was checked". */
   checks: CheckResult[];
+  /** Estimated cost of running the site, based on usage. Present when local checks run. */
+  cost?: CostSummary;
 }
 
 /** Context handed to each check group so it knows what it is allowed to touch. */

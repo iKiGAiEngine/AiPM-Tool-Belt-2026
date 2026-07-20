@@ -6,10 +6,11 @@
 // enters the buyout math (spec guardrail).
 
 import OpenAI from "openai";
+import { instrumentOpenAI } from "../aiUsage";
 import { extractPdfText } from "../pdfUtils";
 import type { AiQuoteExtraction } from "@shared/buyout/types";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = instrumentOpenAI(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }), "buyout-quote");
 
 export type { AiQuoteExtraction };
 

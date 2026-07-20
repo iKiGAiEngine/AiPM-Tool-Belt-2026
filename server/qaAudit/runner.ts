@@ -5,7 +5,7 @@
 // crashed audit.
 
 import { runHttpChecks } from "./httpChecks";
-import type { AuditContext, CheckResult, OverallStatus, QaAuditReport } from "./types";
+import type { AuditContext, CheckResult, CostSummary, OverallStatus, QaAuditReport } from "./types";
 
 export interface RunOptions {
   baseUrl?: string;
@@ -52,20 +52,29 @@ export async function runAudit(opts: RunOptions = {}): Promise<QaAuditReport> {
   };
 
   const checks: CheckResult[] = [];
+  let cost: CostSummary | undefined;
 
   // HTTP smoke checks (skipped internally if no baseUrl).
   checks.push(...(await runHttpChecks(ctx)));
 
-  // In-process checks (DB + config + filesystem), dynamically imported so the
-  // CLI can run HTTP-only in CI without DATABASE_URL and without loading `db`.
+  // In-process checks (DB + config + filesystem + cost), dynamically imported so
+  // the CLI can run HTTP-only in CI without DATABASE_URL and without loading `db`.
   if (includeLocalChecks) {
     try {
-      const [{ runDbChecks }, { runPlatformChecks }] = await Promise.all([
+      const [{ runDbChecks }, { runPlatformChecks }, { runCostAnalysis }] = await Promise.all([
         import("./dbChecks"),
         import("./platformChecks"),
+        import("./costChecks"),
       ]);
       checks.push(...(await runPlatformChecks()));
       checks.push(...(await runDbChecks()));
+      try {
+        const costResult = await runCostAnalysis();
+        cost = costResult.summary;
+        checks.push(...costResult.checks);
+      } catch (costErr: any) {
+        console.error("[QaAudit] Cost analysis failed (non-fatal):", costErr?.message || costErr);
+      }
     } catch (err: any) {
       checks.push({
         id: "local_checks_bootstrap",
@@ -103,6 +112,7 @@ export async function runAudit(opts: RunOptions = {}): Promise<QaAuditReport> {
     version,
     counts,
     checks,
+    cost,
   };
 
   const shouldPersist = opts.persist ?? includeLocalChecks;

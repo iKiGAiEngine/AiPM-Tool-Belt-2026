@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { instrumentOpenAI } from "./aiUsage";
 
 export interface ExtractedProjectDetails {
   projectName: string | null;
@@ -183,7 +184,7 @@ Response schema:
 }`;
 
 async function extractWithAIFromText(ocrText: string, apiKey: string): Promise<ExtractedProjectDetails> {
-  const openai = new OpenAI({ apiKey });
+  const openai = instrumentOpenAI(new OpenAI({ apiKey }), "screenshot-extractor");
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -220,7 +221,7 @@ async function extractWithAIFromText(ocrText: string, apiKey: string): Promise<E
 }
 
 async function extractWithAIFromImage(imageBuffer: Buffer, apiKey: string): Promise<ExtractedProjectDetails> {
-  const openai = new OpenAI({ apiKey });
+  const openai = instrumentOpenAI(new OpenAI({ apiKey }), "screenshot-extractor");
 
   const base64Image = imageBuffer.toString("base64");
   const mimeType = detectMimeType(imageBuffer);

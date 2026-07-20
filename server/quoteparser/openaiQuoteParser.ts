@@ -1,10 +1,11 @@
 import OpenAI from "openai";
+import { instrumentOpenAI } from "../aiUsage";
 import { z } from "zod";
 import { db } from "../db";
 import { systemSettings, vendors } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = instrumentOpenAI(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }), "quote-parser");
 const MODEL = "gpt-4o";
 
 // ── Schema ────────────────────────────────────────────────────────────────────

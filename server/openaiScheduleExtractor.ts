@@ -1,7 +1,8 @@
 import OpenAI from "openai";
+import { instrumentOpenAI } from "./aiUsage";
 import { z } from "zod";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = instrumentOpenAI(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }), "schedule-extractor");
 
 const DEFAULT_MODEL = "gpt-4o";
 const FALLBACK_MODEL = "gpt-4o-mini";

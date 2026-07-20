@@ -1,9 +1,10 @@
 import OpenAI from "openai";
+import { instrumentOpenAI } from "./aiUsage";
 import { z } from "zod";
 import { getActiveConfiguration, clearConfigCache } from "./configService";
 import type { SpecsiftConfig, AccessoryScopeData } from "@shared/schema";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = instrumentOpenAI(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }), "spec-extractor");
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const MAX_TOKENS = 4096;

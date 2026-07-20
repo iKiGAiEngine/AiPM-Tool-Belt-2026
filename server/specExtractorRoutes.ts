@@ -10,6 +10,7 @@ import fs from "fs";
 import path from "path";
 import { pipeline } from "stream/promises";
 import OpenAI from "openai";
+import { instrumentOpenAI } from "./aiUsage";
 import { UPLOAD_CHUNK_BYTES, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@shared/uploadLimits";
 
 const DATA_DIR = path.join(process.cwd(), "data", "spec-extractor");
@@ -669,7 +670,7 @@ async function runAiReview(sessionId: string, projectName: string): Promise<void
     };
   });
 
-  const openai = new OpenAI({ apiKey });
+  const openai = instrumentOpenAI(new OpenAI({ apiKey }), "spec-extractor");
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
@@ -782,7 +783,7 @@ async function runAiPageValidation(sessionId: string): Promise<void> {
     };
   });
 
-  const openai = new OpenAI({ apiKey });
+  const openai = instrumentOpenAI(new OpenAI({ apiKey }), "spec-extractor");
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
@@ -885,7 +886,7 @@ async function suggestProjectName(sessionId: string): Promise<void> {
   const pages = await getCachedPages(sessionId);
   const sampleText = pages.slice(0, Math.min(5, pages.length)).map((p, i) => `--- Page ${i + 1} ---\n${p.slice(0, 1200)}`).join("\n\n");
 
-  const openai = new OpenAI({ apiKey });
+  const openai = instrumentOpenAI(new OpenAI({ apiKey }), "spec-extractor");
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [

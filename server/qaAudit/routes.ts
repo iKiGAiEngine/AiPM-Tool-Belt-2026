@@ -68,6 +68,16 @@ export function registerQaAuditRoutes(app: Express): void {
     }
   });
 
+  app.get("/api/admin/qa-audit/cost", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const { runCostAnalysis } = await import("./costChecks");
+      const { summary } = await runCostAnalysis();
+      res.json(summary);
+    } catch (err: any) {
+      res.status(500).json({ message: err?.message || "Failed to compute cost." });
+    }
+  });
+
   app.get("/api/admin/qa-audit/report.html", requireAdmin, async (req: Request, res: Response) => {
     try {
       let report: QaAuditReport | undefined;

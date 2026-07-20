@@ -1805,3 +1805,24 @@ export const qaAuditRuns = pgTable("qa_audit_runs", {
 });
 export type QaAuditRun = typeof qaAuditRuns.$inferSelect;
 export type InsertQaAuditRun = typeof qaAuditRuns.$inferInsert;
+
+// Ledger of AI (OpenAI) API calls, one row per completion. Populated by the
+// instrumentOpenAI() wrapper from each response's token usage, so we can report
+// exact spend by model and operation. Best-effort — a call is never failed if
+// the ledger write fails.
+export const aiUsageEvents = pgTable("ai_usage_events", {
+  id: serial("id").primaryKey(),
+  occurredAt: timestamp("occurred_at").notNull().defaultNow(),
+  operation: varchar("operation", { length: 80 }).notNull(), // e.g. "quote-parser", "chat", "spec-extractor"
+  model: varchar("model", { length: 80 }).notNull(),
+  promptTokens: integer("prompt_tokens").notNull().default(0),
+  completionTokens: integer("completion_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  // Cost in micro-dollars (USD * 1e6) to keep integer precision on tiny amounts.
+  estimatedCostMicros: integer("estimated_cost_micros").notNull().default(0),
+  userId: integer("user_id"),
+}, (t) => ({
+  occurredIdx: index("ai_usage_occurred_idx").on(t.occurredAt),
+}));
+export type AiUsageEvent = typeof aiUsageEvents.$inferSelect;
+export type InsertAiUsageEvent = typeof aiUsageEvents.$inferInsert;
