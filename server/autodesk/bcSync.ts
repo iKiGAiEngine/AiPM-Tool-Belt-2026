@@ -10,13 +10,13 @@ import { guessMarket } from "../proposalLogService";
 import { generateProjectId, createProject, getActiveRegions } from "../scopeDictionaryStorage";
 import { sendDraftNotificationEmail } from "../emailService";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "../templateStorage";
+import { stampWorkbookCells, buildSummaryStampCells, SUMMARY_SHEET_NAME } from "../estimateTemplateStamp";
 import { matchRegionWithFallback } from "../regionMatcher";
 import { isSwinerton, matchSwinertonOffice, matchExtRegion, resolveSwinertonSoCalSubregion } from "../swinertonOffices";
 import { findFuzzyDuplicates } from "../fuzzyDuplicates";
 import fs from "fs";
 import path from "path";
 import JSZip from "jszip";
-import ExcelJS from "exceljs";
 
 const BC_GC_API_BASE = "https://developer.api.autodesk.com/construction/buildingconnected/v2";
 const BC_SUB_API_BASE = "https://developer.api.autodesk.com/buildingconnected/v2/bid-board";
@@ -1579,62 +1579,34 @@ export function registerBcSyncRoutes(app: Express) {
       const estimateBuffer = activeEstimateTemplate ? await getEstimateTemplateFileBuffer(activeEstimateTemplate) : null;
       if (activeEstimateTemplate && estimateBuffer) {
         try {
-          const workbook = new ExcelJS.Workbook();
-          await workbook.xlsx.load(estimateBuffer);
-
-          let stampedCount = 0;
-          const summarySheet = workbook.getWorksheet("Summary") || workbook.worksheets[0];
-          
-          if (summarySheet) {
-            // B1: Project Name
-            if (safeName) {
-              summarySheet.getCell("B1").value = safeName;
-              stampedCount++;
-            }
-            
-            // B2: BID DUE DATE
-            if (finalDueDate) {
-              summarySheet.getCell("B2").value = finalDueDate;
-              stampedCount++;
-            }
-            
-            // B4: SHIP TO (Project Address)
-            if (finalProjectAddress) {
-              summarySheet.getCell("B4").value = finalProjectAddress;
-              stampedCount++;
-            }
-            
-            // B6: GC ESTIMATOR (Self Perform Estimator Name)
-            if (finalGcEstimateLead) {
-              summarySheet.getCell("B6").value = finalGcEstimateLead;
-              stampedCount++;
-            }
-            
-            // B12: PROJECT START DATE
-            if (finalAnticipatedStart) {
-              summarySheet.getCell("B12").value = finalAnticipatedStart;
-              stampedCount++;
-            }
-            
-            // B13: PROJECT END DATE
-            if (finalAnticipatedFinish) {
-              summarySheet.getCell("B13").value = finalAnticipatedFinish;
-              stampedCount++;
-            }
-          }
-
-          const dueParts = finalDueDate.split("-");
+          const dueParts = (finalDueDate || "").split("-");
           const formattedDueDate = dueParts.length >= 3 ? `${dueParts[1]}.${dueParts[2]}.${dueParts[0].slice(2)}` : "TBD";
           const ext = path.extname(activeEstimateTemplate.originalFilename || activeEstimateTemplate.filePath) || ".xlsx";
           const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
           const estimatePath = path.join(projectDir, "Estimate Folder", "Estimate", estimateFilename);
 
-          if (ext === ".xlsm") {
-            fs.writeFileSync(estimatePath, estimateBuffer);
-          } else {
-            await workbook.xlsx.writeFile(estimatePath);
+          // Header fields on the Summary Sheet (includes the address-ZIP tax lookup).
+          const stampCells = await buildSummaryStampCells({
+            projectName: safeName,
+            dueDate: finalDueDate,
+            projectAddress: finalProjectAddress,
+            gcEstimator: finalGcEstimateLead,
+            anticipatedStart: finalAnticipatedStart,
+            anticipatedFinish: finalAnticipatedFinish,
+          });
+
+          // Patch cells in the worksheet XML so macros/formulas survive (works for
+          // both .xlsm and .xlsx templates). If stamping fails, fall back to the
+          // unstamped template so the folder still contains the estimate workbook.
+          let outputBuffer: Buffer;
+          try {
+            outputBuffer = await stampWorkbookCells(estimateBuffer, SUMMARY_SHEET_NAME, stampCells);
+          } catch (stampErr) {
+            console.error("[BC ApproveCreate] Stamping failed, writing unstamped estimate:", stampErr);
+            outputBuffer = estimateBuffer;
           }
-          console.log(`[BC ApproveCreate] Estimate stamped: ${estimateFilename} (${stampedCount} fields)`);
+          fs.writeFileSync(estimatePath, outputBuffer);
+          console.log(`[BC ApproveCreate] Estimate stamped: ${estimateFilename} (${stampCells.length} fields)`);
         } catch (err) {
           console.error("[BC ApproveCreate] Failed to stamp estimate:", err);
         }
