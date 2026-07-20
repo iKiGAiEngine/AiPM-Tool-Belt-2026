@@ -139,6 +139,33 @@ export async function stampWorkbookCells(buffer: Buffer, sheetName: string, cell
   }
 
   zip.file(sheetPath, sheetXml);
+
+  // calcChain.xml caches the formula calculation order. Replacing formula cells
+  // (e.g. the name/date cells) with literals leaves that cache inconsistent, so
+  // Excel shows a "repaired/removed records" prompt on open. Drop the cache and
+  // every reference to it — it is optional and Excel rebuilds it automatically.
+  if (zip.file("xl/calcChain.xml")) {
+    zip.remove("xl/calcChain.xml");
+
+    // Remove the part declaration from [Content_Types].xml.
+    const ctXml = await zip.file("[Content_Types].xml")?.async("string");
+    if (ctXml) {
+      const cleaned = ctXml.replace(/<Override[^>]*PartName="\/xl\/calcChain\.xml"[^>]*\/>/g, "");
+      if (cleaned !== ctXml) zip.file("[Content_Types].xml", cleaned);
+    }
+
+    // Remove the workbook relationship pointing at calcChain.xml.
+    const cleanedRels = relsXml.replace(/<Relationship[^>]*calcChain\.xml"[^>]*\/>/g, "");
+    if (cleanedRels !== relsXml) zip.file("xl/_rels/workbook.xml.rels", cleanedRels);
+  }
+
+  // Force a full recalculation on open so every remaining formula refreshes now
+  // that the cached calculation chain is gone.
+  const workbookXmlOut = /<calcPr[^>]*\bfullCalcOnLoad=/.test(workbookXml)
+    ? workbookXml
+    : workbookXml.replace(/<calcPr\b/, '<calcPr fullCalcOnLoad="1"');
+  if (workbookXmlOut !== workbookXml) zip.file("xl/workbook.xml", workbookXmlOut);
+
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
