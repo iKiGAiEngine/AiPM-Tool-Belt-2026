@@ -184,13 +184,29 @@ export function excelDateSerial(iso: string | null | undefined): number | null {
   return Math.round((utc - Date.UTC(1899, 11, 30)) / 86400000);
 }
 
-// Pull the most likely 5-digit ZIP out of a free-form address string. Prefers the
-// last ZIP-shaped token, which in a US address is the trailing postal code.
+// Pull the postal ZIP out of a free-form US address. We deliberately only accept
+// a ZIP in a position where it is really the postal code — after a state token
+// (e.g. "CA 94105") or at the very end of the string — so a 5-digit street number
+// like "12345 Sunset Blvd" is never mistaken for a ZIP. Returns null when no
+// confident ZIP is present rather than guessing.
 export function extractZipFromAddress(address: string | null | undefined): string | null {
   if (!address) return null;
-  const matches = address.match(/\b\d{5}(?:-\d{4})?\b/g);
-  if (!matches || matches.length === 0) return null;
-  return normalizeZip(matches[matches.length - 1]);
+  const text = address.trim();
+
+  // 1) "<STATE> <ZIP>" — the canonical US form. Take the last occurrence so a
+  //    number earlier in the string can't win over the real trailing ZIP.
+  const stateZipRe = /\b[A-Za-z]{2}\.?\s+(\d{5})(?:-\d{4})?\b/g;
+  let lastStateZip: string | null = null;
+  let sz: RegExpExecArray | null;
+  while ((sz = stateZipRe.exec(text)) !== null) lastStateZip = sz[1];
+  if (lastStateZip) return normalizeZip(lastStateZip);
+
+  // 2) A ZIP at the very end of the string (address with no state token).
+  const trailing = text.match(/(\d{5})(?:-\d{4})?\s*$/);
+  if (trailing) return normalizeZip(trailing[1]);
+
+  // 3) No ZIP in a trustworthy position — don't guess from a mid-string number.
+  return null;
 }
 
 // Look up the sales/use tax rate for an address's ZIP and return it as a fraction
@@ -205,4 +221,43 @@ export async function lookupTaxRateFraction(address: string | null | undefined):
   const maxPoints = Math.max(...rows.map((r) => Number(r.tax) || 0));
   if (!maxPoints || !isFinite(maxPoints)) return null;
   return maxPoints / 100;
+}
+
+export interface SummaryStampInfo {
+  projectName?: string | null;
+  dueDate?: string | null;           // yyyy-mm-dd
+  projectAddress?: string | null;
+  gcEstimator?: string | null;
+  anticipatedStart?: string | null;
+  anticipatedFinish?: string | null;
+}
+
+// Build the Summary Sheet stamp cells for a project's header from a single info
+// object, including the address-ZIP tax-rate lookup. Shared by every code path
+// that stamps an estimate (project create, folder recreate, estimate download)
+// so the cell mapping lives in exactly one place. Only fields with a value
+// produce a cell. Tax-rate lookup failures are swallowed (best-effort).
+export async function buildSummaryStampCells(info: SummaryStampInfo): Promise<StampCell[]> {
+  const cells: StampCell[] = [];
+
+  if (info.projectName) cells.push({ ref: SUMMARY_CELLS.projectName, value: info.projectName, type: "string" });
+
+  const dueDateSerial = excelDateSerial(info.dueDate);
+  if (dueDateSerial != null) cells.push({ ref: SUMMARY_CELLS.bidDueDate, value: dueDateSerial, type: "number" });
+
+  if (info.projectAddress) cells.push({ ref: SUMMARY_CELLS.shipTo, value: info.projectAddress, type: "string" });
+  if (info.gcEstimator) cells.push({ ref: SUMMARY_CELLS.gcEstimator, value: info.gcEstimator, type: "string" });
+
+  let taxRateFraction: number | null = null;
+  try {
+    taxRateFraction = await lookupTaxRateFraction(info.projectAddress);
+  } catch (err) {
+    console.warn("[estimateStamp] Tax rate lookup failed:", err);
+  }
+  if (taxRateFraction != null) cells.push({ ref: SUMMARY_CELLS.taxRate, value: taxRateFraction, type: "number" });
+
+  if (info.anticipatedStart) cells.push({ ref: SUMMARY_CELLS.projectStartDate, value: info.anticipatedStart, type: "string" });
+  if (info.anticipatedFinish) cells.push({ ref: SUMMARY_CELLS.projectEndDate, value: info.anticipatedFinish, type: "string" });
+
+  return cells;
 }

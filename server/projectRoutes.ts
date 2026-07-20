@@ -41,8 +41,7 @@ import type { SpecBoostData } from "./planparser/classificationConfig";
 import { processJob } from "./planparser/pdfProcessor";
 import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "./templateStorage";
-import { stampWorkbookCells, lookupTaxRateFraction, excelDateSerial, SUMMARY_SHEET_NAME, SUMMARY_CELLS, type StampCell } from "./estimateTemplateStamp";
-import ExcelJS from "exceljs";
+import { stampWorkbookCells, buildSummaryStampCells, SUMMARY_SHEET_NAME } from "./estimateTemplateStamp";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { matchRegionWithFallback } from "./regionMatcher";
 import { isSwinerton, matchSwinertonOffice, matchExtRegion } from "./swinertonOffices";
@@ -491,25 +490,16 @@ export function registerProjectRoutes(app: Express) {
           try {
             console.log(`[ProjectCreate] Stamping estimate template v${activeEstimateTemplate.version} (${estimateBuffer.length} bytes from ${activeEstimateTemplate.fileData ? 'database' : 'disk'})`);
 
-            // Resolve the tax rate from the project address ZIP via the tax rate
-            // lookup table (best-effort — leaves the template default when unknown).
-            let taxRateFraction: number | null = null;
-            try {
-              taxRateFraction = await lookupTaxRateFraction(screenshotLocation);
-            } catch (taxErr) {
-              console.warn("[ProjectCreate] Tax rate lookup failed:", taxErr);
-            }
-
-            // Header fields to stamp on the Summary Sheet.
-            const stampCells: StampCell[] = [];
-            if (safeName) stampCells.push({ ref: SUMMARY_CELLS.projectName, value: safeName, type: "string" });
-            const dueDateSerial = excelDateSerial(dueDate);
-            if (dueDateSerial != null) stampCells.push({ ref: SUMMARY_CELLS.bidDueDate, value: dueDateSerial, type: "number" });
-            if (screenshotLocation) stampCells.push({ ref: SUMMARY_CELLS.shipTo, value: screenshotLocation, type: "string" });
-            if (gcEstimator) stampCells.push({ ref: SUMMARY_CELLS.gcEstimator, value: gcEstimator, type: "string" });
-            if (taxRateFraction != null) stampCells.push({ ref: SUMMARY_CELLS.taxRate, value: taxRateFraction, type: "number" });
-            if (anticipatedStart) stampCells.push({ ref: SUMMARY_CELLS.projectStartDate, value: anticipatedStart, type: "string" });
-            if (anticipatedFinish) stampCells.push({ ref: SUMMARY_CELLS.projectEndDate, value: anticipatedFinish, type: "string" });
+            // Header fields to stamp on the Summary Sheet (includes the address-ZIP
+            // tax-rate lookup — best-effort, leaves the template default when unknown).
+            const stampCells = await buildSummaryStampCells({
+              projectName: safeName,
+              dueDate,
+              projectAddress: screenshotLocation,
+              gcEstimator,
+              anticipatedStart,
+              anticipatedFinish,
+            });
 
             const dueParts = dueDate.split("-");
             const formattedDueDate = `${dueParts[1]}.${dueParts[2]}.${dueParts[0].slice(2)}`;
@@ -522,7 +512,7 @@ export function registerProjectRoutes(app: Express) {
             // macro-enabled .xlsm templates and plain .xlsx templates.
             const stampedBuffer = await stampWorkbookCells(estimateBuffer, SUMMARY_SHEET_NAME, stampCells);
             fs.writeFileSync(estimatePath, stampedBuffer);
-            console.log(`[ProjectCreate] Estimate file saved: ${estimateFilename} (${stampCells.length} fields stamped, macros preserved${taxRateFraction != null ? `, tax rate ${(taxRateFraction * 100).toFixed(4)}%` : ""})`);
+            console.log(`[ProjectCreate] Estimate file saved: ${estimateFilename} (${stampCells.length} fields stamped, macros preserved)`);
           } catch (err) {
             console.error("[ProjectCreate] Failed to stamp estimate template:", err);
             // Fall back to an unstamped copy so the project folder still gets a file.
@@ -1744,29 +1734,27 @@ export function registerProjectRoutes(app: Express) {
         ? (await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.projectDbId, project.id)).limit(1))[0]
         : null;
 
-      // Resolve tax rate from the project address ZIP (best-effort).
+      // Header fields on the Summary Sheet (includes the address-ZIP tax lookup).
       const projectAddress = project.projectAddress || proposalEntry?.projectAddress || "";
-      let taxRateFraction: number | null = null;
-      try {
-        taxRateFraction = await lookupTaxRateFraction(projectAddress);
-      } catch (taxErr) {
-        console.warn("[download-estimate] Tax rate lookup failed:", taxErr);
-      }
-
-      // Header fields on the Summary Sheet.
-      const stampCells: StampCell[] = [];
-      if (project.projectName) stampCells.push({ ref: SUMMARY_CELLS.projectName, value: project.projectName, type: "string" });
-      const dueDateSerial = excelDateSerial(project.dueDate);
-      if (dueDateSerial != null) stampCells.push({ ref: SUMMARY_CELLS.bidDueDate, value: dueDateSerial, type: "number" });
-      if (projectAddress) stampCells.push({ ref: SUMMARY_CELLS.shipTo, value: projectAddress, type: "string" });
-      if (proposalEntry?.gcEstimateLead) stampCells.push({ ref: SUMMARY_CELLS.gcEstimator, value: proposalEntry.gcEstimateLead, type: "string" });
-      if (taxRateFraction != null) stampCells.push({ ref: SUMMARY_CELLS.taxRate, value: taxRateFraction, type: "number" });
-      if (proposalEntry?.anticipatedStart) stampCells.push({ ref: SUMMARY_CELLS.projectStartDate, value: proposalEntry.anticipatedStart, type: "string" });
-      if (proposalEntry?.anticipatedFinish) stampCells.push({ ref: SUMMARY_CELLS.projectEndDate, value: proposalEntry.anticipatedFinish, type: "string" });
+      const stampCells = await buildSummaryStampCells({
+        projectName: project.projectName,
+        dueDate: project.dueDate,
+        projectAddress,
+        gcEstimator: proposalEntry?.gcEstimateLead,
+        anticipatedStart: proposalEntry?.anticipatedStart,
+        anticipatedFinish: proposalEntry?.anticipatedFinish,
+      });
 
       // Patch cells in the worksheet XML so macros/formulas survive (works for
-      // both .xlsm and .xlsx templates).
-      const stampedBuffer = await stampWorkbookCells(templateBuffer, SUMMARY_SHEET_NAME, stampCells);
+      // both .xlsm and .xlsx templates). If stamping fails, fall back to the
+      // unstamped template so the user still gets a workbook rather than a 500.
+      let stampedBuffer: Buffer;
+      try {
+        stampedBuffer = await stampWorkbookCells(templateBuffer, SUMMARY_SHEET_NAME, stampCells);
+      } catch (stampErr) {
+        console.error("[download-estimate] Stamping failed, serving unstamped template:", stampErr);
+        stampedBuffer = templateBuffer;
+      }
 
       const safeName = sanitizeForWindows(project.projectName || "Project");
       const ext = path.extname(template.originalFilename || template.filePath || "") || ".xlsx";
@@ -2787,24 +2775,25 @@ export function registerProjectRoutes(app: Express) {
           const formattedDueDate = dueParts.length >= 3 ? `${dueParts[1]}.${dueParts[2]}.${dueParts[0].slice(2)}` : "TBD";
           const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
 
+          // Header fields on the Summary Sheet (includes the address-ZIP tax lookup).
+          const stampCells = await buildSummaryStampCells({
+            projectName: safeName,
+            dueDate: entry.dueDate,
+            projectAddress: entry.projectAddress,
+            gcEstimator: entry.gcEstimateLead,
+            anticipatedStart: entry.anticipatedStart,
+            anticipatedFinish: entry.anticipatedFinish,
+          });
+
+          // Patch cells in the worksheet XML so macros/formulas survive (works for
+          // both .xlsm and .xlsx templates). If stamping fails, fall back to the
+          // unstamped template so the folder still contains the estimate workbook.
           let outputBuffer: Buffer;
-          if (ext === ".xlsm") {
-            // ExcelJS strips macros; preserve the .xlsm template as-is.
+          try {
+            outputBuffer = await stampWorkbookCells(estimateBuffer, SUMMARY_SHEET_NAME, stampCells);
+          } catch (stampErr) {
+            console.error("[RecreateFolder] Stamping failed, including unstamped estimate:", stampErr);
             outputBuffer = estimateBuffer;
-          } else {
-            const workbook = new ExcelJS.Workbook();
-            await workbook.xlsx.load(estimateBuffer);
-            const summarySheet = workbook.getWorksheet("Summary") || workbook.worksheets[0];
-            if (summarySheet) {
-              if (safeName) summarySheet.getCell("B1").value = safeName;
-              if (entry.dueDate) summarySheet.getCell("B2").value = entry.dueDate;
-              if (entry.projectAddress) summarySheet.getCell("B4").value = entry.projectAddress;
-              if (entry.gcEstimateLead) summarySheet.getCell("B6").value = entry.gcEstimateLead;
-              if (entry.anticipatedStart) summarySheet.getCell("B12").value = entry.anticipatedStart;
-              if (entry.anticipatedFinish) summarySheet.getCell("B13").value = entry.anticipatedFinish;
-            }
-            const arrBuf = await workbook.xlsx.writeBuffer();
-            outputBuffer = Buffer.from(arrBuf);
           }
 
           rootFolder.file(`Estimate Folder/Estimate/${estimateFilename}`, outputBuffer);
