@@ -4,6 +4,7 @@ import {
   parseJsonFromResponse,
   normalizeDate,
   extractFieldsFromOCRText,
+  stripCountrySuffix,
 } from "../screenshotExtractor";
 import type { ParsedEmail } from "./emailParser";
 
@@ -124,7 +125,8 @@ export function extractLabeledEmailFields(text: string): Partial<ExtractedProjec
     }
     if (out.location === undefined) {
       const v = labelValue(line, /^(?:Project\s*)?(?:Location|Address)\s*[:\-–—]\s*(.+)$/i);
-      if (v) out.location = v.replace(/\s*(United States of America|United States|USA|US)\s*$/i, "").replace(/,\s*$/, "").trim();
+      const stripped = stripCountrySuffix(v);
+      if (stripped) out.location = stripped;
     }
     if (out.tradeName === undefined) {
       const v = labelValue(line, /^Trade(?:\s*Name)?(?:\s*\(s\))?\s*[:\-–—]\s*(.+)$/i);
@@ -236,7 +238,7 @@ async function extractWithLLM(emailText: string, subject: string, apiKey: string
   return {
     projectName: parsed.projectName || null,
     dueDate: normalizeDate(parsed.dueDate),
-    location: parsed.location || null,
+    location: stripCountrySuffix(parsed.location),
     tradeName: parsed.tradeName || null,
     inviteDate: normalizeDate(parsed.inviteDate),
     expectedStart: normalizeDate(parsed.expectedStart),

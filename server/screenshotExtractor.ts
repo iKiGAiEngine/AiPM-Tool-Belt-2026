@@ -215,7 +215,7 @@ async function extractWithAIFromText(ocrText: string, apiKey: string): Promise<E
   return {
     projectName: parsed.projectName || null,
     dueDate: normalizeDate(parsed.dueDate),
-    location: parsed.location || null,
+    location: stripCountrySuffix(parsed.location),
     tradeName: parsed.tradeName || null,
     inviteDate: normalizeDate(parsed.inviteDate),
     expectedStart: normalizeDate(parsed.expectedStart),
@@ -264,7 +264,7 @@ async function extractWithAIFromImage(imageBuffer: Buffer, apiKey: string): Prom
   return {
     projectName: parsed.projectName || null,
     dueDate: normalizeDate(parsed.dueDate),
-    location: parsed.location || null,
+    location: stripCountrySuffix(parsed.location),
     tradeName: parsed.tradeName || null,
     inviteDate: normalizeDate(parsed.inviteDate),
     expectedStart: normalizeDate(parsed.expectedStart),
@@ -444,13 +444,24 @@ function extractDueDate(text: string): string | null {
   return null;
 }
 
+// Project addresses should end at the ZIP code — drop a trailing country name
+// (BC/geocoded addresses commonly append ", United States of America").
+export function stripCountrySuffix(address: string | null | undefined): string | null {
+  if (!address) return null;
+  const stripped = address.trim()
+    .replace(/\s*,?\s*(United States of America|United States|USA|US)\s*$/i, "")
+    .replace(/,\s*$/, "")
+    .trim();
+  return stripped || null;
+}
+
 function extractLocation(text: string): string | null {
   const locationPatterns = [/Location\s*[:\-]?\s*(.+)/i, /Address\s*[:\-]?\s*(.+)/i, /Project\s*(?:Location|Address)\s*[:\-]?\s*(.+)/i];
   for (const pattern of locationPatterns) {
     const match = text.match(pattern);
     if (match && match[1]?.trim()) {
-      let loc = match[1].trim().replace(/\s*(United States of America|United States|USA|US)\s*$/i, "").replace(/,\s*$/, "").trim();
-      if (loc.length > 5) return loc;
+      const loc = stripCountrySuffix(match[1].trim());
+      if (loc && loc.length > 5) return loc;
     }
   }
   return null;

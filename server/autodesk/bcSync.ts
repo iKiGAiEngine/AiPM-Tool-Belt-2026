@@ -176,6 +176,10 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
   } else if (addr.formattedAddress) {
     formattedAddress = String(addr.formattedAddress);
   }
+  // BC's own geocoded "complete"/"formattedAddress" strings often carry a
+  // trailing country name (e.g. "...OR 97239, United States of America").
+  // The project address just needs to end at the ZIP for our forms/estimates.
+  formattedAddress = formattedAddress.replace(/,?\s*(United States of America|United States|USA|US)\s*$/i, "").trim();
 
   const gcCompanyName = deepGet(raw,
     "client.company.name",
