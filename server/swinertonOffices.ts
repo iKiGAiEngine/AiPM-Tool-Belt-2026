@@ -105,8 +105,10 @@ export function matchSwinertonOffice(
     return result("DFW");
   }
 
-  // --- DEN ---
-  if (/denver|colorado/i.test(office)) {
+  // --- DEN --- (Arvada is Swinerton's Denver-metro office address, seen when
+  // an invite email only gives the office's street address, not a city name
+  // literally called "Denver"/"Colorado")
+  if (/denver|colorado|arvada/i.test(office)) {
     return result("DEN");
   }
 

@@ -109,6 +109,38 @@ async function run() {
   const failFetch = (async () => { throw new Error("network down"); }) as unknown as typeof fetch;
   assert.strictEqual(await followTrackerRedirects("https://ct.sendgrid.net/x/abc", failFetch), null, "network failure is non-fatal");
 
+  // ── BuildingConnected's own /goto/ short-links ──
+  // Newer BC invite templates ("View this RFP" / "Bidding" buttons) link to
+  // app.buildingconnected.com/goto/<code>, which looks like a direct BC link
+  // by host but carries no opportunity/project id until its redirect is
+  // followed. Regression for the DPS Gateway E-5 intake, where this caused
+  // BC enrichment (and therefore Region) to silently never run.
+  const gotoLink = "https://app.buildingconnected.com/goto/6a5fcfbf8d492f0032f55f3e19f864383a3itb";
+  const gotoFetch = (async (url: any) => {
+    if (String(url) === gotoLink) {
+      return { headers: new Headers({ location: `https://app.buildingconnected.com/opportunities/${OPP_A}` }) } as Response;
+    }
+    return { headers: new Headers() } as Response;
+  }) as typeof fetch;
+  const gotoEmail = {
+    subject: "Bid Invite", fromName: "", fromEmail: "", date: null,
+    text: `View this RFP <${gotoLink}>`, html: null, messageId: null,
+    hrefs: [gotoLink], fileType: "eml" as const,
+  };
+  assert.strictEqual(
+    await findBcLink(gotoEmail, gotoFetch),
+    `https://app.buildingconnected.com/opportunities/${OPP_A}`,
+    "/goto/ short-link followed to the real opportunity link"
+  );
+  // Redirect fails (no network, e.g. this sandbox) — falls back to the /goto/
+  // link itself rather than null, so "View on BC" still has somewhere to point.
+  const gotoFailFetch = (async () => { throw new Error("network down"); }) as unknown as typeof fetch;
+  assert.strictEqual(
+    await findBcLink(gotoEmail, gotoFailFetch),
+    gotoLink,
+    "/goto/ link with unresolvable redirect falls back to itself, not null"
+  );
+
   console.log("All bcLinkResolver tests passed!");
 }
 

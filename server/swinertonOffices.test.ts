@@ -154,6 +154,17 @@ assert.strictEqual(matchSwinertonOffice("Swinerton Builders - Dallas", FAKE_REGI
 assert.strictEqual(matchSwinertonOffice("Swinerton Builders - Charlotte", FAKE_REGIONS).code, "CLT");
 console.log("PASS: Regression — HNL, SEA, GEG, PDX, SAN, SFO, LGA, DFW, CLT still resolve");
 
+// --- Regression: DPS Gateway E-5 (Denver) intake — the BC invite email for
+// this project had no "Company - Office" dash format at all, only the GC's
+// office street address ("6890 West 52nd Avenue, Arvada, CO 80002"). Region
+// resolution must work from the office city name "Arvada" alone, not just
+// "Denver"/"Colorado" literally. ---
+assert.strictEqual(matchSwinertonOffice("Swinerton Builders - Denver", FAKE_REGIONS).code, "DEN");
+assert.strictEqual(matchSwinertonOffice("Swinerton Builders - Colorado", FAKE_REGIONS).code, "DEN");
+assert.strictEqual(matchSwinertonOffice("Swinerton Builders - Arvada", FAKE_REGIONS).code, "DEN");
+assert.strictEqual(matchSwinertonOffice("Swinerton Builders - Arvada, CO", FAKE_REGIONS).code, "DEN");
+console.log("PASS: 'Swinerton Builders - Arvada' → DEN (office address city, no dash-labeled office name)");
+
 // --- Regression: PDX has two distinct office rows (Portland, Idaho). Passing
 // name=undefined into result() previously grabbed whichever PDX row happened to
 // come first in the regions array, so "Portland" could silently resolve to the

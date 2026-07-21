@@ -26,7 +26,7 @@ const EMAIL_PARSE_PROMPT = `You are an expert construction bid-invitation data e
 
 Parse the email and extract the following fields. Return ONLY valid JSON, no prose, no markdown fences.
 
-BUILDINGCONNECTED INVITE EMAILS typically say "<Contact Name> with <GC Company> has invited you to bid on <Project Name>" and list labeled rows such as:
+BUILDINGCONNECTED INVITE EMAILS typically say "<Contact Name> with <GC Company> has invited you to bid on <Project Name>" (newer templates say "<Contact Name> from <GC Company> has invited you...") and list labeled rows such as:
 - "Project" → projectName
 - "Client" → the GC company, often "Company - Office" (e.g. "Swinerton Builders - Dallas")
 - "Location" or "Project location" → location (the PROJECT address, not the GC office)
@@ -37,6 +37,7 @@ BUILDINGCONNECTED INVITE EMAILS typically say "<Contact Name> with <GC Company> 
 - "Expected Finish" / "Est. End" → expectedFinish (construction end)
 - "Project Size" / "Square Feet" / "Sq. Ft." → squareFeet (the project's size, exactly as shown, e.g. "7,191 sq. ft.")
 - "Job Walk" / "Site Visit" / "Walkthrough" is a SEPARATE row from "Expected Start" — it is a walkthrough appointment date, not the construction start. NEVER use a Job Walk / Site Visit / Walkthrough date to fill expectedStart or expectedFinish, even if the Expected Start row is blank or shows "--". In that case return null for expectedStart rather than substituting a different date. The same applies to "RFIs Due" — never map it to expectedStart/expectedFinish either.
+- Some newer BuildingConnected templates have NO "Company - Office" dash format at all — instead a "Client Details" section shows just the company name (e.g. "Swinerton Builders") followed by its own street address (e.g. "6890 West 52nd Avenue, Arvada, CO 80002"). When that's all you have, set clientLocation to that address's CITY and STATE (e.g. "Arvada, CO") — this is the only office signal available and is far better than leaving clientLocation null. Do not confuse this company address with the PROJECT location.
 
 FORWARDED EMAILS: If the email contains a forwarded message (markers like "---------- Forwarded message ----------", "-----Original Message-----", or a quoted "From: ... Sent: ... Subject: ..." block), extract from the INNERMOST original invitation. The forwarding wrapper's sender is NOT the GC contact. The original sender line (e.g. "From: Turner Construction via BuildingConnected") identifies the platform, not the contact person.
 
@@ -48,7 +49,7 @@ GC-DIRECT INVITES (no BuildingConnected): the GC's estimator writes personally. 
 RULES:
 - For dates, convert to YYYY-MM-DD. Handle "Aug 14, 2026 at 2:00 PM CDT", "07/30/2026", "July 30th, 2026" — strip times and timezones.
 - "clientName" is the GC company name ONLY (e.g. "Swinerton Builders", "Turner Construction Company").
-- "clientLocation" is the office/division designation after the company name dash, kept COMPLETE (e.g. "Dallas", "SoCal - Parking Structures"). NEVER use the project city/state as clientLocation.
+- "clientLocation" is the office/division designation after the company name dash, kept COMPLETE (e.g. "Dallas", "SoCal - Parking Structures"). If there's no dash format, fall back to the GC company's own office city/state from its address in the "Client Details" section (see above). NEVER use the project city/state as clientLocation.
 - "gcContactName"/"gcContactEmail" = the person at the GC to respond to (invite sender, "Contact X:" line, or signature).
 - Do NOT invent values. Use null for anything not clearly present in the email.
 - Ignore unsubscribe footers, legal disclaimers, and email signatures except as a source of contact info.
@@ -162,7 +163,9 @@ export function extractLabeledEmailFields(text: string): Partial<ExtractedProjec
   }
 
   // Invite sentence: "<Name> with <Company> has invited you to bid on <Project>."
-  const sentence = text.match(/([A-Z][\w.'-]+(?:\s+[\w.'-]+){0,4}?)\s+with\s+(.{2,80}?)\s+has invited you to bid on\s+(.+?)\.?\s*(?:\r?\n|$)/i);
+  // Newer BC templates phrase this as "<Name> from <Company> has invited..." —
+  // accept either preposition.
+  const sentence = text.match(/([A-Z][\w.'-]+(?:\s+[\w.'-]+){0,4}?)\s+(?:with|from)\s+(.{2,80}?)\s+has invited you to bid on\s+(.+?)\.?\s*(?:\r?\n|$)/i);
   if (sentence) {
     out.gcContactName = out.gcContactName ?? sentence[1].trim();
     const company = sentence[2].trim();
@@ -176,6 +179,23 @@ export function extractLabeledEmailFields(text: string): Partial<ExtractedProjec
       }
     }
     out.projectName = out.projectName ?? sentence[3].trim();
+  }
+
+  // Newer BC templates drop the "Company - Office" dash format entirely —
+  // the "Client Details" section just shows the company name followed by its
+  // own street address (e.g. "Swinerton Builders" / "6890 West 52nd Avenue,
+  // Arvada, CO 80002"). That address is the only office signal available in
+  // this template, so fall back to its city/state as the office designation
+  // when nothing above produced a clientLocation.
+  if (out.clientLocation === undefined) {
+    const clientDetailsIdx = text.search(/Client\s*Details/i);
+    if (clientDetailsIdx !== -1) {
+      const window = text.slice(clientDetailsIdx, clientDetailsIdx + 800);
+      const addrMatch = window.match(/,\s*([A-Za-z][A-Za-z .'-]+),\s*([A-Z]{2})\s+\d{5}/);
+      if (addrMatch) {
+        out.clientLocation = `${addrMatch[1].trim()}, ${addrMatch[2].trim()}`;
+      }
+    }
   }
 
   return out;

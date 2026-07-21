@@ -107,6 +107,27 @@ function isTrackerHost(url: string): boolean {
 }
 
 /**
+ * BuildingConnected's own short-link redirects (e.g. the "View this RFP" /
+ * "Bidding" action buttons in newer invite templates link to
+ * app.buildingconnected.com/goto/<code>, not directly to /opportunities/<id>).
+ * These look like "direct" BC links by host, but the id is only revealed by
+ * following the redirect — same treatment as an external tracker host.
+ */
+function isBcShortLink(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return /(^|\.)buildingconnected\.com$/i.test(u.hostname) && /^\/goto\//i.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function hasResolvableId(link: string): boolean {
+  const ids = extractOpportunityIdFromLink(link);
+  return !!(ids.opportunityId || ids.projectId);
+}
+
+/**
  * Last-resort unwrap: follow redirects (HEAD, no body) to see where a tracking
  * link lands. Bounded to 3 hops / 5s per hop. Network failure is non-fatal.
  */
@@ -139,34 +160,52 @@ export async function followTrackerRedirects(url: string, fetchImpl: typeof fetc
 export async function findBcLink(email: ParsedEmail, fetchImpl: typeof fetch = fetch): Promise<string | null> {
   const candidates = [...email.hrefs, email.text, email.html || ""];
 
+  // A link that resolves to a BC host but carries no extractable opportunity/
+  // project id (e.g. a /goto/ short-link) isn't good enough to enrich from —
+  // keep it as a fallback, but keep looking for something with a real id.
+  let bestUnresolvedCandidate: string | null = null;
+
   // Pass 1: deterministic — direct links and unwrappable redirect params
   for (const candidate of email.hrefs) {
     const bc = unwrapToBcLink(candidate);
-    if (bc) return bc;
+    if (!bc) continue;
+    if (hasResolvableId(bc)) return bc;
+    bestUnresolvedCandidate = bestUnresolvedCandidate || bc;
   }
   for (const blob of [email.text, email.html || ""]) {
     const direct = extractBcLink(blob);
     if (direct) {
       const bc = unwrapToBcLink(direct);
-      if (bc) return bc;
+      if (bc) {
+        if (hasResolvableId(bc)) return bc;
+        bestUnresolvedCandidate = bestUnresolvedCandidate || bc;
+      }
     }
     // Wrapped links sitting in plain text (e.g. login?continueUrl=…)
     const wrapped = blob.match(/https?:\/\/[^\s"'<>]*buildingconnected\.com[^\s"'<>]*/gi) || [];
     for (const w of wrapped) {
       const bc = unwrapToBcLink(w.replace(/[.,;:]+$/, ""));
-      if (bc) return bc;
+      if (bc) {
+        if (hasResolvableId(bc)) return bc;
+        bestUnresolvedCandidate = bestUnresolvedCandidate || bc;
+      }
     }
   }
 
-  // Pass 2: network — follow known tracker hosts only
+  // Pass 2: network — follow known external tracker hosts, and BuildingConnected's
+  // own /goto/ short-links (Pass 1 accepted these as "direct" by host, but the
+  // real opportunity id only comes out after following the redirect).
   for (const candidate of candidates.slice(0, 20)) {
     if (typeof candidate !== "string" || !/^https?:\/\//i.test(candidate)) continue;
-    if (!isTrackerHost(candidate)) continue;
+    if (!isTrackerHost(candidate) && !isBcShortLink(candidate)) continue;
     const bc = await followTrackerRedirects(candidate, fetchImpl);
     if (bc) return bc;
   }
 
-  return null;
+  // Nothing yielded an extractable id — fall back to whatever BC-hosted link
+  // we found so "View on BC" still has somewhere to point, even though
+  // enrichment itself will report no_link/not_found for it.
+  return bestUnresolvedCandidate;
 }
 
 export interface BcLinkIds {
