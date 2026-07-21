@@ -63,7 +63,7 @@ function emailFieldsToEntry(email: ParsedEmail, fields: Record<string, any>, reg
     bcOpportunityIds: null as string | null,
     scopeList: fields.tradeName ? JSON.stringify([fields.tradeName]) : null,
     projectAddress: fields.location || "",
-    squareFeet: "",
+    squareFeet: fields.squareFeet || "",
     ndaRequired: false,
     bcAccessStatus: null as string | null,
     notes: "",

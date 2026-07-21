@@ -34,6 +34,8 @@ BUILDINGCONNECTED INVITE EMAILS typically say "<Contact Name> with <GC Company> 
 - "Date Invite" / "Invited" → inviteDate (when the invitation was sent)
 - "Expected Start" / "Est. Start" → expectedStart (construction start)
 - "Expected Finish" / "Est. End" → expectedFinish (construction end)
+- "Project Size" / "Square Feet" / "Sq. Ft." → squareFeet (the project's size, exactly as shown, e.g. "7,191 sq. ft.")
+- "Job Walk" / "Site Visit" / "Walkthrough" is a SEPARATE row from "Expected Start" — it is a walkthrough appointment date, not the construction start. NEVER use a Job Walk / Site Visit / Walkthrough date to fill expectedStart or expectedFinish, even if the Expected Start row is blank or shows "--". In that case return null for expectedStart rather than substituting a different date. The same applies to "RFIs Due" — never map it to expectedStart/expectedFinish either.
 
 FORWARDED EMAILS: If the email contains a forwarded message (markers like "---------- Forwarded message ----------", "-----Original Message-----", or a quoted "From: ... Sent: ... Subject: ..." block), extract from the INNERMOST original invitation. The forwarding wrapper's sender is NOT the GC contact. The original sender line (e.g. "From: Turner Construction via BuildingConnected") identifies the platform, not the contact person.
 
@@ -59,6 +61,7 @@ Response schema:
   "inviteDate": string | null,
   "expectedStart": string | null,
   "expectedFinish": string | null,
+  "squareFeet": string | null,
   "clientName": string | null,
   "clientLocation": string | null,
   "gcContactName": string | null,
@@ -143,6 +146,10 @@ export function extractLabeledEmailFields(text: string): Partial<ExtractedProjec
       const v = labelValue(line, /^(?:Expected|Est\.?|Anticipated)\s*(?:Finish|End|Completion)\s*[:\-–—]?\s*(.+)$/i);
       if (v) { const d = normalizeDate(v); if (d) out.expectedFinish = d; }
     }
+    if (out.squareFeet === undefined) {
+      const v = labelValue(line, /^(?:Project\s*Size|Square\s*Feet|Square\s*Footage|Sq\.?\s*Ft\.?|Building\s*Size)\s*[:\-–—]?\s*(.+)$/i);
+      if (v) out.squareFeet = v;
+    }
     if (out.gcContactName === undefined || out.gcContactEmail === undefined) {
       const m = line.match(/^Contact\s+([^:]{2,60})\s*[:\-–—]\s*([^\s@]+@[^\s@]+\.[^\s@]+)\s*$/i);
       if (m) {
@@ -181,6 +188,7 @@ function emptyFields(rawText: string): ExtractedProjectDetails {
     inviteDate: null,
     expectedStart: null,
     expectedFinish: null,
+    squareFeet: null,
     clientName: null,
     clientLocation: null,
     gcContactName: null,
@@ -233,6 +241,7 @@ async function extractWithLLM(emailText: string, subject: string, apiKey: string
     inviteDate: normalizeDate(parsed.inviteDate),
     expectedStart: normalizeDate(parsed.expectedStart),
     expectedFinish: normalizeDate(parsed.expectedFinish),
+    squareFeet: parsed.squareFeet || null,
     clientName: parsed.clientName || null,
     clientLocation: parsed.clientLocation || null,
     gcContactName: parsed.gcContactName || null,

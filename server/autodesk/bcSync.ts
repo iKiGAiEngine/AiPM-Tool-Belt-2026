@@ -273,13 +273,20 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "attributes.createdAt",
   );
 
-  const expectedStart = deepGet(raw,
+  // NOTE: bare "startDate"/"endDate"/"constructionStartDate"/"constructionEndDate"
+  // are deliberately NOT in these candidate lists. BC opportunities carry several
+  // independent date milestones (bid due, job walk, RFIs due, expected start/finish)
+  // and a bare "startDate"/"endDate" key is exactly the kind of generic name that
+  // could belong to a different milestone (e.g. a walk-through event) rather than
+  // construction start/finish — a prior version of this list included them and it
+  // caused a job-walk date to be mistaken for Anticipated Start. Only accept names
+  // that are unambiguously about the construction start/finish window.
+  let expectedStart = deepGet(raw,
     "expectedStartAt",
     "expectedStart",
     "expectedStartDate",
     "estimatedStartDate",
     "estStartDate",
-    "startDate",
     "constructionStartDate",
     "clientValues.expectedStartAt",
     "clientValues.expectedStart",
@@ -288,16 +295,14 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "attributes.expectedStartDate",
     "attributes.estimatedStartDate",
     "attributes.estStartDate",
-    "attributes.startDate",
     "project.expectedStartAt",
     "project.expectedStart",
     "project.expectedStartDate",
     "project.estimatedStartDate",
     "project.estStartDate",
-    "project.startDate",
   );
 
-  const expectedFinish = deepGet(raw,
+  let expectedFinish = deepGet(raw,
     "expectedFinishAt",
     "expectedEndAt",
     "expectedCompletionAt",
@@ -311,7 +316,6 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "estCompletionDate",
     "estEndDate",
     "estFinishDate",
-    "endDate",
     "constructionEndDate",
     "clientValues.expectedFinishAt",
     "clientValues.expectedFinish",
@@ -321,7 +325,6 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "attributes.expectedEndDate",
     "attributes.expectedFinishDate",
     "attributes.expectedCompletionDate",
-    "attributes.endDate",
     "project.expectedFinishAt",
     "project.expectedFinish",
     "project.expectedFinishDate",
@@ -331,8 +334,28 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "project.estEndDate",
     "project.estimatedFinishDate",
     "project.estimatedCompletionDate",
-    "project.endDate",
   );
+
+  // Defensive guard: if whatever we matched for expectedStart/expectedFinish is
+  // identical to a job-walk / site-visit style milestone, it's a false positive —
+  // discard it rather than silently stamping a walk date onto the project schedule.
+  const walkDate = deepGet(raw,
+    "walkAt", "walkDate", "walkthroughAt", "walkThroughAt", "walkthroughDate",
+    "siteWalkAt", "siteVisitAt", "siteVisitDate", "jobWalkAt", "jobWalkDate",
+    "preBidWalkAt", "preBidMeetingAt",
+    "attributes.walkAt", "attributes.walkDate", "attributes.walkthroughAt", "attributes.siteVisitAt", "attributes.jobWalkAt",
+    "project.walkAt", "project.walkDate", "project.walkthroughAt", "project.siteVisitAt", "project.jobWalkAt",
+  );
+  if (walkDate) {
+    if (expectedStart && expectedStart === walkDate) {
+      console.warn(`[BC Sync] Discarding expectedStart for "${raw.name || raw.id}" — it matched the job-walk date (${walkDate}), not a real Expected Start.`);
+      expectedStart = "";
+    }
+    if (expectedFinish && expectedFinish === walkDate) {
+      console.warn(`[BC Sync] Discarding expectedFinish for "${raw.name || raw.id}" — it matched the job-walk date (${walkDate}), not a real Expected Finish.`);
+      expectedFinish = "";
+    }
+  }
 
   const squareFeet = deepGet(raw,
     "squareFootage",
@@ -342,16 +365,22 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "size",
     "estimatedSize",
     "totalSquareFootage",
+    "sizeSqFt",
+    "projectSizeSqFt",
     "attributes.squareFootage",
     "attributes.squareFeet",
     "attributes.buildingSize",
     "attributes.projectSize",
     "attributes.size",
+    "attributes.sizeSqFt",
     "project.squareFootage",
     "project.squareFeet",
     "project.buildingSize",
     "project.size",
   );
+  if (!squareFeet) {
+    console.log(`[BC Sync] squareFeet not resolved for "${raw.name || raw.id}" — raw top-level keys: [${Object.keys(raw || {}).join(", ")}]${attrs && Object.keys(attrs).length ? `, attributes keys: [${Object.keys(attrs).join(", ")}]` : ""}`);
+  }
 
   const rawScopes = src.trades || src.scopes || raw.trades || raw.scopes;
   let scopes: string[] = [];
@@ -1743,7 +1772,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry) return res.status(404).json({ message: "Entry not found" });
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
 
-      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish, regionNeedsReview } = req.body;
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, selfPerformEstimator, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish, regionNeedsReview } = req.body;
 
       const updates: Record<string, unknown> = {};
       if (projectName !== undefined) updates.projectName = projectName;
@@ -1751,6 +1780,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (dueDate !== undefined) updates.dueDate = dueDate;
       if (nbsEstimator !== undefined) updates.nbsEstimator = nbsEstimator;
       if (gcEstimateLead !== undefined) updates.gcEstimateLead = gcEstimateLead;
+      if (selfPerformEstimator !== undefined) updates.selfPerformEstimator = selfPerformEstimator;
       if (owner !== undefined) updates.owner = owner;
       if (primaryMarket !== undefined) updates.primaryMarket = primaryMarket;
       if (notes !== undefined) updates.notes = notes;

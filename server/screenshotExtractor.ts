@@ -8,6 +8,7 @@ export interface ExtractedProjectDetails {
   inviteDate: string | null;
   expectedStart: string | null;
   expectedFinish: string | null;
+  squareFeet: string | null;
   clientName: string | null;
   clientLocation: string | null;
   gcContactName: string | null;
@@ -28,17 +29,20 @@ BUILDINGCONNECTED-SPECIFIC LABELS (these are the standard field names used on Bu
 - "Date Invite" = when the bid invitation was sent → maps to "inviteDate"
 - "Expected Start" or "Est. Start" = anticipated construction start → maps to "expectedStart"
 - "Expected Finish" or "Est. End" = anticipated construction end → maps to "expectedFinish"
+- "Project Size" = the project's square footage → maps to "squareFeet" (e.g. "7,191 sq. ft.")
 - "Date Settled" = when bid was settled (ignore this field)
+- "Job Walk" (also "Site Visit", "Walkthrough") is a SEPARATE field from "Expected Start" — it is a walkthrough/site-visit appointment, not the construction start date. Never map a Job Walk date to "expectedStart" or "expectedFinish", even if Expected Start shows "--" or is blank on the page — in that case return null for expectedStart rather than substituting the Job Walk (or any other) date.
+- Similarly, "RFIs Due" is never "expectedStart" or "expectedFinish".
 
 CRITICAL RULES:
 - "dueDate" is the BID DUE DATE (when the bid/proposal must be submitted). Look for labels: "Due Date", "Bid Due", "Date Due", "Response Due", "Bid Date". This is NOT the project end date or completion date.
 - "inviteDate" is when the invitation was sent. Look for labels: "Date Invite", "Invite Date", "Date Received", "Invited".
-- "expectedStart" is the anticipated project START date. Look for labels: "Expected Start", "Est. Start", "Est Start", "Anticipated Start", "Start Date", "Scope Start", "Construction Start".
-- "expectedFinish" is the anticipated project END/FINISH date. Look for labels: "Expected Finish", "Est. End", "Est End", "Est. Finish", "Expected End", "Anticipated Finish", "Completion Date", "Scope End". This is NOT the bid due date.
-- IMPORTANT: Scan the ENTIRE screenshot for these date fields. They are often in a "Project Details" section on the left side of the page. Each date has its own row with a label and a value. Extract ALL dates you can find, even if a date seems wrong or contradictory (e.g., finish before start). Extract exactly what is shown.
+- "expectedStart" is the anticipated project START date. Look ONLY for labels: "Expected Start", "Est. Start", "Est Start", "Anticipated Start", "Construction Start". Do NOT pull this from "Job Walk", "Site Visit", "Walkthrough", "RFIs Due", or any other differently-labeled date field, even as a fallback.
+- "expectedFinish" is the anticipated project END/FINISH date. Look for labels: "Expected Finish", "Est. End", "Est End", "Est. Finish", "Expected End", "Anticipated Finish", "Completion Date", "Scope End". This is NOT the bid due date and NOT a Job Walk/Site Visit date.
+- IMPORTANT: Scan the ENTIRE screenshot for these date fields. They are often in a "Project Details" section on the left side of the page. Each date has its own row with a label and a value. If a row's value is blank, "--", or missing, return null for that field — never borrow a nearby row's date.
 - Do NOT confuse these dates with each other. Each date has a specific label on the page.
-- Do NOT return null for a date field if the date is visible on the page. Always extract what is shown.
 - For dates, return in YYYY-MM-DD format.
+- "squareFeet" is the project's size/square footage. Look for "Project Size", "Square Feet", "Sq. Ft.", "Building Size". Extract exactly as shown (e.g. "7,191 sq. ft." or "125,000").
 - "clientName" is the general contractor or client company name. Look for "Client", "Builder", "GC", "General Contractor". On BuildingConnected, this often appears near the top with a company icon. Extract ONLY the company name (e.g., "Swinerton Builders", "Turner Construction").
 - "clientLocation" is the COMPLETE office/division designation shown after the company name. On BuildingConnected, the client field often shows "Company - Office" or "Company - Region - Division" (e.g., "Swinerton Builders - Portland", "Swinerton Builders - SoCal - Parking Structures", "Hensel Phelps - Dallas"). Extract EVERYTHING after the company name dash, preserving all parts including division names like "Parking Structures", "Special Projects", "Target Markets", "Facility Solutions". Do NOT strip division names — keep the full string (e.g., "SoCal - Parking Structures" not just "SoCal"). If the client shows as "Swinerton Builders - Parking Structures", extract "Parking Structures" as the clientLocation.
 - "location" is the PROJECT location/address where the work will be done. Look for "Location", "Address", "Project Location", "City".
@@ -50,14 +54,15 @@ CRITICAL RULES:
 CHECKLIST - Before returning, verify you checked for EACH of these fields in the Project Details section:
 1. Date Due (dueDate)
 2. Date Invite (inviteDate)
-3. Expected Start (expectedStart)
-4. Expected Finish (expectedFinish)
-5. Project Name
-6. Location
-7. Client/GC name and location
-8. GC Contact name and email
-9. Trade Name
-10. Any BuildingConnected URL visible in the browser address bar or page content (bcLink)
+3. Expected Start (expectedStart) — NOT Job Walk
+4. Expected Finish (expectedFinish) — NOT Job Walk
+5. Project Size (squareFeet)
+6. Project Name
+7. Location
+8. Client/GC name and location
+9. GC Contact name and email
+10. Trade Name
+11. Any BuildingConnected URL visible in the browser address bar or page content (bcLink)
 
 Response schema:
 {
@@ -68,6 +73,7 @@ Response schema:
   "inviteDate": string | null,
   "expectedStart": string | null,
   "expectedFinish": string | null,
+  "squareFeet": string | null,
   "clientName": string | null,
   "clientLocation": string | null,
   "gcContactName": string | null,
@@ -134,6 +140,7 @@ export async function extractProjectDetailsFromScreenshot(
     inviteDate: null,
     expectedStart: null,
     expectedFinish: null,
+    squareFeet: null,
     clientName: null,
     clientLocation: null,
     gcContactName: null,
@@ -153,7 +160,9 @@ BUILDINGCONNECTED FIELD LABELS (match these exactly in the OCR text):
 - "Date Invite" or "Invite Date" → inviteDate (when invitation was sent)
 - "Expected Start" or "Est. Start" or "Est Start" → expectedStart (construction start date)
 - "Expected Finish" or "Est. End" or "Est End" or "Expected End" → expectedFinish (construction end date)
+- "Project Size" or "Square Feet" or "Sq. Ft." or "Building Size" → squareFeet (the project's size, exactly as shown, e.g. "7,191 sq. ft.")
 - Do NOT confuse "Date Settled" with any of the above dates.
+- "Job Walk", "Site Visit", "Walkthrough", and "RFIs Due" are SEPARATE fields from Expected Start/Expected Finish. NEVER use a Job Walk / Site Visit / Walkthrough date to fill expectedStart or expectedFinish, even if Expected Start looks blank ("--" or empty) — leave expectedStart as null in that case rather than substituting a different date field.
 
 RULES:
 - Search the entire text for each labeled field. Dates typically appear on the same line or the line immediately after their label.
@@ -165,7 +174,7 @@ RULES:
 - "gcContactName" and "gcContactEmail" are the GC contact person's name and email.
 - "tradeName" is the trade/scope being bid.
 - "projectName" is the project title, usually appearing near the top.
-- Extract EVERY field you can find. Only use null if the field truly does not appear in the text.
+- Extract EVERY field you can find. Only use null if the field truly does not appear in the text — do not guess or substitute a different field's value.
 
 Response schema:
 {
@@ -176,6 +185,7 @@ Response schema:
   "inviteDate": string | null,
   "expectedStart": string | null,
   "expectedFinish": string | null,
+  "squareFeet": string | null,
   "clientName": string | null,
   "clientLocation": string | null,
   "gcContactName": string | null,
@@ -210,6 +220,7 @@ async function extractWithAIFromText(ocrText: string, apiKey: string): Promise<E
     inviteDate: normalizeDate(parsed.inviteDate),
     expectedStart: normalizeDate(parsed.expectedStart),
     expectedFinish: normalizeDate(parsed.expectedFinish),
+    squareFeet: parsed.squareFeet || null,
     clientName: parsed.clientName || null,
     clientLocation: parsed.clientLocation || null,
     gcContactName: parsed.gcContactName || null,
@@ -258,6 +269,7 @@ async function extractWithAIFromImage(imageBuffer: Buffer, apiKey: string): Prom
     inviteDate: normalizeDate(parsed.inviteDate),
     expectedStart: normalizeDate(parsed.expectedStart),
     expectedFinish: normalizeDate(parsed.expectedFinish),
+    squareFeet: parsed.squareFeet || null,
     clientName: parsed.clientName || null,
     clientLocation: parsed.clientLocation || null,
     gcContactName: parsed.gcContactName || null,
@@ -350,6 +362,7 @@ export function extractFieldsFromOCRText(text: string): ExtractedProjectDetails 
   const inviteDate = extractLabeledDate(text, ["Date\\s*Invite", "Invite\\s*Date", "Invited"]);
   const expectedStart = extractLabeledDate(text, ["Expected\\s*Start", "Est\\.?\\s*Start", "Anticipated\\s*Start", "Start\\s*Date"]);
   const expectedFinish = extractLabeledDate(text, ["Expected\\s*Finish", "Expected\\s*End", "Est\\.?\\s*End", "Est\\.?\\s*Finish", "Anticipated\\s*Finish", "Anticipated\\s*End", "End\\s*Date", "Completion\\s*Date"]);
+  const squareFeet = extractSquareFeet(text);
   const { clientName, clientLocation, gcContactName, gcContactEmail } = extractClientInfo(text);
 
   const bcLink = extractBcLink(text);
@@ -362,6 +375,7 @@ export function extractFieldsFromOCRText(text: string): ExtractedProjectDetails 
     inviteDate,
     expectedStart,
     expectedFinish,
+    squareFeet,
     clientName,
     clientLocation,
     gcContactName,
@@ -371,6 +385,11 @@ export function extractFieldsFromOCRText(text: string): ExtractedProjectDetails 
   };
 
   return result;
+}
+
+function extractSquareFeet(text: string): string | null {
+  const match = text.match(/(?:Project\s*Size|Square\s*Feet|Square\s*Footage|Sq\.?\s*Ft\.?|Building\s*Size)\s*[:\-]?\s*([\d,]+(?:\.\d+)?\s*(?:sq\.?\s*ft\.?|square\s*feet)?)/i);
+  return match ? match[1].trim() : null;
 }
 
 function extractProjectName(text: string): string | null {

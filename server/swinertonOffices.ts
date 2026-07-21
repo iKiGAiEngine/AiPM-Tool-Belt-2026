@@ -79,8 +79,15 @@ export function matchSwinertonOffice(
   }
 
   // --- PDX ---
-  if (/boise|portland/i.test(office)) {
-    return result("PDX");
+  // Two distinct PDX office rows exist (PDX - Portland, PDX - Idaho/Boise).
+  // Passing name=undefined into result() would match whichever PDX row
+  // happens to come first in the regions array — resolve the sub-office
+  // explicitly instead of relying on array order.
+  if (/portland/i.test(office)) {
+    return result("PDX", "Portland");
+  }
+  if (/boise|idaho/i.test(office)) {
+    return result("PDX", "Idaho");
   }
 
   // --- SFO ---
