@@ -2249,35 +2249,55 @@ async function loadBcInvites(){
   }catch(e){console.warn('Failed to load BC invites:',e);}
 }
 
+// Shared "needs attention" styling for a blank field the reviewer must fill
+// in before accepting a bid — amber border/background/label so it stands out
+// against the rest of the card at a glance.
+function bcFlagStyle(flagged){
+  return {
+    labelColor: flagged?'#fb923c':'var(--text-dim)',
+    labelWeight: flagged?'700':'400',
+    labelPrefix: flagged?'&#9888; ':'',
+    border: flagged?'#fb923c':'var(--border)',
+    bg: flagged?'rgba(249,115,22,.08)':'var(--bg)',
+    ring: flagged?'box-shadow:0 0 0 1px rgba(249,115,22,.3);':'',
+  };
+}
+
 function bcField(id,label,field,value,opts){
   opts=opts||{};
   const type=opts.type||'text';
   const span=opts.span||1;
   const placeholder=opts.placeholder||'';
   const safeVal=(value||'').toString().replace(/"/g,'&quot;');
+  const flagged=!!opts.flagEmpty&&!value;
+  const s=bcFlagStyle(flagged);
   return `<div style="grid-column:span ${span};">
-    <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">${label}</label>
-    <input type="${type}" value="${safeVal}" placeholder="${placeholder}" style="width:100%;font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 6px;" onblur="saveBcInviteField(${id},'${field}',this.value)">
+    <label style="font-size:10px;color:${s.labelColor};font-weight:${s.labelWeight};display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">${s.labelPrefix}${label}</label>
+    <input type="${type}" value="${safeVal}" placeholder="${placeholder}" style="width:100%;font-size:12px;background:${s.bg};color:var(--text);border:1px solid ${s.border};border-radius:4px;padding:5px 6px;${s.ring}" onblur="saveBcInviteField(${id},'${field}',this.value)">
   </div>`;
 }
 
 // SP Estimator dropdown for the BC draft review card — options are scoped to the
 // entry's currently-selected Region (region drives the roster, not the other way
 // around). Falls back to a free-text input when the region has no estimator
-// roster yet, so the reviewer is never blocked from entering a name.
+// roster yet, so the reviewer is never blocked from entering a name. Blank is
+// flagged — an unassigned SP Estimator needs a reviewer's attention before a
+// bid gets accepted.
 function bcSpEstimatorField(id,value,region){
   const roster=lookupSpEstimatorsList(region);
   const safeVal=(value||'').toString();
+  const s=bcFlagStyle(!safeVal);
+  const labelHtml=`<label style="font-size:10px;color:${s.labelColor};font-weight:${s.labelWeight};display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">${s.labelPrefix}SP Estimator</label>`;
   if(roster.length===0){
     return `<div>
-      <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">SP Estimator</label>
-      <input type="text" value="${safeVal.replace(/"/g,'&quot;')}" placeholder="${region?'No roster for this region':'Select a region first'}" style="width:100%;font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 6px;" onblur="saveBcInviteField(${id},'selfPerformEstimator',this.value)">
+      ${labelHtml}
+      <input type="text" value="${safeVal.replace(/"/g,'&quot;')}" placeholder="${region?'No roster for this region':'Select a region first'}" style="width:100%;font-size:12px;background:${s.bg};color:var(--text);border:1px solid ${s.border};border-radius:4px;padding:5px 6px;${s.ring}" onblur="saveBcInviteField(${id},'selfPerformEstimator',this.value)">
     </div>`;
   }
   const options='<option value="">— Select —</option>'+roster.map(name=>`<option value="${name.replace(/"/g,'&quot;')}"${safeVal===name?' selected':''}>${name}</option>`).join('');
   return `<div>
-    <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">SP Estimator</label>
-    <select style="width:100%;font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 6px;" onchange="saveBcInviteField(${id},'selfPerformEstimator',this.value)">${options}</select>
+    ${labelHtml}
+    <select style="width:100%;font-size:12px;background:${s.bg};color:var(--text);border:1px solid ${s.border};border-radius:4px;padding:5px 6px;${s.ring}" onchange="saveBcInviteField(${id},'selfPerformEstimator',this.value)">${options}</select>
   </div>`;
 }
 
@@ -2329,10 +2349,10 @@ function renderBcInvites(){
 
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px;">
         <div>
-          <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">Region</label>
-          <select style="width:100%;font-size:12px;background:var(--bg);color:var(--text);border:1px solid ${entry.regionNeedsReview?'#fb923c':'var(--border)'};border-radius:4px;padding:5px 6px;" onchange="saveBcInviteField(${entry.id},'region',this.value).then(renderBcInvites);">${regionOptions}</select>
+          ${(()=>{const s=bcFlagStyle(!entry.region||entry.regionNeedsReview);return `<label style="font-size:10px;color:${s.labelColor};font-weight:${s.labelWeight};display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">${s.labelPrefix}Region</label>
+          <select style="width:100%;font-size:12px;background:${s.bg};color:var(--text);border:1px solid ${s.border};border-radius:4px;padding:5px 6px;${s.ring}" onchange="saveBcInviteField(${entry.id},'region',this.value).then(renderBcInvites);">${regionOptions}</select>`;})()}
         </div>
-        ${bcField(entry.id,'Due Date','dueDate',entry.dueDate,{type:'date'})}
+        ${bcField(entry.id,'Due Date','dueDate',entry.dueDate,{type:'date',flagEmpty:true})}
         ${bcSpEstimatorField(entry.id,entry.selfPerformEstimator,entry.region)}
         ${bcField(entry.id,'Square Feet','squareFeet',entry.squareFeet,{placeholder:'e.g. 125,000'})}
       </div>
