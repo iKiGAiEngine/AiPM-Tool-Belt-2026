@@ -60,6 +60,8 @@ BuildingConnected can't tell us things like which region or estimator should own
 - **Scope checklist** — which of our scopes apply (Toilet Accessories, Toilet Partitions, Lockers, Wall Protection, FRP, etc.)
 - **NBS Estimator** — who will own this bid
 
+> **Before you approve:** Visually verify the five fields listed in [Mandatory Verification](#mandatory-verification--before-you-finalize) below against the actual BC invite. Don't rely on the auto-fill alone.
+
 ### Step 6: Approve and create the project
 
 Click **Approve & Create Project**. This one click:
@@ -134,6 +136,8 @@ These fields flow directly into the Proposal Log entry, so filling them in now s
 
 You can upload both, one, or neither. With neither, you still get a complete "Folder Only" project — folder structure, stamped estimate, and Proposal Log entry.
 
+> **Before you click Create:** Visually verify the five fields listed in [Mandatory Verification](#mandatory-verification--before-you-finalize) below — this matters even more here than in BC Sync, since more of this data was typed or OCR'd by hand.
+
 ### Step 6: Click Create Project
 
 Once the three required fields are filled in, the button becomes active. Click it and let it run — you'll see a progress overlay. You don't have to stay on the page; a status indicator in the header shows progress if you navigate away.
@@ -150,6 +154,20 @@ The project is now in the Proposal Log. Any field can be edited there afterward.
 
 ---
 
+## Mandatory Verification — Before You Finalize
+
+Auto-fill (BC Sync) and OCR (Screenshot fill) both guess. They're usually right, but "usually" isn't good enough on data that drives assignments, scheduling, and where the bid gets mailed or delivered. **Before you approve a draft or click Create Project, the estimator must visually check these five fields against the actual source document (the BC listing, the invite email, the plans/specs cover sheet) and correct anything wrong:**
+
+1. **Project Name** — matches what the GC/owner actually calls it
+2. **Region** — the correct branch, not just a plausible guess
+3. **Due Date** — the real bid submission deadline, including the year
+4. **SP (Self-Perform) Estimator** — the right person is assigned, not a leftover default
+5. **Project Address** — correct and complete, since this drives shipping, site visits, and reporting
+
+This check takes under a minute and happens **every time**, regardless of which path you used to get the bid in. Don't skip it just because a field auto-filled — auto-filled and OCR'd values are guesses, not verified facts, until a human confirms them.
+
+---
+
 ## Making Sure the Data Is Accurate
 
 Getting the row created is only half the job — the data in it has to be correct and complete, because this is what drives reporting, assignments, and the pipeline view every estimator and manager relies on.
@@ -161,7 +179,9 @@ Getting the row created is only half the job — the data in it has to be correc
 | **Project Name + Due Date** | Identifies the bid. Due Date shows business days remaining (e.g., "3BD" = due in 3 business days, "Overdue" = past due). | Keep the name matching what the GC calls it — makes searching easier. |
 | **Status** | Drives the lifecycle: New → Estimating → Submitted → Won / Lost / No-Bid. | Click the status pill to change it. Every change is logged (who, when). |
 | **Estimator (NBS Estimator)** | Who owns the bid. | Click to assign/change. Only admins can reassign a bid someone's already started working. |
+| **SP (Self-Perform) Estimator** | Who owns the self-perform portion of the bid, where applicable. | Region-specific list. Visually verify this is the right person — it's easy to leave a stale default in place. |
 | **Region & Primary Market** | Drives regional and market reporting/pipeline views. | Click to edit inline. **Never leave these blank.** |
+| **Project Address** | The physical job site location. | Drives shipping, site visits, and reporting. Verify it's complete and correct, not just auto-filled. |
 | **Notes / Comments** | Free-form notes on anything else worth flagging. | Shows as a tooltip on hover. Not a substitute for a real field (see Common Mistakes below). |
 | **Bid Source Link** | Small icon next to the project name — jumps to the BC opportunity, source email, or attachment. | Lets anyone trace back to the original invite. |
 | **Proposal Total** | The dollar amount submitted. | Has its own dedicated field — always use it, never bury it in Notes. |
@@ -206,6 +226,7 @@ Use this every time you add a new project:
 - [ ] If yes → reviewed the draft, filled in Region/Market/Scope/Estimator, approved it
 - [ ] If no → opened Project Start, filled in Project Name / Region / Due Date, optionally used Screenshot OCR
 - [ ] Uploaded plans and/or specs if available
+- [ ] Visually verified Project Name, Region, Due Date, SP Estimator, and Project Address against the source document — **before** clicking Approve or Create Project
 - [ ] Clicked Create Project (or Approve, for BC drafts) and confirmed the row appeared in the Proposal Log
 - [ ] Region and Primary Market are filled in — not blank
 - [ ] Estimator is assigned
