@@ -361,6 +361,15 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     }
   }
 
+  // Diagnostic: if either construction date failed to resolve, dump the raw
+  // key set so an unrecognized BC field name shows up in the server log rather
+  // than silently leaving Anticipated Start/Finish blank on the draft.
+  if (!expectedStart || !expectedFinish) {
+    const proj = (raw.project && typeof raw.project === "object") ? raw.project : {};
+    const cv = (raw.clientValues && typeof raw.clientValues === "object") ? raw.clientValues : {};
+    console.log(`[BC Sync] date(s) unresolved for "${raw.name || raw.id}" — expectedStart="${expectedStart}", expectedFinish="${expectedFinish}". raw keys: [${Object.keys(raw || {}).join(", ")}]${Object.keys(attrs).length ? `, attributes: [${Object.keys(attrs).join(", ")}]` : ""}${Object.keys(proj).length ? `, project: [${Object.keys(proj).join(", ")}]` : ""}${Object.keys(cv).length ? `, clientValues: [${Object.keys(cv).join(", ")}]` : ""}`);
+  }
+
   const squareFeet = deepGet(raw,
     "squareFootage",
     "squareFeet",

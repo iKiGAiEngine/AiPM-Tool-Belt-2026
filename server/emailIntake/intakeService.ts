@@ -268,8 +268,14 @@ export async function processEmailIntake(
     // ── Step 5: BC link + reference pull ──
     const bcLink = await findBcLink(email, fetchImpl);
     const ids = bcLink ? extractOpportunityIdFromLink(bcLink) : { opportunityId: null, projectId: null };
+    // Pass the extracted name/due-date as a hint so enrichment can still resolve
+    // the opportunity by matching the user's bid-board list when the invite link
+    // is a /goto/ short-link with no embeddable id.
     const pull = bcLink
-      ? await pullBcOpportunity(userId, ids, fetchImpl)
+      ? await pullBcOpportunity(userId, ids, fetchImpl, {
+          projectName: extraction.fields.projectName,
+          dueDate: extraction.fields.dueDate,
+        })
       : { status: "no_link" as BcEnrichmentStatus };
 
     let bcEntry: Record<string, any> | null = null;
