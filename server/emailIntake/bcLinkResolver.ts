@@ -158,7 +158,21 @@ export async function followTrackerRedirects(url: string, fetchImpl: typeof fetc
  * Order: HTML anchor hrefs (buttons) → raw text → tracking-link redirect follow.
  */
 export async function findBcLink(email: ParsedEmail, fetchImpl: typeof fetch = fetch): Promise<string | null> {
-  const candidates = [...email.hrefs, email.text, email.html || ""];
+  // Every individual URL string worth checking, from anchor hrefs AND from
+  // URLs embedded directly in the text/html body. Plain-text-only forwards
+  // (no HTML part, e.g. a plaintext .msg body) carry zero hrefs — a link
+  // that only shows up inside the body text must still end up in this list,
+  // otherwise Pass 2's redirect-follow never gets a URL to actually fetch
+  // (a whole email body isn't a parseable URL on its own).
+  const urlCandidates: string[] = [...email.hrefs];
+  for (const blob of [email.text, email.html || ""]) {
+    const direct = extractBcLink(blob);
+    if (direct) urlCandidates.push(direct);
+    // Wrapped links sitting in plain text (e.g. login?continueUrl=…, or a
+    // /goto/ short-link with no surrounding anchor tag).
+    const wrapped = blob.match(/https?:\/\/[^\s"'<>]*buildingconnected\.com[^\s"'<>]*/gi) || [];
+    for (const w of wrapped) urlCandidates.push(w.replace(/[.,;:]+$/, ""));
+  }
 
   // A link that resolves to a BC host but carries no extractable opportunity/
   // project id (e.g. a /goto/ short-link) isn't good enough to enrich from —
@@ -166,37 +180,18 @@ export async function findBcLink(email: ParsedEmail, fetchImpl: typeof fetch = f
   let bestUnresolvedCandidate: string | null = null;
 
   // Pass 1: deterministic — direct links and unwrappable redirect params
-  for (const candidate of email.hrefs) {
+  for (const candidate of urlCandidates) {
     const bc = unwrapToBcLink(candidate);
     if (!bc) continue;
     if (hasResolvableId(bc)) return bc;
     bestUnresolvedCandidate = bestUnresolvedCandidate || bc;
   }
-  for (const blob of [email.text, email.html || ""]) {
-    const direct = extractBcLink(blob);
-    if (direct) {
-      const bc = unwrapToBcLink(direct);
-      if (bc) {
-        if (hasResolvableId(bc)) return bc;
-        bestUnresolvedCandidate = bestUnresolvedCandidate || bc;
-      }
-    }
-    // Wrapped links sitting in plain text (e.g. login?continueUrl=…)
-    const wrapped = blob.match(/https?:\/\/[^\s"'<>]*buildingconnected\.com[^\s"'<>]*/gi) || [];
-    for (const w of wrapped) {
-      const bc = unwrapToBcLink(w.replace(/[.,;:]+$/, ""));
-      if (bc) {
-        if (hasResolvableId(bc)) return bc;
-        bestUnresolvedCandidate = bestUnresolvedCandidate || bc;
-      }
-    }
-  }
 
   // Pass 2: network — follow known external tracker hosts, and BuildingConnected's
   // own /goto/ short-links (Pass 1 accepted these as "direct" by host, but the
-  // real opportunity id only comes out after following the redirect).
-  for (const candidate of candidates.slice(0, 20)) {
-    if (typeof candidate !== "string" || !/^https?:\/\//i.test(candidate)) continue;
+  // real opportunity id only comes out after following the redirect). Uses the
+  // same unified candidate list so text-only links are covered too.
+  for (const candidate of urlCandidates.slice(0, 20)) {
     if (!isTrackerHost(candidate) && !isBcShortLink(candidate)) continue;
     const bc = await followTrackerRedirects(candidate, fetchImpl);
     if (bc) return bc;

@@ -141,6 +141,21 @@ async function run() {
     "/goto/ link with unresolvable redirect falls back to itself, not null"
   );
 
+  // Regression: the actual DPS Gateway E-5 .msg is a plain-text-only forward
+  // (Outlook forward of an RTF-converted body) with ZERO hrefs and no HTML
+  // part — the /goto/ link only exists as inline text. Pass 2 must still
+  // find and follow it; it must not only look at email.hrefs.
+  const textOnlyGotoEmail = {
+    subject: "FW: Bid Invite", fromName: "", fromEmail: "", date: null,
+    text: `View this RFP <${gotoLink}>  View Bid Form <${gotoLink}>`, html: null, messageId: null,
+    hrefs: [], fileType: "msg" as const,
+  };
+  assert.strictEqual(
+    await findBcLink(textOnlyGotoEmail, gotoFetch),
+    `https://app.buildingconnected.com/opportunities/${OPP_A}`,
+    "text-only .msg with zero hrefs: /goto/ link found in body text and followed"
+  );
+
   console.log("All bcLinkResolver tests passed!");
 }
 
