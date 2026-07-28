@@ -1,13 +1,42 @@
-import sgMail from "@sendgrid/mail";
 import { db } from "./db";
 import { emailTemplateConfig } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
-const EMAIL_PROVIDER = process.env.SENDGRID_API_KEY ? "sendgrid" : "console";
+const EMAIL_PROVIDER = process.env.BREVO_API_KEY ? "brevo" : "console";
 const EMAIL_FROM = process.env.EMAIL_FROM || "no-reply@aipmapp.com";
+const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || "AiPM Tool Belt";
 
-if (process.env.SENDGRID_API_KEY) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+interface BrevoSendParams {
+  to: string;
+  from: string;
+  subject: string;
+  text: string;
+  html: string;
+  replyTo?: string;
+}
+
+async function sendViaBrevo(params: BrevoSendParams): Promise<void> {
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": process.env.BREVO_API_KEY!,
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    },
+    body: JSON.stringify({
+      sender: { email: params.from, name: EMAIL_FROM_NAME },
+      to: [{ email: params.to }],
+      subject: params.subject,
+      textContent: params.text,
+      htmlContent: params.html,
+      ...(params.replyTo ? { replyTo: { email: params.replyTo } } : {}),
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Brevo API error (${response.status}): ${body}`);
+  }
 }
 
 export const BID_ASSIGNMENT_DEFAULTS = {
@@ -174,12 +203,12 @@ export async function sendBidAssignmentEmail(
     gcLead: details.gcLead,
   });
 
-  if (EMAIL_PROVIDER === "sendgrid") {
+  if (EMAIL_PROVIDER === "brevo") {
     try {
-      await sgMail.send({ to, from: EMAIL_FROM, subject, text, html });
-      console.log(`[Email] Bid assignment notification sent to ${to} via SendGrid`);
+      await sendViaBrevo({ to, from: EMAIL_FROM, subject, text, html });
+      console.log(`[Email] Bid assignment notification sent to ${to} via Brevo`);
     } catch (error: any) {
-      console.error(`[Email] SendGrid error sending bid assignment:`, error?.response?.body || error.message);
+      console.error(`[Email] Brevo error sending bid assignment:`, error.message);
     }
   } else {
     console.log(`\n========================================`);
@@ -253,12 +282,12 @@ export async function sendDraftNotificationEmail(
     </div>
   `;
 
-  if (EMAIL_PROVIDER === "sendgrid") {
+  if (EMAIL_PROVIDER === "brevo") {
     try {
-      await sgMail.send({ to: ADMIN_EMAIL, from: EMAIL_FROM, subject, text, html });
-      console.log(`[Email] Draft notification (${eventType}) sent to ${ADMIN_EMAIL} via SendGrid`);
+      await sendViaBrevo({ to: ADMIN_EMAIL, from: EMAIL_FROM, subject, text, html });
+      console.log(`[Email] Draft notification (${eventType}) sent to ${ADMIN_EMAIL} via Brevo`);
     } catch (error: any) {
-      console.error(`[Email] SendGrid error sending draft notification:`, error?.response?.body || error.message);
+      console.error(`[Email] Brevo error sending draft notification:`, error.message);
     }
   } else {
     console.log(`\n========================================`);
@@ -389,13 +418,13 @@ export async function sendProjectWonEmail(
     </div>
   `;
 
-  if (EMAIL_PROVIDER === "sendgrid") {
+  if (EMAIL_PROVIDER === "brevo") {
     for (const to of recipients) {
       try {
-        await sgMail.send({ to, from: EMAIL_FROM, subject: template.subject, text, html });
-        console.log(`[Email] Project Won notification sent to ${to} via SendGrid`);
+        await sendViaBrevo({ to, from: EMAIL_FROM, subject: template.subject, text, html });
+        console.log(`[Email] Project Won notification sent to ${to} via Brevo`);
       } catch (error: any) {
-        console.error(`[Email] SendGrid error sending project won notification to ${to}:`, error?.response?.body || error.message);
+        console.error(`[Email] Brevo error sending project won notification to ${to}:`, error.message);
       }
     }
   } else {
@@ -430,12 +459,12 @@ export async function sendInviteEmail(to: string, token: string): Promise<void> 
     </div>
   `;
 
-  if (EMAIL_PROVIDER === "sendgrid") {
+  if (EMAIL_PROVIDER === "brevo") {
     try {
-      await sgMail.send({ to, from: EMAIL_FROM, subject, text, html });
-      console.log(`[Email] Invite sent to ${to} via SendGrid`);
+      await sendViaBrevo({ to, from: EMAIL_FROM, subject, text, html });
+      console.log(`[Email] Invite sent to ${to} via Brevo`);
     } catch (error: any) {
-      console.error(`[Email] SendGrid error sending invite:`, error?.response?.body || error.message);
+      console.error(`[Email] Brevo error sending invite:`, error.message);
       throw new Error("Failed to send invite email");
     }
   } else {
@@ -472,12 +501,12 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
     </div>
   `;
 
-  if (EMAIL_PROVIDER === "sendgrid") {
+  if (EMAIL_PROVIDER === "brevo") {
     try {
-      await sgMail.send({ to, from: EMAIL_FROM, subject, text, html });
-      console.log(`[Email] Password reset sent to ${to} via SendGrid`);
+      await sendViaBrevo({ to, from: EMAIL_FROM, subject, text, html });
+      console.log(`[Email] Password reset sent to ${to} via Brevo`);
     } catch (error: any) {
-      console.error(`[Email] SendGrid error sending password reset:`, error?.response?.body || error.message);
+      console.error(`[Email] Brevo error sending password reset:`, error.message);
       throw new Error("Failed to send password reset email");
     }
   } else {
@@ -493,7 +522,7 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
 // =====================================================
 // Sends ONE individual RFQ email per vendor (never a shared BCC). Returns a
 // per-recipient result so the caller can report partial failures. Honors the
-// same SendGrid / console-fallback path as every other email in this service.
+// same Brevo / console-fallback path as every other email in this service.
 
 export interface RfqEmailInput {
   to: string;
@@ -514,15 +543,14 @@ export async function sendRfqEmail(input: RfqEmailInput): Promise<{ ok: boolean;
   if (!to || !/.+@.+\..+/.test(to)) {
     return { ok: false, error: "Missing or invalid recipient email" };
   }
-  if (EMAIL_PROVIDER === "sendgrid") {
+  if (EMAIL_PROVIDER === "brevo") {
     try {
-      await sgMail.send({ to, from: EMAIL_FROM, subject, text, html, ...(replyTo ? { replyTo } : {}) });
-      console.log(`[Email] RFQ sent to ${to} (${input.vendorName}) for ${input.scopeName} via SendGrid`);
+      await sendViaBrevo({ to, from: EMAIL_FROM, subject, text, html, replyTo });
+      console.log(`[Email] RFQ sent to ${to} (${input.vendorName}) for ${input.scopeName} via Brevo`);
       return { ok: true };
     } catch (error: any) {
-      const msg = error?.response?.body ? JSON.stringify(error.response.body) : error.message;
-      console.error(`[Email] SendGrid error sending RFQ to ${to}:`, msg);
-      return { ok: false, error: String(error.message || "SendGrid send failed") };
+      console.error(`[Email] Brevo error sending RFQ to ${to}:`, error.message);
+      return { ok: false, error: String(error.message || "Brevo send failed") };
     }
   }
   console.log(`\n========================================`);
