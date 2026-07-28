@@ -287,14 +287,16 @@ export function registerAdminRoutes(app: Express) {
       const inviteTokenHash = hashToken(rawInviteToken);
       const inviteExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
 
+      // Send before mutating the user record so a failed send doesn't leave
+      // the account deactivated with an invite token nobody received.
+      await sendInviteEmail(user.email, rawInviteToken);
+
       await db.update(users).set({
         status: "invited",
         isActive: false,
         resetToken: inviteTokenHash,
         resetTokenExpiresAt: inviteExpiresAt,
       }).where(eq(users.id, userId));
-
-      await sendInviteEmail(user.email, rawInviteToken);
 
       const [actor] = await db.select().from(users).where(eq(users.id, actorId));
       await auditLog({
