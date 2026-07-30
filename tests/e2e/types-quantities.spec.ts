@@ -19,6 +19,11 @@ function rand(): string {
   return Math.random().toString(36).slice(2, 8);
 }
 
+// COL_DEFS is a top-level `const` in the Proposal Log's inline script. That
+// makes it a global *lexical* binding — reachable by name inside page.evaluate,
+// but never a property of `window`. Declared here so TypeScript accepts it.
+declare const COL_DEFS: Array<{ key: string; label: string }>;
+
 function makeDb() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   return {
@@ -166,6 +171,54 @@ test.describe("Types & Quantities receipt tracking and lead-time report", () => 
     expect(text).not.toContain("BD");
     expect(text).not.toContain("BUSINESS DAY");
     expect(text).not.toContain("LEAD");
+  });
+
+  test("every column is listed in Manage Columns so users can reorder it", async ({ page }) => {
+    await page.goto("/tools/proposal-log");
+    await page.waitForSelector("#main-table tbody tr", { timeout: 30_000 });
+    await page.selectOption("#f-status", "");
+    await page.waitForTimeout(500);
+
+    await page.click('button:has-text("More")');
+    await page.click('button:has-text("Columns")');
+    await page.waitForSelector("#col-panel-body .col-item", { timeout: 10_000 });
+
+    const { defined, listed } = await page.evaluate(() => ({
+      // `_actions` is the pinned row-button column — no label, nothing to manage.
+      defined: COL_DEFS.map((c) => c.key).filter((k) => k !== "_actions"),
+      listed: Array.from(document.querySelectorAll("#col-panel-body .col-item")).map(
+        (el) => (el as HTMLElement).dataset.key,
+      ),
+    }));
+
+    const missing = defined.filter((k: string) => !listed.includes(k));
+    expect(missing, `columns missing from the Manage Columns panel: ${missing.join(", ")}`).toEqual([]);
+    expect(listed).toContain("tqReceived");
+
+    // Listed is not enough — the entry has to actually toggle the column off.
+    const headers = () =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll("#header-row th[data-col]")).map(
+          (th) => (th as HTMLElement).dataset.col,
+        ),
+      );
+    expect(await headers()).toContain("tqReceived");
+
+    const toggle = async () =>
+      page.evaluate(() => {
+        const item = Array.from(document.querySelectorAll("#col-panel-body .col-item")).find(
+          (el) => (el as HTMLElement).dataset.key === "tqReceived",
+        )!;
+        (item.querySelector(".col-check") as HTMLInputElement).click();
+      });
+
+    await toggle();
+    await page.waitForTimeout(300);
+    expect(await headers()).not.toContain("tqReceived");
+
+    await toggle();
+    await page.waitForTimeout(300);
+    expect(await headers()).toContain("tqReceived");
   });
 
   test("unchecking clears the stored receipt", async ({ page }) => {

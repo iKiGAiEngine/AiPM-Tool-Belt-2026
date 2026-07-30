@@ -1380,7 +1380,9 @@ function populateGlobalFilters() {
 
 function getVisibleCols() {
   return layout.order.filter(k => {
-    if(k==='_actions' || k==='_screenshot') return true;
+    // Row action buttons are a fixed control column, not user data — always on.
+    // Every other column, "Source" included, obeys the Manage Columns panel.
+    if(k==='_actions') return true;
     return layout.visible[k] !== false;
   });
 }
@@ -1815,7 +1817,8 @@ function renderColPanel() {
   const body=document.getElementById('col-panel-body');
   body.innerHTML='';
   layout.order.forEach(key=>{
-    if(key==='_actions' || key==='_screenshot') return;
+    // _actions is the pinned row-button column and has no label to show.
+    if(key==='_actions') return;
     const def=getColDef(key); if(!def) return;
     const isFrozen = key==='projectName';
     const item=document.createElement('div');
