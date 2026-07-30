@@ -5,10 +5,11 @@
 // Checks that fail today are real defects — see docs/SUBMITTAL_BUILDER_AUDIT.md.
 
 import * as XLSX from "xlsx";
-import { parseEstimateWorkbook } from "../client/src/submittal-builder/estimateParser";
-import { computePagination, LINES_PER_SCHEDULE_PAGE } from "../client/src/submittal-builder/pagination";
-import { validateProject } from "../client/src/submittal-builder/validation";
-import type { SubmittalProject, Scope, ScheduleLine } from "../client/src/submittal-builder/types";
+import { parseEstimateWorkbook } from "../shared/submittal/estimateParser";
+import { computePagination, LINES_PER_SCHEDULE_PAGE } from "../shared/submittal/pagination";
+import { validateProject } from "../shared/submittal/validation";
+import type { SubmittalProject, Scope, ScheduleLine } from "../shared/submittal/types";
+import { derivePackageStatus, packageProgress } from "../shared/submittal/types";
 
 let failures = 0;
 let checks = 0;
@@ -151,7 +152,7 @@ function project(partial: Partial<SubmittalProject> = {}): SubmittalProject {
   ]));
   check("a workbook with no scopes yields zero scopes", empty.scopes.length, 0);
   ok("parser reports skipped sheets so the PM knows why nothing imported",
-    Array.isArray((empty as any).skipped), `skipped=${JSON.stringify((empty as any).skipped)}`);
+    Array.isArray(empty.skipped), `skipped=${JSON.stringify(empty.skipped)}`);
 
   // ---------------------------------------------------------------------------
   console.log("\n=== Pagination uses real attachment page counts ===");
@@ -216,6 +217,41 @@ function project(partial: Partial<SubmittalProject> = {}): SubmittalProject {
   });
   const perScopeTotal = twoScopes.scopes.reduce((a, s) => a + computePagination(s).total, 0);
   check("projected pages agrees with the sum of per-scope pagination", validateProject(twoScopes).summary.projectedPages, perScopeTotal);
+
+  // ---------------------------------------------------------------------------
+  console.log("\n=== Completion: lines the PM deliberately excluded are DONE ===");
+  // A package where every line is either attached or marked By Others /
+  // Not Required is finished. It previously reported 91% / "Waiting on Product
+  // Data" forever, because completion counted attachments and ignored status.
+  const attached = (id: string) => line({ id, callout: id, lineStatus: "attached", attachments: [{ id: "att-" + id, fileName: id + ".pdf", pageCount: 3, calloutStamp: id, matchStatus: "exact", sortOrder: 0 }] });
+  const finished = [
+    scope({ id: "s1", tabName: "Toilet Accessories", lines: [attached("TA-1"), attached("TA-2"), line({ id: "TA-3", callout: "TA-3", lineStatus: "by_others" }), line({ id: "TA-4", callout: "TA-4", lineStatus: "not_required" })] }),
+    scope({ id: "s2", tabName: "Lockers", lines: [attached("L-1")] }),
+  ];
+  const fp = packageProgress(finished);
+  check("a fully-resolved package reads 100%", fp.percent, 100);
+  check("excluded lines count as resolved, not outstanding", [fp.resolved, fp.outstanding, fp.excluded], [5, 0, 2]);
+  check("a clean finished package is Ready for Export", derivePackageStatus(finished, { hasBlockers: false }), "ready_for_export");
+  check("a finished package with blockers is Ready for Review", derivePackageStatus(finished, { hasBlockers: true }), "ready_for_review");
+
+  console.log("\n=== Status: 'exported' is a fact, not a guess ===");
+  check("exporting a package is not overwritten by the next auto-save",
+    derivePackageStatus(finished, { current: "exported", hasBlockers: false }), "exported");
+  const reopened = [scope({ id: "s1", lines: [attached("TA-1"), line({ id: "TA-2", callout: "TA-2", lineStatus: "missing" })] })];
+  check("adding unfinished work to an exported package drops it back",
+    derivePackageStatus(reopened, { current: "exported" }), "waiting_product_data");
+
+  console.log("\n=== Status: the rest of the ladder ===");
+  check("no scopes yet", derivePackageStatus([], {}), "not_started");
+  check("scopes imported, nothing resolved", derivePackageStatus([scope({ lines: [line({ id: "a" })] })], {}), "in_progress");
+  check("partly resolved", derivePackageStatus([scope({ lines: [attached("TA-1"), line({ id: "b", lineStatus: "missing" })] })], {}), "waiting_product_data");
+
+  console.log("\n=== Validation groups carry the lines they cover ===");
+  const grouped = validateProject(project({ scopes: [scope({ id: "s1", lines: [line({ id: "a", callout: "TA-1" }), line({ id: "b", callout: "TA-2" })] })] }));
+  const missingGroup = grouped.warnings.find((w) => w.kind === "missing_product_data");
+  check("one grouped issue covering both lines", [missingGroup?.count, missingGroup?.lineIds], [2, ["a", "b"]]);
+  check("a package with outstanding lines is not ready to export", grouped.ready, false);
+  check("a finished clean package is ready to export", validateProject(project({ scopes: finished })).ready, true);
 
   // ---------------------------------------------------------------------------
   console.log(`\n${failures === 0 ? "✓ ALL PASS" : `✗ ${failures} of ${checks} checks FAILED`}`);
