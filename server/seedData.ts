@@ -59,6 +59,11 @@ async function ensureProposalLogExtraColumns(): Promise<void> {
   try {
     await db.execute(sql`ALTER TABLE proposal_log_entries ADD COLUMN IF NOT EXISTS final_reviewer varchar(200)`);
     await db.execute(sql`ALTER TABLE proposal_log_entries ADD COLUMN IF NOT EXISTS swinerton_project varchar(10)`);
+    // Types & Quantities receipt tracking — added on boot so a deploy that
+    // hasn't run `npm run db:push` still starts cleanly.
+    await db.execute(sql`ALTER TABLE proposal_log_entries ADD COLUMN IF NOT EXISTS tq_received_date varchar(20)`);
+    await db.execute(sql`ALTER TABLE proposal_log_entries ADD COLUMN IF NOT EXISTS tq_received_by varchar(200)`);
+    await db.execute(sql`ALTER TABLE proposal_log_entries ADD COLUMN IF NOT EXISTS tq_received_at timestamp`);
   } catch (e: any) {
     console.log("[Migration] proposal log extra columns check:", e.message);
   }

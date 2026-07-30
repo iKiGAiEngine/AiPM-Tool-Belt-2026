@@ -415,6 +415,12 @@ tbody tr:hover .col-frozen{background:var(--bg3);}
 .swin-no{background:rgba(138,138,154,.1);color:var(--text-dim);border:1px solid rgba(138,138,154,.2);border-radius:4px;padding:2px 6px;font-size:10px;font-family:'Rajdhani',sans-serif;font-weight:600;}
 .val-cell{font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:600;}
 .date-dim{color:var(--text-dim);font-size:11px;}
+/* T&Q RECEIVED CHECKBOX */
+.tq-cell{display:flex;align-items:center;justify-content:center;height:100%;}
+.tq-check{width:15px;height:15px;cursor:pointer;accent-color:var(--win);margin:0;}
+.tq-check:disabled{cursor:default;opacity:.4;}
+.tq-check:not(:checked){opacity:.55;}
+.tq-check:not(:checked):hover{opacity:1;}
 .link-cell a{color:var(--gold-dim);text-decoration:none;font-size:14px;}
 .link-cell a:hover{color:var(--gold);}
 .row-actions{display:flex;gap:4px;}
@@ -831,6 +837,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
           <button class="btn-icon-sm" id="btn-import-sheet" onclick="importFromSheet()" title="Pull changes from Google Sheet into app" style="display:none;width:100%;text-align:left" data-testid="button-import-sheet">&#11015; Pull from Sheet</button>
           <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
           <button class="btn-icon-sm" onclick="exportCSV();toggleMoreMenu()" style="width:100%;text-align:left" data-testid="button-export-csv">&#11015; Export CSV</button>
+          <a class="btn-icon-sm" id="btn-tq-report" href="/reports/types-quantities" target="_blank" rel="noopener noreferrer" title="Types &amp; Quantities lead-time report" style="display:none;text-decoration:none;color:var(--text);width:100%;text-align:left" data-testid="link-tq-report">&#128202; T&amp;Q Lead Time Report</a>
           <button class="btn-icon-sm" onclick="resetColLayout();toggleMoreMenu()" style="width:100%;text-align:left" data-testid="button-reset-columns">&#8634; Reset Columns</button>
         </div>
         <button class="btn-primary" id="btn-add" onclick="openModal()">+ Add Proposal</button>
@@ -1022,6 +1029,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
       </div>
       <div class="form-row">
         <div class="form-group"><label class="fl">Est. End</label><input type="date" class="fi" id="f-anticipatedFinish"></div>
+        <div class="form-group"><label class="fl">T&amp;Q Received</label><input type="date" class="fi" id="f-tqReceivedDate" data-testid="input-tq-received-date"><div style="font-size:9px;color:var(--text-dim);margin-top:3px">Leave blank if not yet received</div></div>
       </div>
       <div class="modal-section">Team &amp; Financials</div>
       <div class="form-row">
@@ -1217,6 +1225,7 @@ const COL_DEFS = [
   {key:'primaryMarket',  label:'Primary Market',      w:130, filter:'select', multi:true, opts:MARKETS},
   {key:'inviteDate',     label:'Invite Date',         w:100, filter:'date'},
   {key:'dueDate',        label:'Due Date',            w:100, filter:'date'},
+  {key:'tqReceived',     label:"T&Q Rec'd",           w:86,  filter:'select', opts:['Received','Not Received']},
   {key:'nbsEstimator',   label:'NBS Estimator',       w:130, filter:'text'},
   {key:'gcEstimateLead', label:'GC Estimate Lead',    w:140, filter:'text'},
   {key:'proposalTotal',  label:'Proposal Total',      w:150, filter:'text'},
@@ -1331,8 +1340,15 @@ function getFiltered() {
     if(fsw && p.swinertonProject!==fsw) return false;
     if(ff && p.dueDate && p.dueDate<ff) return false;
     if(ft && p.dueDate && p.dueDate>ft) return false;
+    // Derived column — filter on presence of the receipt date, not a field value.
+    if(colFilters.tqReceived) {
+      const hasTq = !!(p.tqReceivedDate && String(p.tqReceivedDate).trim());
+      if(colFilters.tqReceived==='Received' && !hasTq) return false;
+      if(colFilters.tqReceived==='Not Received' && hasTq) return false;
+    }
     for(const [key,val] of Object.entries(colFilters)) {
       if(val==null || val==='') continue;
+      if(key==='tqReceived') continue;
       const pv = p[key]||'';
       if(Array.isArray(val)) {
         if(val.length && !val.includes(pv)) return false;
@@ -1462,6 +1478,8 @@ function buildRows() {
   filtered.sort((a,b)=>{
     let av=a[sk]||'', bv=b[sk]||'';
     if(sk==='proposalTotal'){av=Number(av);bv=Number(bv);}
+    // Derived column — sort on the underlying receipt date.
+    if(sk==='tqReceived'){av=a.tqReceivedDate||'';bv=b.tqReceivedDate||'';}
     return av<bv?-sd:av>bv?sd:0;
   });
 
@@ -1572,6 +1590,20 @@ function buildRows() {
               <span class="inline-edit-hint">\u270f</span></div>`;
           } else { val=`<span class="date-dim">${fmtD(p.dueDate)}</span>`; }
           break;
+        case 'tqReceived': {
+          // Checkbox only. The lead-time day count derived from this date is
+          // deliberately absent from the log — it lives in the T&Q report.
+          const rec = !!(p.tqReceivedDate && String(p.tqReceivedDate).trim());
+          const tip = rec
+            ? 'Types &amp; quantities received ' + fmtD(p.tqReceivedDate) + (p.tqReceivedBy ? ' by ' + p.tqReceivedBy : '')
+            : 'Check when types &amp; quantities are received';
+          const dis = (mode==='estimator' && can('editRow')) ? '' : ' disabled';
+          val = `<div class="tq-cell" title="${tip}">
+            <input type="checkbox" class="tq-check"${rec?' checked':''}${dis}
+              data-testid="checkbox-tq-${oi}"
+              onchange="toggleTqReceived(${oi}, this.checked, this)"></div>`;
+          break;
+        }
         case 'anticipatedStart': case 'anticipatedFinish':
           if(mode==='estimator' && can('editRow')) {
             val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'${key}')">
@@ -1949,7 +1981,7 @@ function resetColLayout() {
   buildRows();
 }
 
-const FIELDS=['projectName','estimateNumber','region','primaryMarket','inviteDate','dueDate','nbsEstimator','gcEstimateLead','proposalTotal','estimateStatus','lossWho','lossReason','lossDetail','lossCompetitor','lossNotes','finalReviewer','anticipatedStart','anticipatedFinish','swinertonProject','nbsSelectedScopes','notes','owner','filePath','sourceType','sourceEmail','sourceEmailSubject','sourceAttachmentUrl','comments'];
+const FIELDS=['projectName','estimateNumber','region','primaryMarket','inviteDate','dueDate','tqReceivedDate','nbsEstimator','gcEstimateLead','proposalTotal','estimateStatus','lossWho','lossReason','lossDetail','lossCompetitor','lossNotes','finalReviewer','anticipatedStart','anticipatedFinish','swinertonProject','nbsSelectedScopes','notes','owner','filePath','sourceType','sourceEmail','sourceEmailSubject','sourceAttachmentUrl','comments'];
 const FIELD_ID_MAP = { region: 'f-region-input' };
 function fieldElId(k) { return FIELD_ID_MAP[k] || ('f-' + k); }
 
@@ -2055,7 +2087,7 @@ async function saveProposal(){
     Object.assign(existing, formVals);
     if(existing._serverDbId){
       const serverUpdates={};
-      ['projectName','owner','nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','selfPerformEstimator','anticipatedStart','anticipatedFinish','nbsSelectedScopes','notes','region','dueDate','inviteDate','primaryMarket','finalReviewer','swinertonProject','bcLink','filePath','estimateNumber'].forEach(f=>{
+      ['projectName','owner','nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','selfPerformEstimator','anticipatedStart','anticipatedFinish','nbsSelectedScopes','notes','region','dueDate','inviteDate','primaryMarket','finalReviewer','swinertonProject','bcLink','filePath','estimateNumber','tqReceivedDate'].forEach(f=>{
         if(formVals[f]!==undefined) serverUpdates[f]=formVals[f];
       });
       if(Object.keys(serverUpdates).length){
@@ -3811,9 +3843,68 @@ function closeNoBidModal(withReason) {
   noBidPendingStatus = '';
 }
 
+// Types & Quantities receipt toggle. The server stamps the date so the value
+// can't drift with a wrong workstation clock; we apply optimistically and roll
+// the checkbox back if the write fails.
+async function toggleTqReceived(oi, checked, el) {
+  const entry = data[oi];
+  if(!entry) return;
+  if (isReadOnlyAccount(currentUser)) {
+    showToast('⚠️ Read-only access — changes cannot be saved.', 'error');
+    if(el) el.checked = !checked;
+    return;
+  }
+  if(!entry._serverDbId) {
+    showToast('⚠️ Save this proposal before recording T&Q receipt', 'error');
+    if(el) el.checked = !checked;
+    return;
+  }
+
+  const prevDate = entry.tqReceivedDate || '';
+  const prevBy = entry.tqReceivedBy || '';
+  // Optimistic: fill in a placeholder date so the checkbox stays checked through
+  // the round trip; the server's authoritative date overwrites it on success.
+  entry.tqReceivedDate = checked ? (prevDate || todayISO()) : '';
+  entry.tqReceivedBy = checked ? prevBy : '';
+  save();
+
+  try {
+    const res = await fetch('/api/proposal-log/entry/' + entry._serverDbId + '/types-quantities', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ received: checked })
+    });
+    if(!res.ok) {
+      let msg = 'Save failed (' + res.status + ')';
+      try { const j = await res.json(); if(j.message) msg = j.message; } catch {}
+      throw new Error(msg);
+    }
+    const json = await res.json();
+    entry.tqReceivedDate = json.tqReceivedDate || '';
+    entry.tqReceivedBy = json.tqReceivedBy || '';
+    entry.tqReceivedAt = json.tqReceivedAt || '';
+    save();
+    buildRows();
+    showToast(checked ? '✓ T&Q marked received ' + fmtD(entry.tqReceivedDate) : 'T&Q receipt cleared');
+  } catch(e) {
+    entry.tqReceivedDate = prevDate;
+    entry.tqReceivedBy = prevBy;
+    save();
+    if(el) el.checked = !checked;
+    showToast('⚠️ ' + (e.message || 'Could not reach server — change may not be saved'), 'error');
+    console.warn('Failed to toggle T&Q receipt:', e);
+  }
+}
+
+function todayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
 async function syncFieldToServer(entry, field, value) {
   if (isReadOnlyAccount(currentUser)) { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); return; }
-  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','selfPerformEstimator','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink','nbsSelectedScopes','finalReviewer','swinertonProject','region','primaryMarket','inviteDate','filePath'];
+  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','selfPerformEstimator','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink','nbsSelectedScopes','finalReviewer','swinertonProject','region','primaryMarket','inviteDate','filePath','tqReceivedDate'];
   if (!syncableFields.includes(field)) return;
   if (!entry._serverDbId) { console.warn('Cannot sync field: entry has no _serverDbId'); return; }
   try {
@@ -4029,6 +4120,7 @@ function entryToServerPayload(e){
     sourceEmail:e.sourceEmail||'',
     sourceEmailSubject:e.sourceEmailSubject||'',
     sourceAttachmentUrl:e.sourceAttachmentUrl||'',
+    tqReceivedDate:e.tqReceivedDate||'',
     isTest:e._isTest||false,
   };
 }
@@ -4279,6 +4371,13 @@ function applyRoleUI() {
     if (isReadOnlyAccount(currentUser)) roBanner.classList.add('show');
     else roBanner.classList.remove('show');
   }
+
+  // T&Q report is admin + anyone explicitly granted the feature.
+  const tqLink = document.getElementById('btn-tq-report');
+  if (tqLink) {
+    const canSeeTq = role === 'admin' || userFeatures.includes('tq-report');
+    tqLink.style.display = canSeeTq ? '' : 'none';
+  }
 }
 
 function applyModeRestrictions() {
@@ -4377,6 +4476,9 @@ function serverEntryToLocal(e, existingLocal) {
     swinertonProject: e.swinertonProject || base.swinertonProject || '',
     owner: e.owner || '',
     filePath: e.filePath || '',
+    tqReceivedDate: e.tqReceivedDate || '',
+    tqReceivedBy: e.tqReceivedBy || '',
+    tqReceivedAt: e.tqReceivedAt || '',
     _screenshotId: e.screenshotPath ? (e.estimateNumber || '') : '',
     _isTest: e.isTest || false,
     _serverDbId: e.id,

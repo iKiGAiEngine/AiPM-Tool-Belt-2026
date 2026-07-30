@@ -40,6 +40,7 @@ import AdminEstimatorAnalyticsPage from "@/pages/AdminEstimatorAnalyticsPage";
 import AdminPortfolioVisitsPage from "@/pages/AdminPortfolioVisitsPage";
 import HelpCenterPage from "@/pages/HelpCenterPage";
 import TaxRateLookupPage from "@/pages/TaxRateLookupPage";
+import TypesQuantitiesReportPage from "@/pages/TypesQuantitiesReportPage";
 import NotFound from "@/pages/not-found";
 
 const PUBLIC_PATHS = ["/forgot-password", "/reset-password"];
@@ -78,6 +79,16 @@ function SettingsRoute({ component: Component }: { component: React.ComponentTyp
   const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
   if (isLoading || featuresLoading) return <RouteSpinner />;
   if (!canAccessAdminDashboard && !hasFeature("central-settings") && !hasFeature("settings-regions")) return <HomePage />;
+  return <Component />;
+}
+
+// Admins always pass; leadership gets in via the granted `tq-report` feature,
+// so access can be widened without handing out an admin role.
+function TqReportRoute({ component: Component }: { component: React.ComponentType }) {
+  const { canAccessAdminDashboard, isLoading } = useAuth();
+  const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
+  if (isLoading || featuresLoading) return <RouteSpinner />;
+  if (!canAccessAdminDashboard && !hasFeature("tq-report")) return <HomePage />;
   return <Component />;
 }
 
@@ -125,6 +136,7 @@ function Router() {
       <Route path="/help-center" component={HelpCenterPage} />
       <Route path="/help-center/:sop" component={HelpCenterPage} />
       <Route path="/tools/tax-rate-lookup" component={TaxRateLookupPage} />
+      <Route path="/reports/types-quantities">{() => <TqReportRoute component={TypesQuantitiesReportPage} />}</Route>
       <Route component={NotFound} />
     </Switch>
   );

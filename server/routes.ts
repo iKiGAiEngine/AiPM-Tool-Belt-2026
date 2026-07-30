@@ -29,6 +29,7 @@ import { registerBackupRoutes } from "./backupRestore";
 import { registerVendorDatabaseRoutes } from "./vendorDatabaseRoutes";
 import { registerEstimateRoutes } from "./estimateRoutes";
 import { registerEstimateAnalyticsRoutes } from "./estimateAnalyticsRoutes";
+import { registerTqReportRoutes } from "./tqReportRoutes";
 import { registerBuyoutRoutes } from "./buyout/routes";
 import { registerEstimateMigrationRoutes } from "./estimateMigrationRoutes";
 import { registerScopeManufacturerRoutes } from "./scopeManufacturerRoutes";
@@ -326,6 +327,7 @@ export async function registerRoutes(
   registerBackupRoutes(app);
   registerEstimateRoutes(app);
   registerEstimateAnalyticsRoutes(app);
+  registerTqReportRoutes(app);
   registerBuyoutRoutes(app);
   registerEstimateMigrationRoutes(app);
 

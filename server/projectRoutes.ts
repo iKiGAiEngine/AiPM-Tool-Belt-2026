@@ -5,6 +5,7 @@ import path from "path";
 import JSZip from "jszip";
 import { PDFDocument, PDFDict, PDFString, PDFArray, PDFName, PDFNull, PDFNumber } from "pdf-lib";
 import { insertScopeDictionarySchema, insertRegionSchema, PLAN_PARSER_SCOPES } from "@shared/schema";
+import { parseIsoDate, todayInBusinessTz } from "@shared/tqLeadTime";
 import { requireAdmin } from "./authRoutes";
 import {
   getAllScopeDictionaries,
@@ -2008,6 +2009,7 @@ export function registerProjectRoutes(app: Express) {
         "sourceEmail",
         "sourceEmailSubject",
         "sourceAttachmentUrl",
+        "tqReceivedDate",
       ];
       const updates: Record<string, string> = {};
       for (const field of allowedFields) {
@@ -2256,6 +2258,70 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Failed to update proposal log entry:", error);
       res.status(500).json({ message: "Failed to update entry" });
+    }
+  });
+
+  // Toggle the "types & quantities received" checkbox on a proposal log row.
+  //
+  // The date is stamped server-side rather than by the browser: estimators work
+  // across time zones and a wrong clock would corrupt the lead-time report. The
+  // stored date is the business date (back-datable); tqReceivedAt records when
+  // the box was actually ticked.
+  app.post("/api/proposal-log/entry/:id/types-quantities", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
+
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const received = req.body?.received === true || req.body?.received === "true";
+      const rawDate = typeof req.body?.receivedDate === "string" ? req.body.receivedDate.trim() : "";
+      if (rawDate && !parseIsoDate(rawDate)) {
+        return res.status(400).json({ message: "receivedDate must be a valid YYYY-MM-DD date" });
+      }
+
+      const [existingEntry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!existingEntry) return res.status(404).json({ message: "Entry not found" });
+
+      const changedByName = await resolveChangedByName(userId);
+
+      const updates = received
+        ? {
+            tqReceivedDate: rawDate || todayInBusinessTz(),
+            tqReceivedBy: changedByName,
+            tqReceivedAt: new Date(),
+          }
+        : { tqReceivedDate: null, tqReceivedBy: null, tqReceivedAt: null };
+
+      const [updated] = await db
+        .update(proposalLogEntries)
+        .set(updates)
+        .where(eq(proposalLogEntries.id, id))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Entry not found" });
+
+      // Reuses the existing change-log pipeline, so every tick and untick shows
+      // up on the Proposal Change Log page with no extra bookkeeping.
+      await recordFieldChanges(
+        id,
+        existingEntry as Record<string, unknown>,
+        { tqReceivedDate: updates.tqReceivedDate },
+        changedByName,
+      ).catch(() => {});
+
+      console.log(
+        `[ProposalLog] T&Q ${received ? `received ${updates.tqReceivedDate}` : "cleared"} on entry id=${id} by ${changedByName}`,
+      );
+      res.json({
+        success: true,
+        tqReceivedDate: updated.tqReceivedDate,
+        tqReceivedBy: updated.tqReceivedBy,
+        tqReceivedAt: updated.tqReceivedAt,
+      });
+    } catch (error) {
+      console.error("Failed to update T&Q receipt:", error);
+      res.status(500).json({ message: "Failed to update T&Q receipt" });
     }
   });
 

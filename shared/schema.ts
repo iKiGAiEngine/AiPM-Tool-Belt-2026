@@ -983,6 +983,14 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
     notes?: string;
   }>>().default([]),
   duplicateOverrideNote: text("duplicate_override_note"),
+  // Types & Quantities receipt tracking. The date is the source of truth —
+  // null means "not received", so the checkbox state and the date can never
+  // disagree. Lead time vs. dueDate is computed at report time (see
+  // shared/tqLeadTime.ts), never stored, because bid due dates move often and a
+  // stored day-count would silently go stale.
+  tqReceivedDate: varchar("tq_received_date", { length: 20 }),
+  tqReceivedBy: varchar("tq_received_by", { length: 200 }),
+  tqReceivedAt: timestamp("tq_received_at"),
   estimatedStartDate: timestamp("estimated_start_date"),
   estimatedEndDate: timestamp("estimated_end_date"),
   statusChangedAt: timestamp("status_changed_at").notNull().defaultNow(),
@@ -1296,6 +1304,7 @@ export const FEATURES = {
   PROCUREMENT_PROCESS: "procurement-process",
   SETTINGS_REGIONS: "settings-regions",
   BUYOUT_BOT: "buyout-bot",
+  TQ_REPORT: "tq-report",
 } as const;
 
 export type Feature = typeof FEATURES[keyof typeof FEATURES];
