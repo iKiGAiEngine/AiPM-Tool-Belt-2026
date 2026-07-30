@@ -232,11 +232,10 @@ export function registerSubmittalRoutes(app: Express) {
       if (!attachmentId) return res.status(400).json({ error: "attachmentId required" });
 
       const fileName = req.file.originalname || "product-data.pdf";
-      const isPdf =
-        req.file.mimetype === "application/pdf" ||
-        /\.pdf$/i.test(fileName) ||
-        req.file.buffer.subarray(0, 5).toString("latin1") === "%PDF-";
-      if (!isPdf) {
+      // The file header is the only trustworthy signal — a mime type and an
+      // extension are both just claims, and a .txt renamed to .pdf would sail
+      // through an "any of these" check and land in the package as a blank page.
+      if (req.file.buffer.subarray(0, 5).toString("latin1") !== "%PDF-") {
         return res.status(400).json({ error: `"${fileName}" is not a PDF. Product data must be a PDF.` });
       }
 

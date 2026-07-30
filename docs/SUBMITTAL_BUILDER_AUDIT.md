@@ -257,6 +257,25 @@ Route-level feature gate, and server-side persistence. Both need a product call 
 
 ## Verification
 
-`scripts/test-submittal-logic.ts` encodes the target behavior for the parser, pagination and
-validation and is red today (14/29). Phases 1 and 3 should take it to green; Phases 2 and 4
-need coverage added as the pure logic lands (page counts from real PDFs, derivation module).
+`scripts/test-submittal-logic.ts` encodes the target behavior for the parser, pagination,
+validation and state derivation. `scripts/test-submittal-package.ts` covers PDF generation.
+Both are green.
+
+## Status
+
+Findings 1–25 are fixed; see the commits on `claude/submittal-builder-audit-ip0tkx`.
+Finding 26 (persistence) is resolved by moving to Postgres — **`npm run db:push` must be run
+to create `submittal_projects` and `submittal_attachments`.**
+
+Verified against a live server and a real browser: import of a workbook whose header reads
+`Item Description` (which previously dropped the scope) yields 2 scopes / 23 lines with the
+four non-scope sheets reported as skipped and the subtotal rows excluded; a 4-page PDF
+uploads and reports 4 pages; export downloads a 6-page PDF (cover + schedule + the 4 merged
+pages); a `.txt` renamed to `.pdf` is rejected on its file header; an Estimator account gets
+403 from the API and is redirected off the route; a viewer account gets `READ_ONLY` on write
+and can still read.
+
+One deliberate carry-over: submittals have no per-record ownership or locking. Any user with
+the `submittal-builder` feature can open and edit any submittal, last write wins, and the
+creating user is recorded in `created_by`. If two PMs working one package concurrently
+becomes real, that needs a follow-up.

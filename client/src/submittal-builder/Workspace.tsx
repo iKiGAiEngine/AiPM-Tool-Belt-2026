@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/lib/auth";
 import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
 import { loadProject, saveProject, toPackage, readableError } from "./api";
-import { computePagination } from "@shared/submittal/pagination";
+import { computePagination, totalPackagePages } from "@shared/submittal/pagination";
 import { validateProject } from "@shared/submittal/validation";
 import { packageProgress, scopeProgress, type Scope, type SubmittalProject } from "@shared/submittal/types";
 import type { ParsedSubmittalWorkbook } from "@shared/submittal/estimateParser";
@@ -280,11 +280,11 @@ export default function Workspace({ projectId, onHome, flash, refreshProjects }:
       },
       {
         key: "export", label: "Export package",
-        detail: exported ? "Generated" : hasScopes ? `${pageInfo.total} pages` : "—",
+        detail: exported ? "Generated" : hasScopes ? `${totalPackagePages(project!.scopes)} pages` : "—",
         done: exported, locked: !hasScopes,
       },
     ];
-  }, [hasScopes, project, progress, validation, pageInfo.total]);
+  }, [hasScopes, project, progress, validation]);
 
   const nextAction = useMemo(() => {
     if (!hasScopes) {
