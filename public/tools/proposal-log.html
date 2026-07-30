@@ -1241,7 +1241,7 @@ const COL_DEFS = [
   {key:'filePath',       label:'File Path',           w:90,  filter:'none'},
   {key:'selfPerformEstimator', label:'SP Estimator',    w:120, filter:'text'},
   {key:'_screenshot',    label:'Source',              w:110, filter:'none'},
-  {key:'_folder',        label:'Folder',              w:70,  filter:'none'},
+  {key:'_folder',        label:'Folder',              w:86,  filter:'none'},
   {key:'_actions',       label:'',                    w:70,  filter:'none'},
 ];
 
@@ -1405,7 +1405,10 @@ function buildHeaders() {
     const def = getColDef(key);
     if(!def) return;
     const w = layout.widths[key] || def.w;
-    const isSpecial = key==='_actions' || key==='_screenshot' || key==='_folder';
+    // Only the row-button column is special. Source and Folder are ordinary
+    // columns: draggable, resizable and sortable like everything else. They
+    // simply have no filter input, exactly as BC Link (filter:'none') already does.
+    const isSpecial = key==='_actions';
 
     const th = document.createElement('th');
     th.dataset.col = key;
@@ -1439,10 +1442,6 @@ function buildHeaders() {
         th.addEventListener('dragleave', ()=>clearDropHighlight(th));
         th.addEventListener('drop', e=>onColDrop(e,key));
       }
-    } else if(key==='_screenshot') {
-      th.innerHTML='<div class="th-inner" style="cursor:default;font-size:11px">Source</div>';
-    } else if(key==='_folder') {
-      th.innerHTML='<div class="th-inner" style="cursor:default;font-size:11px;text-align:center">Folder</div>';
     }
 
     hr.appendChild(th);
@@ -1480,8 +1479,11 @@ function buildRows() {
   filtered.sort((a,b)=>{
     let av=a[sk]||'', bv=b[sk]||'';
     if(sk==='proposalTotal'){av=Number(av);bv=Number(bv);}
-    // Derived column — sort on the underlying receipt date.
+    // Derived columns hold no field of their own — sort on what they represent,
+    // so the header arrow does something real instead of being a dead control.
     if(sk==='tqReceived'){av=a.tqReceivedDate||'';bv=b.tqReceivedDate||'';}
+    if(sk==='_screenshot'){av=a._screenshotId?'1':'0';bv=b._screenshotId?'1':'0';}
+    if(sk==='_folder'){av=a._serverDbId?'1':'0';bv=b._serverDbId?'1':'0';}
     return av<bv?-sd:av>bv?sd:0;
   });
 
@@ -1496,10 +1498,6 @@ function buildRows() {
   tbody.innerHTML = filtered.map((p,fi)=>{
     const oi=data.indexOf(p);
     const cells = visKeys.map(key=>{
-      if(key==='_folder') {
-        if(!p._serverDbId) return `<td style="text-align:center"></td>`;
-        return `<td style="text-align:center"><button onclick="recreateFolder(${oi})" title="Re-create project bid folder" style="background:none;border:none;padding:2px 4px;cursor:pointer;font-size:18px;line-height:1;color:var(--gold);opacity:.85;transition:opacity .15s,transform .15s" onmouseover="this.style.opacity='1';this.style.transform='scale(1.15)'" onmouseout="this.style.opacity='.85';this.style.transform='scale(1)'">&#128194;</button></td>`;
-      }
       if(key==='_actions') {
         if(mode==='leadership') return `<td></td>`;
         if(p._pendingDeletion){
@@ -1721,6 +1719,14 @@ function buildRows() {
             parts.push(`<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" title="Open in BuildingConnected" style="${pillBase}background:rgba(96,165,250,0.12);color:#60a5fa;">&#128279; BC Invite</a>`);
           }
           val=parts.length ? `<div style="display:flex;flex-direction:column;gap:4px;">${parts.join('')}</div>` : '';
+          break;
+        }
+        case '_folder': {
+          // Kept centred, matching the T&Q checkbox — icon columns read better
+          // centred than hugging the left edge like text columns.
+          val = p._serverDbId
+            ? `<div style="text-align:center"><button onclick="recreateFolder(${oi})" title="Re-create project bid folder" style="background:none;border:none;padding:2px 4px;cursor:pointer;font-size:18px;line-height:1;color:var(--gold);opacity:.85;transition:opacity .15s,transform .15s" onmouseover="this.style.opacity='1';this.style.transform='scale(1.15)'" onmouseout="this.style.opacity='.85';this.style.transform='scale(1)'">&#128194;</button></div>`
+            : '';
           break;
         }
         default: val=p[key]||'\u2014';
@@ -2179,10 +2185,16 @@ async function cancelDeletion(i){
 }
 
 function getComputedVal(p,k) {
+  // Derived columns have no field of the same name — without these the CSV
+  // would carry the column header and an empty value for every row.
+  if(k==='tqReceived') return p.tqReceivedDate ? fmtD(p.tqReceivedDate) : '';
+  if(k==='_screenshot') return p._screenshotId ? 'Yes' : '';
+  if(k==='_folder') return p._serverDbId ? 'Yes' : '';
   return p[k]||'';
 }
 function exportCSV(){
-  const visKeys=getVisibleCols().filter(k=>k!=='_actions'&&k!=='_screenshot');
+  // Only the row-button column is skipped; it has no label and no value.
+  const visKeys=getVisibleCols().filter(k=>k!=='_actions');
   const h=visKeys.map(k=>getColDef(k)?.label||k);
   const rows=data.map(p=>visKeys.map(k=>`"${getComputedVal(p,k).toString().replace(/"/g,'""')}"`).join(','));
   const a=document.createElement('a');

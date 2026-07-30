@@ -221,6 +221,47 @@ test.describe("Types & Quantities receipt tracking and lead-time report", () => 
     expect(await headers()).toContain("tqReceived");
   });
 
+  test("every column header offers the same drag, resize and sort controls", async ({ page }) => {
+    await page.goto("/tools/proposal-log");
+    await page.waitForSelector("#main-table tbody tr", { timeout: 30_000 });
+    await page.selectOption("#f-status", "");
+    await page.waitForTimeout(500);
+
+    const affordances = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("#header-row th[data-col]")).map((th) => ({
+        key: (th as HTMLElement).dataset.col as string,
+        grip: !!th.querySelector(".col-drag"),
+        resize: !!th.querySelector(".col-resize"),
+        sort: !!th.querySelector(".sort-arrow"),
+      })),
+    );
+
+    // `_actions` is the pinned row-button column and `projectName` is frozen to
+    // the left edge on purpose, so neither carries a drag grip. Everything else —
+    // including the icon columns Source and Folder — must behave identically.
+    const lacking = affordances
+      .filter((a) => a.key !== "_actions" && a.key !== "projectName")
+      .filter((a) => !(a.grip && a.resize && a.sort))
+      .map((a) => a.key);
+    expect(lacking, `columns missing header controls: ${lacking.join(", ")}`).toEqual([]);
+
+    for (const key of ["_screenshot", "_folder", "tqReceived"]) {
+      expect(affordances.find((a) => a.key === key), `${key} should be a visible column`).toBeTruthy();
+    }
+
+    // The sort arrows must do something: sorting by a derived column marks the
+    // header and highlights its cells, rather than being a dead control.
+    for (const key of ["_screenshot", "_folder", "tqReceived"]) {
+      await page.click(`#header-row th[data-col="${key}"] .th-inner`);
+      await page.waitForTimeout(300);
+      const marked = await page.evaluate(
+        (k) => document.querySelector(`#header-row th[data-col="${k}"]`)!.classList.contains("sorted"),
+        key,
+      );
+      expect(marked, `${key} should sort when its header is clicked`).toBe(true);
+    }
+  });
+
   test("unchecking clears the stored receipt", async ({ page }) => {
     await database.run(
       `UPDATE proposal_log_entries SET tq_received_date=$2, tq_received_by='ZZ', tq_received_at=NOW() WHERE id=$1`,
