@@ -3,6 +3,7 @@ import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar, uni
 import { createInsertSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
 import type { BuyoutBoard } from "./buyout/types";
+import type { SubmittalPackage } from "./submittal/types";
 
 // External tables not owned by this schema file but present in the database.
 // These stubs exist so `db:push` does NOT propose dropping them. Do not remove.
@@ -1784,3 +1785,74 @@ export const insertBuyoutProjectSchema = createInsertSchema(buyoutProjects).omit
   updatedAt: true,
 });
 export type InsertBuyoutProjectInput = z.infer<typeof insertBuyoutProjectSchema>;
+
+// =====================================================
+// SUBMITTAL BUILDER MODULE
+// =====================================================
+// A submittal project = one Won proposal-log job plus the estimate workbook it
+// was built from. The whole package (scopes / schedule lines / cover rows /
+// attachment metadata) is one JSONB document so auto-save is a single PATCH and
+// resume is a single GET — same shape as the Buyout Bot board. Header columns
+// are cached on write for the dashboard list.
+//
+// Attachment BYTES live in submittal_attachments (bytea), not in the JSONB
+// document: product data PDFs are megabytes each and a package routinely has
+// dozens.
+
+export const submittalProjects = pgTable("submittal_projects", {
+  id: serial("id").primaryKey(),
+  // The proposal-log entry this submittal was started from.
+  proposalLogId: integer("proposal_log_id"),
+  projectName: varchar("project_name", { length: 500 }).notNull(),
+  gc: varchar("gc", { length: 300 }).notNull().default(""),
+  attention: varchar("attention", { length: 300 }).notNull().default(""),
+  assignedPm: varchar("assigned_pm", { length: 200 }).notNull().default(""),
+  coverDate: varchar("cover_date", { length: 100 }).notNull().default(""),
+  estimateNumber: varchar("estimate_number", { length: 100 }),
+  region: varchar("region", { length: 100 }),
+  sourceFilename: varchar("source_filename", { length: 500 }),
+  // Cached list-view fields (kept in sync on save; packageData is the truth).
+  status: varchar("status", { length: 30 }).notNull().default("not_started"),
+  scopeCount: integer("scope_count").notNull().default(0),
+  lineCount: integer("line_count").notNull().default(0),
+  resolvedCount: integer("resolved_count").notNull().default(0),
+  completionPercent: integer("completion_percent").notNull().default(0),
+  // The whole package document.
+  packageData: jsonb("package_data").$type<SubmittalPackage>().notNull(),
+  createdBy: varchar("created_by", { length: 100 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export type SubmittalProjectRow = typeof submittalProjects.$inferSelect;
+export type InsertSubmittalProject = typeof submittalProjects.$inferInsert;
+export const insertSubmittalProjectSchema = createInsertSchema(submittalProjects).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSubmittalProjectInput = z.infer<typeof insertSubmittalProjectSchema>;
+
+const submittalByteaType = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() { return "bytea"; },
+});
+
+// One uploaded product data PDF. `attachmentId` is the id carried in the
+// package document's line.attachments[], so the JSONB stays free of blobs.
+export const submittalAttachments = pgTable("submittal_attachments", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull(),
+  attachmentId: varchar("attachment_id", { length: 64 }).notNull(),
+  fileName: varchar("file_name", { length: 500 }).notNull(),
+  mimeType: varchar("mime_type", { length: 100 }),
+  // Real page count read from the PDF on upload — the cover page's page
+  // references are derived from this.
+  pageCount: integer("page_count").notNull().default(1),
+  byteSize: integer("byte_size").notNull().default(0),
+  fileData: submittalByteaType("file_data").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueAttachment: unique().on(table.projectId, table.attachmentId),
+  projectIdx: index("submittal_attachments_project_idx").on(table.projectId),
+}));
+export type SubmittalAttachmentRow = typeof submittalAttachments.$inferSelect;
+export type InsertSubmittalAttachment = typeof submittalAttachments.$inferInsert;

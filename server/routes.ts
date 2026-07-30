@@ -30,6 +30,7 @@ import { registerVendorDatabaseRoutes } from "./vendorDatabaseRoutes";
 import { registerEstimateRoutes } from "./estimateRoutes";
 import { registerEstimateAnalyticsRoutes } from "./estimateAnalyticsRoutes";
 import { registerBuyoutRoutes } from "./buyout/routes";
+import { registerSubmittalRoutes } from "./submittal/routes";
 import { registerEstimateMigrationRoutes } from "./estimateMigrationRoutes";
 import { registerScopeManufacturerRoutes } from "./scopeManufacturerRoutes";
 import { registerErrorRoutes } from "./errorRoutes";
@@ -327,6 +328,7 @@ export async function registerRoutes(
   registerEstimateRoutes(app);
   registerEstimateAnalyticsRoutes(app);
   registerBuyoutRoutes(app);
+  registerSubmittalRoutes(app);
   registerEstimateMigrationRoutes(app);
 
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {

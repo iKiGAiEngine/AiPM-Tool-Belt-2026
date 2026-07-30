@@ -212,7 +212,7 @@ export function validateProject(project: SubmittalProject | null | undefined): V
       if (issue) issues.push(issue);
     }
 
-    const dupCallouts = [...callouts.entries()].filter(([, n]) => n > 1);
+    const dupCallouts = Array.from(callouts.entries()).filter(([, n]) => n > 1);
     if (dupCallouts.length > 0) {
       issues.push({
         id: `${scope.id}:duplicate_callout`, kind: "duplicate_callout", severity: "info",
@@ -221,7 +221,7 @@ export function validateProject(project: SubmittalProject | null | undefined): V
         count: dupCallouts.length, lineIds: [],
       });
     }
-    const dupModels = [...models.entries()].filter(([, n]) => n > 1);
+    const dupModels = Array.from(models.entries()).filter(([, n]) => n > 1);
     if (dupModels.length > 0) {
       issues.push({
         id: `${scope.id}:duplicate_model`, kind: "duplicate_model", severity: "info",
