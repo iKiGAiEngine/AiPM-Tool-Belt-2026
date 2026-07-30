@@ -1,79 +1,86 @@
-import { useState, useEffect, useCallback } from "react";
-import { loadAllProjects, saveProject, deleteProject } from "./storage";
-import { now } from "./helpers";
+import { useState, useCallback } from "react";
+import { useLocation } from "wouter";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { listProjects, createProject, deleteProject, readableError } from "./api";
+import { todayCoverDate } from "./helpers";
 import Dashboard from "./Dashboard";
 import NewProject from "./NewProject";
 import Workspace from "./Workspace";
-import type { SubmittalProject, ProposalLogEntry } from "./types";
+import type { ProposalLogEntry, SubmittalProject } from "@shared/submittal/types";
 
 type View = "dashboard" | "new" | { workspace: string };
 
-const FLASH_TYPES: Record<string, { background: string; color: string }> = {
-  success: { background: "#052e16", color: "#22c55e" },
-  error: { background: "#450a0a", color: "#ef4444" },
-  info: { background: "#172554", color: "#60a5fa" },
+const FLASH_STYLES: Record<string, React.CSSProperties> = {
+  success: { background: "var(--success)", color: "#fff" },
+  error: { background: "var(--error)", color: "#fff" },
+  info: { background: "var(--text-primary)", color: "var(--bg-card)" },
 };
 
+const QUERY_KEY = ["/api/submittal/projects"];
+
 export default function SubmittalBuilderPage() {
+  const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
   const [view, setView] = useState<View>("dashboard");
-  const [projects, setProjects] = useState<SubmittalProject[]>([]);
-  const [loading, setLoading] = useState(true);
   const [flashMsg, setFlashMsg] = useState<{ msg: string; type: string } | null>(null);
 
+  const { data: projects = [], isLoading, error } = useQuery<SubmittalProject[]>({
+    queryKey: QUERY_KEY,
+    queryFn: listProjects,
+  });
+
   const refreshProjects = useCallback(() => {
-    loadAllProjects().then((list) => {
-      setProjects(list);
-      setLoading(false);
-    });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+  }, [queryClient]);
+
+  const flash = useCallback((msg: string, type = "info") => {
+    setFlashMsg({ msg, type });
+    // Errors stay up long enough to actually read.
+    setTimeout(() => setFlashMsg(null), type === "error" ? 7000 : 3500);
   }, []);
 
-  useEffect(() => {
-    refreshProjects();
-  }, [refreshProjects]);
+  const handleCreate = useCallback(async (entry: ProposalLogEntry) => {
+    try {
+      const created = await createProject({
+        proposalLogId: entry.id,
+        projectName: entry.projectName,
+        gc: entry.gcEstimateLead || "",
+        assignedPm: entry.nbsEstimator || "",
+        coverDate: todayCoverDate(),
+        estimateNumber: entry.estimateNumber ?? null,
+        region: entry.region ?? null,
+      });
+      refreshProjects();
+      setView({ workspace: created.id });
+      flash("Submittal created — import the estimate workbook next", "success");
+    } catch (err) {
+      flash(readableError(err, "Could not create the submittal"), "error");
+    }
+  }, [flash, refreshProjects]);
 
-  const flash = (msg: string, type = "info") => {
-    setFlashMsg({ msg, type });
-    setTimeout(() => setFlashMsg(null), 3500);
-  };
-
-  const handleCreate = async (entry: ProposalLogEntry) => {
-    const project: SubmittalProject = {
-      id: crypto.randomUUID(),
-      proposalLogId: String(entry.id),
-      projectName: entry.projectName,
-      gc: entry.gcEstimateLead || "",
-      attention: "",
-      assignedPm: entry.nbsEstimator || "",
-      submittalStatus: "not_started",
-      completionPercent: 0,
-      createdAt: now(),
-      updatedAt: now(),
-      lastOpenedAt: now(),
-      lastActiveScopeId: null,
-      lastActiveTab: "schedule",
-      scopes: [],
-      coverDate: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
-      estimateNumber: entry.estimateNumber,
-      region: entry.region,
-    };
-    await saveProject(project);
-    refreshProjects();
-    setView({ workspace: project.id });
-    flash("Submittal project created", "success");
-  };
-
-  const handleDelete = async (id: string) => {
-    await deleteProject(id);
-    refreshProjects();
-    flash("Project deleted", "info");
-  };
-
-  const flashStyle = flashMsg ? FLASH_TYPES[flashMsg.type] || FLASH_TYPES.info : null;
+  const handleDelete = useCallback(async (id: string) => {
+    try {
+      await deleteProject(id);
+      refreshProjects();
+      flash("Submittal deleted", "info");
+    } catch (err) {
+      flash(readableError(err, "Could not delete the submittal"), "error");
+    }
+  }, [flash, refreshProjects]);
 
   return (
     <div style={{ position: "relative" }}>
-      {flashMsg && flashStyle && (
-        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", padding: "10px 22px", borderRadius: 8, fontSize: 13, fontWeight: 600, zIndex: 9999, boxShadow: "0 4px 24px rgba(0,0,0,.5)", ...flashStyle, transition: "opacity .3s" }}>
+      {flashMsg && (
+        <div
+          role="status" aria-live="polite"
+          data-testid="toast-flash"
+          style={{
+            position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+            padding: "10px 22px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+            zIndex: 9999, boxShadow: "0 4px 24px rgba(0,0,0,.35)", maxWidth: "80vw",
+            ...(FLASH_STYLES[flashMsg.type] ?? FLASH_STYLES.info),
+          }}
+        >
           {flashMsg.msg}
         </div>
       )}
@@ -81,19 +88,17 @@ export default function SubmittalBuilderPage() {
       {view === "dashboard" && (
         <Dashboard
           projects={projects}
-          loading={loading}
+          loading={isLoading}
+          error={error ? readableError(error, "Could not load submittals") : null}
           onOpen={(id) => setView({ workspace: id })}
           onNew={() => setView("new")}
           onDelete={handleDelete}
-          onBack={() => window.history.back()}
+          onBack={() => navigate("/")}
         />
       )}
 
       {view === "new" && (
-        <NewProject
-          onBack={() => setView("dashboard")}
-          onCreate={handleCreate}
-        />
+        <NewProject onBack={() => setView("dashboard")} onCreate={handleCreate} />
       )}
 
       {typeof view === "object" && "workspace" in view && (

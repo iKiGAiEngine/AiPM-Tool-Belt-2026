@@ -105,6 +105,10 @@ export interface SubmittalProject {
   sourceFilename?: string | null;
   submittalStatus: SubmittalStatus;
   completionPercent: number;
+  /** Cached counts from the server list view — derived, never authored. */
+  scopeCount?: number;
+  lineCount?: number;
+  resolvedCount?: number;
   createdAt: number;
   updatedAt: number;
   lastActiveScopeId: string | null;

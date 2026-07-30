@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { inputStyle, btnGhost } from "./helpers";
-import type { ProposalLogEntry } from "./types";
+import type { ProposalLogEntry } from "@shared/submittal/types";
 
 interface Props {
   onBack: () => void;
@@ -36,11 +36,11 @@ export default function NewProject({ onBack, onCreate }: Props) {
   return (
     <div style={{ background: "var(--bg-page)", minHeight: "calc(100vh - 57px)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <div style={{ maxWidth: 700, margin: "0 auto", padding: "32px 24px" }}>
-        <button onClick={onBack} style={{ ...btnGhost, marginBottom: 20 }}>← Back to Projects</button>
+        <button onClick={onBack} style={{ ...btnGhost, marginBottom: 20 }} data-testid="button-back-to-list">← Back to Projects</button>
         <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4, fontFamily: "'Rajdhani', sans-serif" }}>Start New Submittal</h2>
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Select a Won project from the AiPM Proposal Log Dashboard.</p>
 
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by project name, estimate #, or region..." style={{ ...inputStyle, width: "100%", marginBottom: 16 }} />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by project name, estimate #, or region..." aria-label="Search won projects" style={{ ...inputStyle, width: "100%", marginBottom: 16 }} data-testid="input-search-won" />
 
         {isLoading ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>Loading Proposal Log Dashboard...</div>
@@ -56,7 +56,9 @@ export default function NewProject({ onBack, onCreate }: Props) {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {filtered.map((p) => (
-              <div key={p.id} onClick={() => onCreate(p)}
+              <div key={p.id} role="button" tabIndex={0} data-testid={`card-won-${p.id}`}
+                onClick={() => onCreate(p)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onCreate(p); } }}
                 style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderRadius: 8, cursor: "pointer", transition: "border-color .15s" }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--gold)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-ds)"; }}>

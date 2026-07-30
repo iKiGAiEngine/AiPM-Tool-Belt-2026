@@ -92,6 +92,18 @@ function RedirectToProposalLog({ tab }: { tab?: string }) {
   return <RouteSpinner />;
 }
 
+// The Submittal Builder is deliberately withheld from Estimator accounts
+// (server/permissionsInit.ts removes the feature from them) and the home page
+// hides its tile — but the route itself was reachable by URL. Admins always
+// pass, matching the tile logic on HomePage.
+function FeatureRoute({ feature, component: Component }: { feature: string; component: React.ComponentType }) {
+  const { isAdmin, isLoading } = useAuth();
+  const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
+  if (isLoading || featuresLoading) return <RouteSpinner />;
+  if (!isAdmin && !hasFeature(feature)) return <HomePage />;
+  return <Component />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -117,7 +129,7 @@ function Router() {
       <Route path="/admin/portfolio-visits">{() => <AdminRoute component={AdminPortfolioVisitsPage} />}</Route>
       <Route path="/admin/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
       <Route path="/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
-      <Route path="/submittal-builder" component={SubmittalBuilderPage} />
+      <Route path="/submittal-builder">{() => <FeatureRoute feature="submittal-builder" component={SubmittalBuilderPage} />}</Route>
       <Route path="/vendor-database" component={VendorDatabasePage} />
       <Route path="/buyout-bot" component={BuyoutBotPage} />
       <Route path="/estimates/:id" component={EstimatingModulePage} />
