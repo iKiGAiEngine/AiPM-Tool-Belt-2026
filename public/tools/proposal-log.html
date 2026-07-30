@@ -617,6 +617,38 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
 .theme-toggle-btn{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:6px;border:none;background:transparent;color:var(--text-dim);cursor:pointer;transition:background .2s,color .2s;}
 .theme-toggle-btn:hover{background:var(--bg4);color:var(--text);}
 .theme-toggle-btn svg{width:16px;height:16px;}
+
+/* ── BC INVITES: sub-tabs + change log ─────────────────── */
+.bc-subtabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+.bc-subtab{display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);color:var(--text-dim);padding:6px 14px;border-radius:6px;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:all .2s;}
+.bc-subtab:hover{border-color:var(--gold-dim);color:var(--text);}
+.bc-subtab.active{background:linear-gradient(135deg,rgba(201,168,76,.18),rgba(201,168,76,.08));border-color:var(--gold);color:var(--gold);}
+.bc-subtab .sub-count{font-size:11px;opacity:.75;}
+/* Outcome stat tiles — also act as the change log's filter chips */
+.bch-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;margin-bottom:12px;}
+.bch-stat{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;cursor:pointer;text-align:left;transition:border-color .2s,background .2s;}
+.bch-stat:hover{border-color:var(--gold-dim);}
+.bch-stat.active{border-color:var(--gold);background:rgba(201,168,76,.07);}
+.bch-stat-num{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;line-height:1;}
+.bch-stat-lbl{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.6px;margin-top:3px;}
+.bch-table-wrap{border:1px solid var(--border);border-radius:8px;overflow-x:auto;}
+/* table-layout:auto + wrapping cells override the Proposal Log's global
+   fixed-layout / nowrap / ellipsis table rules, which would otherwise clip the
+   Details column instead of letting it wrap. */
+table.bch-table{width:100%;border-collapse:collapse;font-size:12px;min-width:820px;table-layout:auto;}
+table.bch-table th{position:sticky;top:0;z-index:1;background:var(--bg3);color:var(--text-dim);font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;text-align:left;padding:8px 10px;white-space:nowrap;border:none;border-bottom:1px solid var(--border);}
+table.bch-table td{padding:8px 10px;border:none;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;}
+table.bch-table tbody tr:last-child td{border-bottom:none;}
+table.bch-table tbody tr:hover{background:var(--bg2);}
+.bch-when{white-space:nowrap;color:var(--text-dim);font-size:11px;}
+.bch-name{font-weight:600;}
+.bch-detail{color:var(--text-dim);font-size:11px;}
+.bch-empty{padding:36px 20px;text-align:center;color:var(--text-dim);font-size:13px;}
+.bch-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;}
+.bch-accepted{background:rgba(61,170,106,.14);color:var(--win);border:1px solid rgba(61,170,106,.32);}
+.bch-merged{background:rgba(100,149,237,.14);color:#6495ED;border:1px solid rgba(100,149,237,.32);}
+.bch-rejected{background:rgba(192,57,43,.14);color:var(--loss);border:1px solid rgba(192,57,43,.32);}
+.bch-duplicate{background:rgba(249,115,22,.14);color:#fb923c;border:1px solid rgba(249,115,22,.32);}
 </style>
 <script>
 (function(){
@@ -859,22 +891,58 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
 
   <!-- BC INVITES -->
   <div class="view" id="view-newbids">
-    <div class="toolbar" style="justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:12px;color:var(--text-dim);max-width:520px;">New bid invites pulled from BuildingConnected, awaiting review. Accept moves a project into the Proposal Log; Reject discards it.</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span id="newbids-bc-status" style="font-size:11px;color:var(--text-dim)"></span>
-        <button class="btn-secondary" id="btn-newbids-connect" onclick="connectToBc()" style="display:none;font-size:11px;padding:5px 12px;">Connect to BuildingConnected</button>
-        <button class="btn-secondary" id="btn-newbids-demo" onclick="loadBcSyncDemo()" title="Load sample BC data to preview the sync flow — nothing is saved" style="display:none;font-size:11px;padding:5px 12px;">&#127916; Load Demo Data</button>
-        <button class="btn-primary" id="btn-newbids-sync" onclick="runBcInvitesSync()" style="display:none;">&#8635; Sync from BC</button>
-      </div>
+    <!-- Two panes: the review queue, and the change log of everything already
+         processed (accepted / merged / rejected). -->
+    <div class="bc-subtabs">
+      <button class="bc-subtab active" id="bc-subtab-pending" onclick="setBcInvitesPane('pending')" data-testid="button-bc-pane-pending">
+        Pending Review <span class="sub-count" id="bc-pending-count"></span>
+      </button>
+      <button class="bc-subtab" id="bc-subtab-history" onclick="setBcInvitesPane('history')" data-testid="button-bc-pane-history">
+        Change Log <span class="sub-count" id="bc-history-count"></span>
+      </button>
     </div>
 
-    <div id="newbids-preview-wrap" style="display:none; margin:0 20px 12px; border:1px solid var(--border); border-radius:6px; overflow:hidden; background:var(--bg2);"></div>
+    <div id="newbids-pane-pending">
+      <div class="toolbar" style="justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:12px;color:var(--text-dim);max-width:520px;">New bid invites pulled from BuildingConnected, awaiting review. Accept moves a project into the Proposal Log; Reject discards it.</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span id="newbids-bc-status" style="font-size:11px;color:var(--text-dim)"></span>
+          <button class="btn-secondary" id="btn-newbids-connect" onclick="connectToBc()" style="display:none;font-size:11px;padding:5px 12px;">Connect to BuildingConnected</button>
+          <button class="btn-secondary" id="btn-newbids-demo" onclick="loadBcSyncDemo()" title="Load sample BC data to preview the sync flow — nothing is saved" style="display:none;font-size:11px;padding:5px 12px;">&#127916; Load Demo Data</button>
+          <button class="btn-primary" id="btn-newbids-sync" onclick="runBcInvitesSync()" style="display:none;">&#8635; Sync from BC</button>
+        </div>
+      </div>
 
-    <div id="newbids-list" style="padding:0 20px 20px;"></div>
-    <div id="newbids-empty" style="display:none;padding:40px;text-align:center;color:var(--text-dim);font-size:13px;">No BC invites awaiting review.</div>
+      <div id="newbids-preview-wrap" style="display:none; margin:0 20px 12px; border:1px solid var(--border); border-radius:6px; overflow:hidden; background:var(--bg2);"></div>
+
+      <div id="newbids-list" style="padding:0 20px 20px;"></div>
+      <div id="newbids-empty" style="display:none;padding:40px;text-align:center;color:var(--text-dim);font-size:13px;">No BC invites awaiting review.</div>
+    </div>
+
+    <div id="newbids-pane-history" style="display:none;padding-bottom:20px;">
+      <div class="toolbar" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <span style="font-size:12px;color:var(--text-dim);max-width:560px;">Every invite that has left the review queue — what happened to it, who did it, and when.</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div class="search-wrap" style="min-width:240px;">
+            <span class="search-icon">&#128269;</span>
+            <input type="text" id="bch-search" placeholder="Search project, person, reason…" oninput="renderBcInviteHistory()" style="font-size:12px;padding:6px 10px 6px 28px;" data-testid="input-bc-history-search">
+          </div>
+          <select class="fs" id="bch-range" onchange="renderBcInviteHistory()" data-testid="select-bc-history-range">
+            <option value="30">Last 30 days</option>
+            <option value="90" selected>Last 90 days</option>
+            <option value="365">Last 12 months</option>
+            <option value="all">All time</option>
+          </select>
+          <button class="btn-icon-sm" onclick="exportBcInviteHistoryCsv()" title="Download the filtered change log as CSV" data-testid="button-bc-history-export">&#11015; CSV</button>
+          <button class="btn-icon-sm" onclick="loadBcInviteHistory(true)" title="Reload the change log" data-testid="button-bc-history-refresh">&#8635;</button>
+        </div>
+      </div>
+
+      <div class="bch-stats" id="bch-stats"></div>
+      <div id="bch-results"></div>
+    </div>
   </div>
 </main>
 
@@ -2245,6 +2313,9 @@ async function loadBcInvites(){
     const all=await res.json();
     bcInvites=all.filter(e=>e.isDraft && !e.deletedAt).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
     renderBcInvites();
+    // Prime the change log once so its sub-tab count is filled in even while the
+    // reviewer stays on the pending pane.
+    if(!bcHistoryLoaded) loadBcInviteHistory();
   }catch(e){console.warn('Failed to load BC invites:',e);}
 }
 
@@ -2270,6 +2341,8 @@ function renderBcInvites(){
     if(bcInvites.length>0){countBadge.textContent='('+bcInvites.length+')';countBadge.style.display='';}
     else countBadge.style.display='none';
   }
+  const paneCount=document.getElementById('bc-pending-count');
+  if(paneCount) paneCount.textContent=bcInvites.length>0?'('+bcInvites.length+')':'';
   if(bcInvites.length===0){
     if(empty) empty.style.display='';
     return;
@@ -2382,6 +2455,7 @@ async function acceptBcInvite(id,extra){
     const result=await res.json();
     alert(`Project created: ${result.project.projectName} — Estimate #${result.project.projectId}`);
     loadBcInvites();
+    refreshBcInviteHistory();
     loadFromServer().then(render);
   }catch(e){console.warn('Accept failed:',e);alert('Failed to accept bid.');}
 }
@@ -2427,6 +2501,7 @@ async function mergeBcInviteAsBidRound(id){
     });
     if(!res.ok){alert('Failed to merge bid.');return;}
     loadBcInvites();
+    refreshBcInviteHistory();
     loadFromServer().then(render);
   }catch(e){console.warn('Merge failed:',e);alert('Failed to merge bid.');}
 }
@@ -2442,6 +2517,7 @@ async function confirmRejectBcInvite(id){
   try{
     await fetch(`/api/bc/drafts/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({reason})});
     loadBcInvites();
+    refreshBcInviteHistory();
   }catch(e){console.warn('Reject failed:',e);alert('Failed to reject draft.');}
 }
 
@@ -2456,7 +2532,195 @@ async function rejectBcInviteAsDuplicate(id){
     if(!res.ok){alert('Failed to reject duplicate.');return;}
     if(typeof showToast==='function') showToast('Rejected as duplicate');
     loadBcInvites();
+    refreshBcInviteHistory();
   }catch(e){console.warn('Duplicate reject failed:',e);alert('Failed to reject duplicate.');}
+}
+
+// ─── BC INVITES: CHANGE LOG ──────────────────────────────────────────────────
+// Read-only history of every invite that has left the review queue — accepted,
+// merged into an existing entry, or rejected. It lives as a second pane of the
+// BC Invites tab so a reviewer can answer "what happened to that bid?" without
+// leaving the screen. Server side: GET /api/bc/invites/history.
+let bcHistory=[];
+let bcHistoryLoaded=false;
+let bcHistoryFilter='all';
+let bcInvitesPane='pending';
+
+const BC_OUTCOMES={
+  accepted :{label:'Accepted',  cls:'bch-accepted',  icon:'&#10003;'},
+  merged   :{label:'Merged',    cls:'bch-merged',    icon:'&#8646;'},
+  rejected :{label:'Rejected',  cls:'bch-rejected',  icon:'&#10005;'},
+  duplicate:{label:'Duplicate', cls:'bch-duplicate', icon:'&#9888;'},
+};
+const BC_OUTCOME_ORDER=['accepted','merged','rejected','duplicate'];
+
+function setBcInvitesPane(pane){
+  bcInvitesPane=pane;
+  ['pending','history'].forEach(p=>{
+    const btn=document.getElementById('bc-subtab-'+p);
+    const el=document.getElementById('newbids-pane-'+p);
+    if(btn) btn.classList.toggle('active',p===pane);
+    if(el) el.style.display=(p===pane)?'':'none';
+  });
+  if(pane==='history') loadBcInviteHistory();
+}
+
+async function loadBcInviteHistory(force){
+  const results=document.getElementById('bch-results');
+  if(bcHistoryLoaded && !force){ renderBcInviteHistory(); return; }
+  if(results && !bcHistoryLoaded) results.innerHTML='<div class="bch-empty">Loading change log&hellip;</div>';
+  try{
+    const res=await fetch('/api/bc/invites/history',{credentials:'include'});
+    if(!res.ok){
+      if(results) results.innerHTML='<div class="bch-empty">Could not load the change log.</div>';
+      return;
+    }
+    const d=await res.json();
+    bcHistory=Array.isArray(d.rows)?d.rows:[];
+    bcHistoryLoaded=true;
+    const badge=document.getElementById('bc-history-count');
+    if(badge) badge.textContent=bcHistory.length?'('+bcHistory.length+')':'';
+    renderBcInviteHistory();
+  }catch(e){
+    console.warn('Failed to load BC invite history:',e);
+    if(results) results.innerHTML='<div class="bch-empty">Could not load the change log.</div>';
+  }
+}
+
+// Called after accept / merge / reject so the log (and its badge) stay current
+// without the reviewer having to refresh.
+function refreshBcInviteHistory(){
+  if(!document.getElementById('bch-results')) return;
+  loadBcInviteHistory(true);
+}
+
+function setBcHistoryFilter(f){
+  bcHistoryFilter=(bcHistoryFilter===f)?'all':f;
+  renderBcInviteHistory();
+}
+
+// Search + date range, but NOT the outcome filter — the stat tiles show how many
+// of each outcome are available within the current search/range.
+function bcHistoryBase(){
+  const q=((document.getElementById('bch-search')||{}).value||'').trim().toLowerCase();
+  const rangeSel=((document.getElementById('bch-range')||{}).value)||'90';
+  const cutoff=rangeSel==='all'?null:new Date(Date.now()-parseInt(rangeSel,10)*86400000).toISOString();
+  return bcHistory.filter(r=>{
+    // Rows with no recoverable timestamp are only reachable under "All time".
+    if(cutoff && (!r.processedAt || r.processedAt<cutoff)) return false;
+    if(q){
+      const hay=[r.projectName,r.processedBy,r.reason,r.estimateNumber,r.region,r.mergedIntoName,r.gcEstimateLead]
+        .filter(Boolean).join(' ').toLowerCase();
+      if(hay.indexOf(q)===-1) return false;
+    }
+    return true;
+  });
+}
+
+function bchWhen(iso){
+  if(!iso) return '—';
+  const d=new Date(iso);
+  if(isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})
+       +' · '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+}
+
+function renderBcInviteHistory(){
+  const statsEl=document.getElementById('bch-stats');
+  const results=document.getElementById('bch-results');
+  if(!results) return;
+
+  const base=bcHistoryBase();
+  const counts=BC_OUTCOME_ORDER.reduce((a,k)=>{a[k]=0;return a;},{});
+  base.forEach(r=>{ if(counts[r.outcome]!==undefined) counts[r.outcome]++; });
+
+  if(statsEl){
+    const tile=(key,num,label,color)=>`<div class="bch-stat${bcHistoryFilter===key?' active':''}" onclick="setBcHistoryFilter('${key}')" title="${key==='all'?'Show everything':'Show only '+label.toLowerCase()}" data-testid="stat-bc-history-${key}">
+      <div class="bch-stat-num" style="color:${color}">${num}</div><div class="bch-stat-lbl">${label}</div></div>`;
+    statsEl.innerHTML=
+      tile('all',base.length,'All Processed','var(--text)')+
+      tile('accepted',counts.accepted,'Accepted','var(--win)')+
+      tile('merged',counts.merged,'Merged','#6495ED')+
+      tile('rejected',counts.rejected,'Rejected','var(--loss)')+
+      tile('duplicate',counts.duplicate,'Duplicates','#fb923c');
+  }
+
+  const rows=bcHistoryFilter==='all'?base:base.filter(r=>r.outcome===bcHistoryFilter);
+
+  if(rows.length===0){
+    const anyHistory=bcHistory.length>0;
+    results.innerHTML='<div class="bch-empty">'+(anyHistory
+      ? 'No processed bids match these filters. Try widening the date range or clearing the search.'
+      : 'Nothing has been processed yet. Accepted, merged and rejected invites will show up here.')+'</div>';
+    return;
+  }
+
+  results.innerHTML=`
+    <div class="bch-table-wrap">
+      <table class="bch-table">
+        <thead><tr>
+          <th style="width:150px;">When</th>
+          <th style="width:100px;">Outcome</th>
+          <th>Project</th>
+          <th style="width:110px;">Estimate #</th>
+          <th style="width:150px;">Processed By</th>
+          <th style="width:280px;">Details</th>
+        </tr></thead>
+        <tbody>${rows.map(bchRow).join('')}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--text-dim);">Showing ${rows.length} of ${bcHistory.length} processed bid${bcHistory.length===1?'':'s'}.</div>`;
+}
+
+function bchRow(r){
+  const o=BC_OUTCOMES[r.outcome]||{label:r.outcome,cls:'',icon:''};
+  const sub=[r.region,r.dueDate?'Due '+r.dueDate:''].filter(Boolean).join(' · ');
+
+  const details=[];
+  if(r.outcome==='merged'){
+    details.push(r.mergedIntoName
+      ? 'Added as a bid round to '+bcEscHtml(r.mergedIntoName)+(r.mergedIntoEstimateNumber?' (#'+bcEscHtml(r.mergedIntoEstimateNumber)+')':'')
+      : 'Added as a bid round to entry #'+bcEscHtml(r.mergedIntoId));
+  }
+  if(r.reason) details.push('Reason: '+bcEscHtml(r.reason));
+  if(r.outcome==='rejected'&&!r.reason) details.push('No reason given');
+  if(r.removedFromLog) details.push('Later removed from the Proposal Log');
+  if(r.sourceType==='email'||r.sourceType==='bc-email') details.push('Source: dropped email'+(r.sourceType==='bc-email'?' + BC':''));
+  if(r.bcLink) details.push('<a href="'+bcEscHtml(r.bcLink)+'" target="_blank" rel="noopener noreferrer" style="color:#60a5fa;text-decoration:none;">View on BC &#8599;</a>');
+
+  const estimate=r.estimateNumber
+    ? (r.projectDbId
+        ? '<a href="/projects/'+r.projectDbId+'" style="color:var(--gold);text-decoration:none;">'+bcEscHtml(r.estimateNumber)+'</a>'
+        : bcEscHtml(r.estimateNumber))
+    : '<span style="color:var(--text-dim)">—</span>';
+
+  return `<tr>
+    <td class="bch-when" title="${bcEscHtml(r.processedAt||'')}">${bchWhen(r.processedAt)}</td>
+    <td><span class="bch-pill ${o.cls}">${o.icon} ${o.label}</span></td>
+    <td><div class="bch-name">${bcEscHtml(r.projectName)||'<span style="color:var(--text-dim)">(untitled)</span>'}</div>${sub?'<div class="bch-detail">'+bcEscHtml(sub)+'</div>':''}</td>
+    <td>${estimate}</td>
+    <td>${bcEscHtml(r.processedBy)||'<span style="color:var(--text-dim)">—</span>'}</td>
+    <td class="bch-detail">${details.length?details.join('<br>'):'—'}</td>
+  </tr>`;
+}
+
+function exportBcInviteHistoryCsv(){
+  const base=bcHistoryBase();
+  const rows=bcHistoryFilter==='all'?base:base.filter(r=>r.outcome===bcHistoryFilter);
+  if(rows.length===0){ if(typeof showToast==='function') showToast('Nothing to export.','error'); return; }
+  const head=['Processed At','Outcome','Project Name','Region','Due Date','Estimate #','Processed By','Reason','Merged Into','Source','Removed From Log','BC Link'];
+  const cell=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const lines=[head.join(',')].concat(rows.map(r=>[
+    r.processedAt||'', (BC_OUTCOMES[r.outcome]||{}).label||r.outcome, r.projectName||'', r.region||'',
+    r.dueDate||'', r.estimateNumber||'', r.processedBy||'', r.reason||'',
+    r.mergedIntoName||(r.mergedIntoId?'#'+r.mergedIntoId:''), r.sourceType||'',
+    r.removedFromLog?'Yes':'', r.bcLink||'',
+  ].map(cell).join(',')));
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));
+  a.download='BC_Invites_Change_Log_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
 // ─── BC SYNC DEMO MODE ───────────────────────────────────────────────────────
@@ -4487,7 +4751,11 @@ function handleUrlParams(){
   const bc=params.get('bc');
   if(bc==='connected') showBanner('BuildingConnected linked — your account is now connected.','warning');
   else if(bc==='error') showBanner('Could not connect to BuildingConnected. Please try again.','error');
-  if(params.get('tab')==='newbids') setTab('newbids');
+  if(params.get('tab')==='newbids'){
+    setTab('newbids');
+    // ?pane=history deep-links straight to the processed-bid change log.
+    if(params.get('pane')==='history') setBcInvitesPane('history');
+  }
   if(bc||params.get('tab')){
     const cleanUrl=window.location.pathname;
     window.history.replaceState({},'',cleanUrl);

@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { proposalLogEntries, bcSyncLog, bcSyncState, users } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, or, isNotNull, inArray, desc } from "drizzle-orm";
 import { resolveChangedByName, recordFieldChanges } from "../changeLogger";
 import { auditLog } from "../auditService";
 import { getValidToken, hasValidConnection } from "./tokenManager";
@@ -98,6 +98,94 @@ async function bcAudit(
     requestPath: req.path,
     requestMethod: req.method,
   });
+}
+
+// ─── BC INVITES CHANGE LOG ───────────────────────────────────────────────────
+// Every invite that has left the review queue: accepted (became a project),
+// merged into an existing entry as a bid round, or rejected (plain or the
+// one-click "Duplicate" reject).
+//
+// The outcome is derived from the proposal-log row itself rather than from the
+// audit table, because the audit trail only starts where audit logging was
+// added — the row markers below have been written since the review flow
+// existed, so the history is complete for older invites too.
+
+export type BcInviteOutcome = "accepted" | "merged" | "rejected" | "duplicate";
+
+export interface BcInviteVerdict {
+  outcome: BcInviteOutcome;
+  processedAt: string | null;
+  processedBy: string | null;
+  reason: string | null;
+  mergedIntoId: number | null;
+}
+
+// Written by the merge branch of the approve routes.
+const MERGE_NOTE_RE = /^Merged into entry #(\d+) as bid round by (.+)$/;
+// Written by the reject route as "<ISO timestamp>: Rejected by <name>[ - <reason>]".
+// bcChangeLog also carries BC field-update lines in the same "<ISO>: <text>"
+// shape, so the "Rejected by" prefix is what identifies a rejection.
+const REJECT_LINE_RE = /^(\S+?): Rejected by (.+?)(?: - ([\s\S]*))?$/;
+
+function isoOrNull(value: unknown): string | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(String(value));
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
+ * Classify a proposal-log row as a processed BC invite, or return null when the
+ * row never went through the BC Invites review queue.
+ */
+export function classifyProcessedInvite(entry: {
+  duplicateOverrideNote?: string | null;
+  bcChangeLog?: string | null;
+  draftApprovedAt?: Date | string | null;
+  draftApprovedBy?: string | null;
+  deletedAt?: Date | string | null;
+}): BcInviteVerdict | null {
+  const mergeMatch = (entry.duplicateOverrideNote || "").trim().match(MERGE_NOTE_RE);
+  if (mergeMatch) {
+    return {
+      outcome: "merged",
+      processedAt: isoOrNull(entry.deletedAt),
+      processedBy: mergeMatch[2].trim() || null,
+      reason: null,
+      mergedIntoId: Number(mergeMatch[1]),
+    };
+  }
+
+  let changeLog: unknown = [];
+  try { changeLog = entry.bcChangeLog ? JSON.parse(entry.bcChangeLog) : []; } catch { changeLog = []; }
+  if (Array.isArray(changeLog)) {
+    // Newest reject line wins — a row is only rejected once, but scanning back
+    // to front keeps this correct if BC update lines were appended around it.
+    for (let i = changeLog.length - 1; i >= 0; i--) {
+      const line = changeLog[i];
+      const m = typeof line === "string" ? line.match(REJECT_LINE_RE) : null;
+      if (!m) continue;
+      const reason = (m[3] || "").trim();
+      return {
+        outcome: reason.toLowerCase() === "duplicate" ? "duplicate" : "rejected",
+        processedAt: isoOrNull(m[1]) || isoOrNull(entry.deletedAt),
+        processedBy: m[2].trim() || null,
+        reason: reason || null,
+        mergedIntoId: null,
+      };
+    }
+  }
+
+  if (entry.draftApprovedAt || entry.draftApprovedBy) {
+    return {
+      outcome: "accepted",
+      processedAt: isoOrNull(entry.draftApprovedAt),
+      processedBy: entry.draftApprovedBy || null,
+      reason: null,
+      mergedIntoId: null,
+    };
+  }
+
+  return null;
 }
 
 export interface BcOpportunity {
@@ -797,6 +885,16 @@ async function isAdminOrDraftReviewer(user: { id: number; role: string } | null 
   return features.includes("draft-review" as any);
 }
 
+// Read-only access to the BC Invites tab — matches the frontend's tab-visibility
+// rule (admin, bc-sync, or draft-review).
+async function canViewBcInvites(user: { id: number; role: string } | null | undefined): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  const { storage } = await import("../storage");
+  const features = await storage.getUserFeatureAccess(user.id);
+  return features.includes("draft-review" as any) || features.includes("bc-sync" as any);
+}
+
 async function detectFieldChanges(existing: typeof proposalLogEntries.$inferSelect, opp: BcOpportunity): Promise<string[]> {
   const changes: string[] = [];
   const mapped = await mapOpportunityToEntry(opp);
@@ -1321,6 +1419,115 @@ export function registerBcSyncRoutes(app: Express) {
     }
   });
 
+  // GET /api/bc/invites/history — change log of every processed BC invite
+  // (accepted / merged / rejected / rejected-as-duplicate) for the BC Invites tab.
+  // Anyone who can see the tab can see the history; only the review actions
+  // themselves require draft-review rights.
+  app.get("/api/bc/invites/history", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!(await canViewBcInvites(user))) {
+        return res.status(403).json({ message: "BC Invites access required" });
+      }
+
+      // A row can only be a processed invite if it was approved out of the draft
+      // queue or soft-deleted (reject and merge both soft-delete). That narrows
+      // the scan a long way before classifyProcessedInvite decides.
+      //
+      // Columns are listed explicitly rather than select() — a bare select pulls
+      // the screenshot bytea column for every row, which this view never needs.
+      const candidates = await db.select({
+        id: proposalLogEntries.id,
+        projectName: proposalLogEntries.projectName,
+        region: proposalLogEntries.region,
+        dueDate: proposalLogEntries.dueDate,
+        inviteDate: proposalLogEntries.inviteDate,
+        estimateNumber: proposalLogEntries.estimateNumber,
+        projectDbId: proposalLogEntries.projectDbId,
+        gcEstimateLead: proposalLogEntries.gcEstimateLead,
+        owner: proposalLogEntries.owner,
+        bcLink: proposalLogEntries.bcLink,
+        sourceType: proposalLogEntries.sourceType,
+        draftApprovedBy: proposalLogEntries.draftApprovedBy,
+        draftApprovedAt: proposalLogEntries.draftApprovedAt,
+        deletedAt: proposalLogEntries.deletedAt,
+        bcChangeLog: proposalLogEntries.bcChangeLog,
+        duplicateOverrideNote: proposalLogEntries.duplicateOverrideNote,
+        createdAt: proposalLogEntries.createdAt,
+      }).from(proposalLogEntries)
+        .where(or(
+          isNotNull(proposalLogEntries.draftApprovedAt),
+          isNotNull(proposalLogEntries.draftApprovedBy),
+          isNotNull(proposalLogEntries.deletedAt),
+        ))
+        .orderBy(desc(proposalLogEntries.id));
+
+      const rows = candidates.flatMap((entry) => {
+        const verdict = classifyProcessedInvite(entry);
+        if (!verdict) return [];
+        return [{
+          id: entry.id,
+          outcome: verdict.outcome,
+          processedAt: verdict.processedAt,
+          processedBy: verdict.processedBy,
+          reason: verdict.reason,
+          mergedIntoId: verdict.mergedIntoId,
+          mergedIntoName: null as string | null,
+          mergedIntoEstimateNumber: null as string | null,
+          projectName: entry.projectName || "",
+          region: entry.region || null,
+          dueDate: entry.dueDate || null,
+          inviteDate: entry.inviteDate || null,
+          estimateNumber: entry.estimateNumber || null,
+          projectDbId: entry.projectDbId ?? null,
+          gcEstimateLead: entry.gcEstimateLead || null,
+          owner: entry.owner || null,
+          bcLink: entry.bcLink || null,
+          sourceType: entry.sourceType || null,
+          // An accepted invite that was later removed from the Proposal Log —
+          // worth surfacing so the row isn't mistaken for a live project.
+          removedFromLog: verdict.outcome === "accepted" && !!entry.deletedAt,
+          createdAt: isoOrNull(entry.createdAt),
+        }];
+      });
+
+      // Resolve the "merged into" targets so the log can name them instead of
+      // showing a bare entry id.
+      const targetIds = Array.from(new Set(rows.map(r => r.mergedIntoId).filter((v): v is number => typeof v === "number" && !isNaN(v))));
+      if (targetIds.length > 0) {
+        const targets = await db.select({
+          id: proposalLogEntries.id,
+          projectName: proposalLogEntries.projectName,
+          estimateNumber: proposalLogEntries.estimateNumber,
+        }).from(proposalLogEntries).where(inArray(proposalLogEntries.id, targetIds));
+        const byId = new Map(targets.map(t => [t.id, t]));
+        for (const row of rows) {
+          const target = row.mergedIntoId != null ? byId.get(row.mergedIntoId) : undefined;
+          if (target) {
+            row.mergedIntoName = target.projectName || null;
+            row.mergedIntoEstimateNumber = target.estimateNumber || null;
+          }
+        }
+      }
+
+      // Newest first; rows with no recoverable timestamp sink to the bottom.
+      rows.sort((a, b) => (b.processedAt || "").localeCompare(a.processedAt || ""));
+
+      const counts = rows.reduce((acc, r) => {
+        acc[r.outcome] = (acc[r.outcome] || 0) + 1;
+        return acc;
+      }, { accepted: 0, merged: 0, rejected: 0, duplicate: 0 } as Record<BcInviteOutcome, number>);
+
+      res.json({ rows, counts, total: rows.length });
+    } catch (err) {
+      console.error("[BC Sync] Invite history error:", err);
+      res.status(500).json({ message: "Failed to load BC invite history" });
+    }
+  });
+
   app.post("/api/bc/drafts/:id/approve", async (req: Request, res: Response) => {
     try {
       const userId = (req.session as any)?.userId;
@@ -1364,6 +1571,9 @@ export function registerBcSyncRoutes(app: Express) {
         await db.update(proposalLogEntries)
           .set({ deletedAt: new Date(), isDraft: false, duplicateOverrideNote: `Merged into entry #${mergeIntoId} as bid round by ${approverName}` })
           .where(eq(proposalLogEntries.id, id));
+        await bcAudit(req, user, "bc_draft_merged", id,
+          `Merged BC bid "${entry.projectName}" into entry #${mergeIntoId} as a bid round`,
+          { mergeIntoId });
         return res.json({ merged: true, mergeIntoId });
       }
 
@@ -1397,6 +1607,10 @@ export function registerBcSyncRoutes(app: Express) {
         message: `"${entry.projectName}" approved by ${approverName} — assigned estimate #${estimateNumber}.`,
         metadata: { entryId: id, estimateNumber, approvedBy: approverName },
       });
+
+      await bcAudit(req, user, "bc_draft_accepted", id,
+        `Accepted BC bid "${entry.projectName}" → estimate ${estimateNumber}`,
+        { estimateNumber, region: entry.region ?? null });
 
       res.json(updated);
     } catch (err) {
