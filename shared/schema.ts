@@ -445,6 +445,7 @@ export const scopeDictionaries = pgTable("scope_dictionaries", {
   excludeKeywords: jsonb("exclude_keywords").notNull().$type<string[]>().default([]),
   weight: integer("weight").notNull().default(100),
   specSectionNumbers: jsonb("spec_section_numbers").notNull().$type<string[]>().default([]),
+  calloutPrefixes: jsonb("callout_prefixes").notNull().$type<string[]>().default([]),
   isActive: boolean("is_active").notNull().default(true),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1793,3 +1794,53 @@ export const insertBuyoutProjectSchema = createInsertSchema(buyoutProjects).omit
   updatedAt: true,
 });
 export type InsertBuyoutProjectInput = z.infer<typeof insertBuyoutProjectSchema>;
+
+// =====================================================
+// BID DOCS
+// =====================================================
+// These two tables exist in the database and hold live rows, but had no
+// definition here — so `drizzle-kit push` treated them as removed and offered
+// to DROP them on every run. No TypeScript currently reads them (the feature
+// that wrote them is gone), but the data is real, so they are declared here to
+// keep push honest. Transcribed from the live table definitions; adjust only
+// against a fresh `\d` dump.
+
+export const bidDocsRuns = pgTable("bid_docs_runs", {
+  id: varchar("id", { length: 100 }).primaryKey(),
+  proposalLogEntryId: integer("proposal_log_entry_id").references(() => proposalLogEntries.id),
+  projectDbId: integer("project_db_id").references(() => projects.id),
+  status: varchar("status", { length: 50 }).notNull().default("intake"),
+  planparserJobId: varchar("planparser_job_id", { length: 100 }),
+  specsiftSessionId: varchar("specsift_session_id", { length: 100 }),
+  selectedScopes: jsonb("selected_scopes").notNull().$type<string[]>().default([]),
+  harvestedCallouts: jsonb("harvested_callouts").$type<Record<string, unknown>>().default({}),
+  scopeDetails: jsonb("scope_details").$type<unknown[]>().default([]),
+  message: text("message").notNull().default(""),
+  error: text("error"),
+  createdBy: varchar("created_by", { length: 200 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  scopeCoverageWarnings: jsonb("scope_coverage_warnings").$type<unknown[]>().default([]),
+});
+
+export type BidDocsRun = typeof bidDocsRuns.$inferSelect;
+export type InsertBidDocsRun = typeof bidDocsRuns.$inferInsert;
+
+export const bidDocsFiles = pgTable("bid_docs_files", {
+  id: serial("id").primaryKey(),
+  runId: varchar("run_id", { length: 100 }).notNull(),
+  filename: varchar("filename", { length: 500 }).notNull(),
+  relativePath: varchar("relative_path", { length: 1000 }).notNull().default(""),
+  sizeBytes: integer("size_bytes").notNull().default(0),
+  pageCount: integer("page_count").notNull().default(0),
+  classification: varchar("classification", { length: 20 }).notNull().default("other"),
+  classificationConfidence: integer("classification_confidence").notNull().default(0),
+  classificationReason: text("classification_reason").notNull().default(""),
+  userClassification: varchar("user_classification", { length: 20 }),
+  selected: boolean("selected").notNull().default(false),
+  sheetNumbersSample: jsonb("sheet_numbers_sample").$type<string[]>().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type BidDocsFile = typeof bidDocsFiles.$inferSelect;
+export type InsertBidDocsFile = typeof bidDocsFiles.$inferInsert;
