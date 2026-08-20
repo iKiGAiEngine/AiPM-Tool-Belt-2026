@@ -35,6 +35,9 @@ const FEATURE_LABELS: Record<string, string> = {
   "rfq-vendor-lookup": "RFQ Vendor Lookup (Approved Mfrs)",
   "procurement-process": "Procurement Process",
   "settings-regions": "Settings — Regions Tab Only",
+  "buyout-bot": "Buyout Tracker",
+  "tax-rate-lookup": "Tax Rate Lookup",
+  "help-center": "Help Center",
 };
 
 export function AdminUserPermissionsPage() {
