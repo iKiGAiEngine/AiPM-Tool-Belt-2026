@@ -445,7 +445,7 @@ export default function HomePage() {
   const userInitials = user?.initials || (user ? getUserInitials(user) : "HK");
   const userEstimatorCode = userInitials.toUpperCase();
 
-  const activeStatuses = ["Lead", "Estimating"];
+  const activeStatuses = ["Lead", "Estimating", "Revising"];
 
   const activeBids = useMemo(() => {
     return proposals
@@ -472,7 +472,11 @@ export default function HomePage() {
 
     for (const p of activeBids) {
       if (!p._serverDbId) continue;
-      if (!acknowledgedIds.has(p._serverDbId) && p.estimateStatus === "Estimating" && na.length < 5) {
+      if (
+        !acknowledgedIds.has(p._serverDbId) &&
+        (p.estimateStatus === "Estimating" || p.estimateStatus === "Revising") &&
+        na.length < 5
+      ) {
         na.push(p);
         placed.add(p._serverDbId);
       }
@@ -644,7 +648,7 @@ export default function HomePage() {
                 </div>
                 <div>
                   <div className="pl-title">Active Estimating Queue</div>
-                  <div className="pl-sub">Your Lead and Estimating bids only</div>
+                  <div className="pl-sub">Your Lead, Estimating, and Revising bids only</div>
                 </div>
               </div>
               <div className="pl-header-right">
@@ -813,7 +817,7 @@ export default function HomePage() {
             </div>
 
             <div className="pl-footer">
-              <div className="pl-footer-note">Your Lead/Estimating queue &nbsp;&middot;&nbsp; opens BC or folder &nbsp;&middot;&nbsp; acknowledge when reviewed</div>
+              <div className="pl-footer-note">Your Lead/Estimating/Revising queue &nbsp;&middot;&nbsp; opens BC or folder &nbsp;&middot;&nbsp; acknowledge when reviewed</div>
               <div className="pl-footer-cta">Open Proposal Log Dashboard <span>&rarr;</span></div>
             </div>
           </div>
