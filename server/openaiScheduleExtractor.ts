@@ -1,5 +1,12 @@
 import OpenAI from "openai";
 import { z } from "zod";
+import {
+  addScheduleFlag,
+  applyQuantityVerificationFlag,
+  markExtractionIncomplete,
+  needsScheduleReview,
+  type QuantityVerificationStatus,
+} from "./scheduleReview";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -36,6 +43,7 @@ export interface ScheduleItem {
   confidence: number;
   flags: string[];
   needsReview: boolean;
+  quantityVerification: QuantityVerificationStatus;
 }
 
 export interface ExtractionResult {
@@ -48,6 +56,8 @@ export interface ExtractionResult {
   possibleTruncation: boolean;
   totalRowCount: number;
   verified: boolean;
+  incomplete: boolean;
+  extractionFlags: string[];
 }
 
 const SYSTEM_PROMPT = `You are a construction document data extractor specializing in accurate table reading. You will receive an image of a construction schedule (accessory schedule, fixture schedule, equipment schedule, etc).
@@ -158,23 +168,29 @@ function formatModelNumber(manufacturer: string, rawModel: string, flags: string
   return `${mfr} ${model}`;
 }
 
-function applyFormattingRules(rawItems: z.infer<typeof RawItemSchema>[]): ScheduleItem[] {
+function applyFormattingRules(
+  rawItems: z.infer<typeof RawItemSchema>[],
+  quantityVerification: QuantityVerificationStatus,
+): ScheduleItem[] {
   const items: ScheduleItem[] = rawItems.map(raw => {
     const flags = [...raw.flags];
 
     const modelNumber = formatModelNumber(raw.manufacturer, raw.model, flags);
 
-    if (raw.quantity === 0 && !flags.includes("Quantity uncertain")) {
-      flags.push("Quantity uncertain");
-    }
+    // A non-zero quantity is not evidence that the quantity was read correctly.
+    // Until an independent reader agrees (Phase 2) or a human confirms it,
+    // screenshot quantities are explicitly uncorroborated.
+    applyQuantityVerificationFlag(flags, quantityVerification);
 
     let confidence = raw.confidence;
     if (flags.includes("Quantity uncertain") && confidence > 85) confidence = 85;
+    if (quantityVerification === "unverified" && confidence > 85) confidence = 85;
+    if (quantityVerification === "conflict" && confidence > 60) confidence = 60;
     if (flags.includes("Model missing") && confidence > 80) confidence = 80;
     if (flags.includes("Manufacturer missing") && confidence > 85) confidence = 85;
     confidence = Math.max(0, Math.min(100, confidence));
 
-    const needsReview = confidence < 90 || flags.length > 0;
+    const reviewState = { confidence, flags, quantityVerification };
 
     return {
       planCallout: raw.planCallout,
@@ -186,7 +202,8 @@ function applyFormattingRules(rawItems: z.infer<typeof RawItemSchema>[]): Schedu
       sourceSection: raw.sourceSection,
       confidence,
       flags,
-      needsReview,
+      quantityVerification,
+      needsReview: needsScheduleReview(reviewState),
     };
   });
 
@@ -198,10 +215,8 @@ function applyFormattingRules(rawItems: z.infer<typeof RawItemSchema>[]): Schedu
   }
   for (const item of items) {
     if (item.planCallout && calloutCounts[item.planCallout] > 1) {
-      if (!item.flags.includes("Possible duplicate callout")) {
-        item.flags.push("Possible duplicate callout");
-        item.needsReview = true;
-      }
+      addScheduleFlag(item.flags, "Possible duplicate callout");
+      item.needsReview = needsScheduleReview(item);
     }
   }
 
@@ -521,9 +536,15 @@ export async function extractScheduleFromText(text: string): Promise<ExtractionR
 
   const validated = ResponseSchema.parse(parsed);
   const allRawItems = validated.items;
-  let totalRowCount = validated.totalRowCount || allRawItems.length;
+  const totalRowCount = validated.totalRowCount || allRawItems.length;
+  const incomplete = totalRowCount > 0 && allRawItems.length !== totalRowCount;
+  const extractionFlags = incomplete
+    ? [`Extraction incomplete: expected ${totalRowCount} rows but extracted ${allRawItems.length}`]
+    : [];
 
-  const items = applyFormattingRules(allRawItems);
+  let items = applyFormattingRules(allRawItems, "not-applicable");
+  if (incomplete) items = markExtractionIncomplete(items);
+
   const processingTimeMs = Date.now() - startTime;
 
   return {
@@ -536,6 +557,8 @@ export async function extractScheduleFromText(text: string): Promise<ExtractionR
     possibleTruncation: false,
     totalRowCount,
     verified: false,
+    incomplete,
+    extractionFlags,
   };
 }
 
@@ -599,7 +622,14 @@ export async function extractScheduleWithAI(imageBuffer: Buffer, mimeType: strin
     totalRowCount = allRawItems.length;
   }
 
-  const items = applyFormattingRules(allRawItems);
+  const incomplete = totalRowCount > 0 && allRawItems.length !== totalRowCount;
+  const extractionFlags = incomplete
+    ? [`Extraction incomplete: expected ${totalRowCount} rows but extracted ${allRawItems.length}`]
+    : [];
+
+  let items = applyFormattingRules(allRawItems, "unverified");
+  if (incomplete) items = markExtractionIncomplete(items);
+
   const processingTimeMs = Date.now() - startTime;
 
   return {
@@ -612,5 +642,7 @@ export async function extractScheduleWithAI(imageBuffer: Buffer, mimeType: strin
     possibleTruncation,
     totalRowCount,
     verified,
+    incomplete,
+    extractionFlags,
   };
 }

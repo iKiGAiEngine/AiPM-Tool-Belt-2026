@@ -1,4 +1,10 @@
 import { createWorker, Worker } from "tesseract.js";
+import {
+  addScheduleFlag,
+  applyQuantityVerificationFlag,
+  needsScheduleReview,
+  type QuantityVerificationStatus,
+} from "./scheduleReview";
 
 export interface ScheduleItem {
   planCallout: string;
@@ -11,6 +17,7 @@ export interface ScheduleItem {
   confidence: number;
   flags: string[];
   needsReview: boolean;
+  quantityVerification: QuantityVerificationStatus;
 }
 
 export interface ExtractionResult {
@@ -138,9 +145,8 @@ function parseScheduleText(rawText: string): ScheduleItem[] {
   }
   for (const item of items) {
     if (calloutCounts[item.planCallout] > 1) {
-      if (!item.flags.includes("Possible duplicate callout")) {
-        item.flags.push("Possible duplicate callout");
-      }
+      addScheduleFlag(item.flags, "Possible duplicate callout");
+      item.needsReview = needsScheduleReview(item);
     }
   }
 
@@ -285,6 +291,9 @@ function finalizePendingItem(pending: Partial<ScheduleItem>, sourceSection: stri
     quantity = 0;
   }
 
+  const quantityVerification: QuantityVerificationStatus = "unverified";
+  applyQuantityVerificationFlag(flags, quantityVerification);
+
   let confidence = 95;
 
   if (flags.includes("Callout uncertain")) confidence -= 15;
@@ -292,10 +301,11 @@ function finalizePendingItem(pending: Partial<ScheduleItem>, sourceSection: stri
   if (flags.includes("Manufacturer missing")) confidence -= 10;
   if (flags.includes("Quantity uncertain")) confidence -= 15;
   if (flags.includes("Possible duplicate callout")) confidence -= 5;
+  if (quantityVerification === "unverified" && confidence > 85) confidence = 85;
 
   confidence = Math.max(0, Math.min(100, confidence));
 
-  const needsReview = confidence < 90 || flags.includes("Quantity uncertain");
+  const reviewState = { confidence, flags, quantityVerification };
 
   return {
     planCallout: callout,
@@ -307,7 +317,8 @@ function finalizePendingItem(pending: Partial<ScheduleItem>, sourceSection: stri
     sourceSection,
     confidence,
     flags,
-    needsReview,
+    quantityVerification,
+    needsReview: needsScheduleReview(reviewState),
   };
 }
 

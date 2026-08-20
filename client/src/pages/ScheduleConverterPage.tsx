@@ -24,9 +24,7 @@ import {
   Check,
   RotateCcw,
   Download,
-  ShieldCheck,
   Type,
-
   X,
   Plus,
   ClipboardPaste,
@@ -39,6 +37,17 @@ import { Link } from "wouter";
 import { BackNav } from "@/components/BackNav";
 import * as XLSX from "xlsx";
 import { copyTsvWithFormatting } from "@/lib/clipboardUtils";
+import {
+  CROSS_SCREENSHOT_DUPLICATE_FLAG,
+  flagCrossScreenshotDuplicates,
+} from "@/lib/scheduleOverlap";
+
+type QuantityVerificationStatus =
+  | "corroborated"
+  | "human-confirmed"
+  | "unverified"
+  | "conflict"
+  | "not-applicable";
 
 interface ScheduleItem {
   planCallout: string;
@@ -51,6 +60,7 @@ interface ScheduleItem {
   confidence: number;
   flags: string[];
   needsReview: boolean;
+  quantityVerification?: QuantityVerificationStatus;
   sourceIndex?: number;
 }
 
@@ -69,6 +79,8 @@ interface ExtractionResult {
   possibleTruncation?: boolean;
   totalRowCount?: number;
   verified?: boolean;
+  incomplete?: boolean;
+  extractionFlags?: string[];
 }
 
 export default function ScheduleConverterPage() {
@@ -140,8 +152,10 @@ export default function ScheduleConverterPage() {
       let anyTruncation = false;
       let anyContinuation = false;
       let anyVerified = false;
+      let anyIncomplete = false;
       let lastModel = "";
       let totalExpectedRows = 0;
+      const extractionFlags: string[] = [];
 
       for (let i = 0; i < files.length; i++) {
         setBatchProgress({ current: i + 1, total: files.length });
@@ -152,13 +166,18 @@ export default function ScheduleConverterPage() {
         if (data.possibleTruncation) anyTruncation = true;
         if (data.continuationUsed) anyContinuation = true;
         if (data.verified) anyVerified = true;
+        if (data.incomplete) anyIncomplete = true;
         if (data.modelUsed) lastModel = data.modelUsed;
         totalExpectedRows += data.totalRowCount || 0;
+        for (const flag of data.extractionFlags || []) {
+          extractionFlags.push(files.length > 1 ? `Screenshot ${i + 1}: ${flag}` : flag);
+        }
       }
 
+      const itemsWithOverlapFlags = flagCrossScreenshotDuplicates(allItems);
       const imageTotal = files.length;
       return {
-        items: allItems,
+        items: itemsWithOverlapFlags,
         rawText: "",
         processingTimeMs: totalProcessingTime,
         modelUsed: lastModel,
@@ -167,20 +186,24 @@ export default function ScheduleConverterPage() {
         possibleTruncation: anyTruncation,
         totalRowCount: totalExpectedRows,
         verified: anyVerified,
+        incomplete: anyIncomplete,
+        extractionFlags,
         _imageCount: imageTotal,
       } as ExtractionResult & { _imageCount: number };
     },
     onSuccess: (data: ExtractionResult & { _imageCount?: number }) => {
       const imgTotal = data._imageCount || 1;
+      const overlapRows = data.items.filter(item => item.flags.includes(CROSS_SCREENSHOT_DUPLICATE_FLAG)).length;
+      const needsAttention = Boolean(data.possibleTruncation || data.incomplete || overlapRows > 0);
       setResult(data);
       setEditedItems(data.items.map(item => ({ ...item })));
       setImageCount(imgTotal);
       setBatchProgress(null);
       const imgCountStr = imgTotal > 1 ? ` from ${imgTotal} screenshots` : "";
       toast({
-        title: data.possibleTruncation ? "Schedule Partially Extracted" : "Schedule Extracted",
-        description: `Found ${data.items.length} line item${data.items.length !== 1 ? "s" : ""}${imgCountStr} in ${(data.processingTimeMs / 1000).toFixed(1)}s`,
-        variant: data.possibleTruncation ? "destructive" : "default",
+        title: needsAttention ? "Schedule Needs Review" : "Schedule Extracted",
+        description: `Found ${data.items.length} line item${data.items.length !== 1 ? "s" : ""}${imgCountStr} in ${(data.processingTimeMs / 1000).toFixed(1)}s${overlapRows > 0 ? `; ${overlapRows} possible overlap row${overlapRows !== 1 ? "s" : ""} flagged` : ""}`,
+        variant: needsAttention ? "destructive" : "default",
       });
     },
     onError: (error: Error) => {
@@ -211,8 +234,9 @@ export default function ScheduleConverterPage() {
       setEditedItems(data.items.map(item => ({ ...item })));
       const modelInfo = data.modelUsed ? ` via ${data.modelUsed}` : "";
       toast({
-        title: "Schedule Extracted",
+        title: data.incomplete ? "Schedule Needs Review" : "Schedule Extracted",
         description: `Found ${data.items.length} line item${data.items.length !== 1 ? "s" : ""} in ${(data.processingTimeMs / 1000).toFixed(1)}s${modelInfo}`,
+        variant: data.incomplete ? "destructive" : "default",
       });
     },
     onError: (error: Error) => {
@@ -389,7 +413,8 @@ export default function ScheduleConverterPage() {
   const reviewCount = editedItems.filter(i => i.needsReview).length;
   const totalCount = editedItems.length;
   const expectedCount = result?.totalRowCount || 0;
-  const countMismatch = expectedCount > 0 && totalCount !== expectedCount;
+  const countMismatch = Boolean(result?.incomplete) || (expectedCount > 0 && totalCount !== expectedCount);
+  const overlapCount = editedItems.filter(i => i.flags.includes(CROSS_SCREENSHOT_DUPLICATE_FLAG)).length;
 
   const getConfidenceBadge = (confidence: number) => {
     if (confidence >= 90) return <Badge variant="outline" className="text-green-600 border-green-600/30 bg-green-500/10 text-xs" data-testid="badge-confidence-high">{confidence}%</Badge>;
@@ -711,20 +736,40 @@ export default function ScheduleConverterPage() {
                   <CheckCircle2 className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs text-muted-foreground">
-                      This schedule required multiple extraction passes to capture all rows. All items were successfully extracted.
+                      This schedule required multiple extraction passes. Review flags still apply to every uncorroborated value.
                     </p>
                   </div>
                 </div>
               </Card>
             )}
             {countMismatch && (
-              <Card className="mb-4 border-amber-500/50 bg-amber-500/5" data-testid="warning-count-mismatch">
+              <Card className="mb-4 border-red-500/50 bg-red-500/5" data-testid="warning-count-mismatch">
+                <div className="p-4 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium text-sm">Extraction incomplete</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      The detected row count does not match the extracted row count. The entire extraction is flagged for review; do not treat these results as complete.
+                    </p>
+                    {result?.extractionFlags && result.extractionFlags.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {result.extractionFlags.map((flag, idx) => (
+                          <p key={idx} className="text-xs font-mono text-red-400">{flag}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            )}
+            {overlapCount > 0 && (
+              <Card className="mb-4 border-amber-500/50 bg-amber-500/5" data-testid="warning-cross-screenshot-duplicates">
                 <div className="p-4 flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-medium text-sm">Row count mismatch</p>
+                    <p className="font-medium text-sm">Possible screenshot overlap detected</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      AI detected {expectedCount} row{expectedCount !== 1 ? "s" : ""} in the image but extracted {totalCount}. Please verify against your original image.
+                      {overlapCount} row{overlapCount !== 1 ? "s" : ""} match rows from another screenshot. Both copies are retained and flagged; nothing was silently summed, merged, or removed. Compare the overlapping source screenshots before approval.
                     </p>
                   </div>
                 </div>
@@ -744,14 +789,19 @@ export default function ScheduleConverterPage() {
                     </Badge>
                   )}
                   {countMismatch && (
-                    <Badge variant="outline" className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-xs" data-testid="badge-count-warning">
-                      Expected {expectedCount}
+                    <Badge variant="outline" className="text-red-500 border-red-500/30 bg-red-500/10 text-xs" data-testid="badge-count-warning">
+                      Incomplete
                     </Badge>
                   )}
                   {result?.verified && (
-                    <Badge variant="outline" className="text-green-600 border-green-600/30 bg-green-500/10 text-xs" data-testid="badge-verified">
-                      <ShieldCheck className="w-3 h-3 mr-1" />
-                      Verified
+                    <Badge variant="outline" className="text-blue-500 border-blue-500/30 bg-blue-500/10 text-xs" data-testid="badge-verified">
+                      <CheckCircle2 className="w-3 h-3 mr-1" />
+                      AI self-check
+                    </Badge>
+                  )}
+                  {overlapCount > 0 && (
+                    <Badge variant="outline" className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-xs" data-testid="badge-overlap-warning">
+                      {overlapCount} possible overlap{overlapCount !== 1 ? "s" : ""}
                     </Badge>
                   )}
                   {reviewCount > 0 && (
@@ -971,9 +1021,11 @@ export default function ScheduleConverterPage() {
                     <p>Items extracted: {result.items.length}</p>
                     {expectedCount > 0 && <p>Rows detected in image: {expectedCount}</p>}
                     <p>Processing time: {(result.processingTimeMs / 1000).toFixed(1)}s</p>
-                    {result.verified && <p className="text-green-400">Verification pass completed</p>}
+                    {result.verified && <p className="text-blue-400">AI self-check completed (not independent corroboration)</p>}
                     {result.retried && <p className="text-amber-400">Auto-upgraded model for better accuracy</p>}
                     {result.continuationUsed && <p className="text-blue-400">Multi-pass extraction used</p>}
+                    {result.incomplete && <p className="text-red-400">Extraction marked incomplete</p>}
+                    {overlapCount > 0 && <p className="text-amber-400">{overlapCount} possible cross-screenshot overlap row{overlapCount !== 1 ? "s" : ""}</p>}
                   </div>
                 </details>
               </Card>
@@ -992,7 +1044,7 @@ export default function ScheduleConverterPage() {
             <p className="text-xs text-muted-foreground mt-1">
               {batchProgress && batchProgress.total > 1
                 ? `Each screenshot takes 10-30 seconds`
-                : "This may take 10-30 seconds (includes verification pass)"}
+                : "This may take 10-30 seconds (includes AI self-check)"}
             </p>
             {batchProgress && batchProgress.total > 1 && (
               <div className="mt-4 max-w-xs mx-auto">

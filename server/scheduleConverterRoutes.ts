@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import multer from "multer";
 import { extractScheduleFromImage } from "./scheduleConverter";
-import { extractScheduleWithAI, extractScheduleFromText } from "./openaiScheduleExtractor";
+import { extractScheduleWithAI, extractScheduleFromText, type ExtractionResult } from "./openaiScheduleExtractor";
 
 const imageUpload = multer({
   storage: multer.memoryStorage(),
@@ -25,6 +25,22 @@ function handleMulterError(req: Request, res: Response, next: Function) {
     }
     next();
   });
+}
+
+function rejectEmptyIncompleteExtraction(result: ExtractionResult, res: Response): boolean {
+  if (!result.incomplete || result.totalRowCount <= 0 || result.items.length > 0) {
+    return false;
+  }
+
+  const message =
+    result.extractionFlags[0] ||
+    `Extraction incomplete: expected ${result.totalRowCount} rows but extracted 0`;
+
+  res.status(422).json({
+    ...result,
+    message,
+  });
+  return true;
 }
 
 export function registerScheduleConverterRoutes(app: Express) {
@@ -60,6 +76,7 @@ export function registerScheduleConverterRoutes(app: Express) {
           : "image/png";
 
       const result = await extractScheduleWithAI(imageBuffer, resolvedMimeType);
+      if (rejectEmptyIncompleteExtraction(result, res)) return;
       res.json(result);
     } catch (error: any) {
       console.error("AI schedule extraction error:", error);
@@ -79,6 +96,7 @@ export function registerScheduleConverterRoutes(app: Express) {
       }
 
       const result = await extractScheduleFromText(text.trim());
+      if (rejectEmptyIncompleteExtraction(result, res)) return;
       res.json(result);
     } catch (error: any) {
       console.error("Text schedule extraction error:", error);
