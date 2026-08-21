@@ -23,7 +23,7 @@ export const SUMMARY_SHEET_NAME = "Summary Sheet";
 // Cell locations on the Summary Sheet (column A holds the label, column B the value).
 export const SUMMARY_CELLS = {
   projectName: "B1", // stamped as literal text (overrides the filename formula)
-  bidDueDate: "B2",  // stamped as an Excel date serial (mm-dd-yy formatted)
+  bidDueDate: "B2",  // stamped as M/D/YY text (e.g. "8/4/26")
   estimateNumber: "B3", // AiPM estimate/project number
   shipTo: "B4",      // project address
   spEstimator: "B6", // NBS self-perform (SP) estimator
@@ -185,6 +185,45 @@ export function excelDateSerial(iso: string | null | undefined): number | null {
   return Math.round((utc - Date.UTC(1899, 11, 30)) / 86400000);
 }
 
+// Format an ISO date (yyyy-mm-dd) as M/D/YY with no leading zeros and a 2-digit
+// year — the header date format the estimate Summary Sheet uses (e.g.
+// "2026-08-04" -> "8/4/26"). Returns null for anything that isn't a valid
+// yyyy-mm-dd date, so the caller can fall back to the raw value (e.g. a
+// month-only "2026-09").
+export function formatDateMDYY(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  const utc = Date.UTC(y, mo - 1, d);
+  const date = new Date(utc);
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
+  return `${mo}/${d}/${String(y).slice(2)}`;
+}
+
+// A date cell's stamp value: M/D/YY when it's a full ISO date, otherwise the raw
+// trimmed value (preserves odd inputs like a month-only "2026-09") or null.
+function dateCellValue(raw: string | null | undefined): string | null {
+  const formatted = formatDateMDYY(raw);
+  if (formatted) return formatted;
+  const trimmed = (raw ?? "").trim();
+  return trimmed || null;
+}
+
+// Drop a trailing country name so the stamped address ends at the ZIP
+// (BC/geocoded addresses often append ", United States of America"). Applied at
+// stamp time so even entries whose stored address still carries the suffix get a
+// clean value on the estimate.
+function stripCountrySuffix(address: string | null | undefined): string | null {
+  const trimmed = (address ?? "").trim();
+  if (!trimmed) return null;
+  const cleaned = trimmed
+    .replace(/\s*,?\s*(United States of America|United States|USA|US)\s*$/i, "")
+    .replace(/,\s*$/, "")
+    .trim();
+  return cleaned || null;
+}
+
 // Pull the postal ZIP out of a free-form US address. We deliberately only accept
 // a ZIP in a position where it is really the postal code — after a state token
 // (e.g. "CA 94105") or at the very end of the string — so a 5-digit street number
@@ -262,24 +301,30 @@ export async function buildSummaryStampCells(info: SummaryStampInfo): Promise<St
 
   if (info.projectName) cells.push({ ref: SUMMARY_CELLS.projectName, value: info.projectName, type: "string" });
 
-  const dueDateSerial = excelDateSerial(info.dueDate);
-  if (dueDateSerial != null) cells.push({ ref: SUMMARY_CELLS.bidDueDate, value: dueDateSerial, type: "number" });
+  // Dates are stamped as M/D/YY text ("8/4/26") for a consistent header format.
+  const dueDate = dateCellValue(info.dueDate);
+  if (dueDate) cells.push({ ref: SUMMARY_CELLS.bidDueDate, value: dueDate, type: "string" });
 
   if (info.estimateNumber) cells.push({ ref: SUMMARY_CELLS.estimateNumber, value: info.estimateNumber, type: "string" });
 
-  if (info.projectAddress) cells.push({ ref: SUMMARY_CELLS.shipTo, value: info.projectAddress, type: "string" });
+  const shipTo = stripCountrySuffix(info.projectAddress);
+  if (shipTo) cells.push({ ref: SUMMARY_CELLS.shipTo, value: shipTo, type: "string" });
   if (info.spEstimator) cells.push({ ref: SUMMARY_CELLS.spEstimator, value: info.spEstimator, type: "string" });
 
   let taxRateFraction: number | null = null;
   try {
+    // The raw address is fine for the ZIP-based lookup — extractZipFromAddress
+    // handles a trailing country name.
     taxRateFraction = await lookupTaxRateFraction(info.projectAddress);
   } catch (err) {
     console.warn("[estimateStamp] Tax rate lookup failed:", err);
   }
   if (taxRateFraction != null) cells.push({ ref: SUMMARY_CELLS.taxRate, value: taxRateFraction, type: "number" });
 
-  if (info.anticipatedStart) cells.push({ ref: SUMMARY_CELLS.projectStartDate, value: info.anticipatedStart, type: "string" });
-  if (info.anticipatedFinish) cells.push({ ref: SUMMARY_CELLS.projectEndDate, value: info.anticipatedFinish, type: "string" });
+  const startDate = dateCellValue(info.anticipatedStart);
+  if (startDate) cells.push({ ref: SUMMARY_CELLS.projectStartDate, value: startDate, type: "string" });
+  const endDate = dateCellValue(info.anticipatedFinish);
+  if (endDate) cells.push({ ref: SUMMARY_CELLS.projectEndDate, value: endDate, type: "string" });
 
   return cells;
 }

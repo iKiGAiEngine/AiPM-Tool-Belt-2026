@@ -1,6 +1,6 @@
 // Run: DATABASE_URL=dummy tsx server/estimateTemplateStamp.test.ts
 import assert from "assert";
-import { highestTaxFraction, excelDateSerial, extractZipFromAddress } from "./estimateTemplateStamp";
+import { highestTaxFraction, excelDateSerial, extractZipFromAddress, formatDateMDYY } from "./estimateTemplateStamp";
 
 console.log("Running estimateTemplateStamp tests...\n");
 
@@ -28,6 +28,15 @@ assert.strictEqual(excelDateSerial("2026-08-12"), 46246, "known date serial");
 assert.strictEqual(excelDateSerial("2026-13-40"), null, "invalid date → null");
 assert.strictEqual(excelDateSerial(""), null, "empty → null");
 console.log("PASS: excelDateSerial still correct");
+
+// ── formatDateMDYY — header date format ──
+assert.strictEqual(formatDateMDYY("2026-08-04"), "8/4/26", "no leading zeros, 2-digit year");
+assert.strictEqual(formatDateMDYY("2026-07-21"), "7/21/26", "double-digit day");
+assert.strictEqual(formatDateMDYY("2026-11-30"), "11/30/26", "double-digit month");
+assert.strictEqual(formatDateMDYY("2026-09"), null, "month-only → null (caller keeps raw)");
+assert.strictEqual(formatDateMDYY("2026-13-40"), null, "invalid date → null");
+assert.strictEqual(formatDateMDYY(""), null, "empty → null");
+console.log("PASS: formatDateMDYY renders M/D/YY");
 
 // ── extractZipFromAddress on the reported address (with country suffix) ──
 assert.strictEqual(
