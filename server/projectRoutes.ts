@@ -492,11 +492,17 @@ export function registerProjectRoutes(app: Express) {
 
             // Header fields to stamp on the Summary Sheet (includes the address-ZIP
             // tax-rate lookup — best-effort, leaves the template default when unknown).
+            // SP estimator: explicit value from the form if present, else the
+            // region's first self-perform estimator (its default assignee).
+            const spEstimator = req.body.selfPerformEstimator
+              || validRegionEntry.selfPerformEstimators?.[0]
+              || "";
             const stampCells = await buildSummaryStampCells({
               projectName: safeName,
               dueDate,
+              estimateNumber: projectIdStr,
               projectAddress: screenshotLocation,
-              gcEstimator,
+              spEstimator,
               anticipatedStart,
               anticipatedFinish,
             });
@@ -1739,8 +1745,9 @@ export function registerProjectRoutes(app: Express) {
       const stampCells = await buildSummaryStampCells({
         projectName: project.projectName,
         dueDate: project.dueDate,
+        estimateNumber: proposalEntry?.estimateNumber || project.projectId,
         projectAddress,
-        gcEstimator: proposalEntry?.gcEstimateLead,
+        spEstimator: proposalEntry?.selfPerformEstimator,
         anticipatedStart: proposalEntry?.anticipatedStart,
         anticipatedFinish: proposalEntry?.anticipatedFinish,
       });
@@ -2779,8 +2786,9 @@ export function registerProjectRoutes(app: Express) {
           const stampCells = await buildSummaryStampCells({
             projectName: safeName,
             dueDate: entry.dueDate,
+            estimateNumber: entry.estimateNumber,
             projectAddress: entry.projectAddress,
-            gcEstimator: entry.gcEstimateLead,
+            spEstimator: entry.selfPerformEstimator,
             anticipatedStart: entry.anticipatedStart,
             anticipatedFinish: entry.anticipatedFinish,
           });

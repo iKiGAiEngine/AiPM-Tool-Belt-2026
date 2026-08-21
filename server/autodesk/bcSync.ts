@@ -1463,7 +1463,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
       if (entry.deletedAt) return res.status(400).json({ message: "Entry has been deleted" });
 
-      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish, force, mergeIntoId, createVendorFolder } = req.body || {};
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, selfPerformEstimator, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish, force, mergeIntoId, createVendorFolder } = req.body || {};
       const includeVendorFolder = createVendorFolder !== false;
 
       const approverNameAC = user!.displayName || user!.email;
@@ -1524,6 +1524,7 @@ export function registerBcSyncRoutes(app: Express) {
       const finalDueDate = dueDate || entry.dueDate || "";
       const finalNbsEstimator = nbsEstimator !== undefined ? nbsEstimator : entry.nbsEstimator;
       const finalGcEstimateLead = gcEstimateLead !== undefined ? gcEstimateLead : entry.gcEstimateLead;
+      const finalSelfPerformEstimator = selfPerformEstimator !== undefined ? selfPerformEstimator : entry.selfPerformEstimator;
       const finalOwner = owner !== undefined ? owner : entry.owner;
       const finalPrimaryMarket = primaryMarket || entry.primaryMarket || guessMarket(finalProjectName);
       const finalScopeList = scopeList !== undefined ? scopeList : entry.scopeList;
@@ -1631,8 +1632,9 @@ export function registerBcSyncRoutes(app: Express) {
           const stampCells = await buildSummaryStampCells({
             projectName: safeName,
             dueDate: finalDueDate,
+            estimateNumber,
             projectAddress: finalProjectAddress,
-            gcEstimator: finalGcEstimateLead,
+            spEstimator: finalSelfPerformEstimator,
             anticipatedStart: finalAnticipatedStart,
             anticipatedFinish: finalAnticipatedFinish,
           });

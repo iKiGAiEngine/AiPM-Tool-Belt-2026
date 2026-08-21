@@ -24,8 +24,9 @@ export const SUMMARY_SHEET_NAME = "Summary Sheet";
 export const SUMMARY_CELLS = {
   projectName: "B1", // stamped as literal text (overrides the filename formula)
   bidDueDate: "B2",  // stamped as an Excel date serial (mm-dd-yy formatted)
+  estimateNumber: "B3", // AiPM estimate/project number
   shipTo: "B4",      // project address
-  gcEstimator: "B6",
+  spEstimator: "B6", // NBS self-perform (SP) estimator
   taxRate: "B8",     // stored as a fraction (0.0925 == 9.25%)
   projectStartDate: "B12",
   projectEndDate: "B13",
@@ -226,8 +227,9 @@ export async function lookupTaxRateFraction(address: string | null | undefined):
 export interface SummaryStampInfo {
   projectName?: string | null;
   dueDate?: string | null;           // yyyy-mm-dd
+  estimateNumber?: string | null;    // AiPM estimate/project number → B3
   projectAddress?: string | null;
-  gcEstimator?: string | null;
+  spEstimator?: string | null;       // NBS self-perform estimator → B6
   anticipatedStart?: string | null;
   anticipatedFinish?: string | null;
 }
@@ -245,8 +247,10 @@ export async function buildSummaryStampCells(info: SummaryStampInfo): Promise<St
   const dueDateSerial = excelDateSerial(info.dueDate);
   if (dueDateSerial != null) cells.push({ ref: SUMMARY_CELLS.bidDueDate, value: dueDateSerial, type: "number" });
 
+  if (info.estimateNumber) cells.push({ ref: SUMMARY_CELLS.estimateNumber, value: info.estimateNumber, type: "string" });
+
   if (info.projectAddress) cells.push({ ref: SUMMARY_CELLS.shipTo, value: info.projectAddress, type: "string" });
-  if (info.gcEstimator) cells.push({ ref: SUMMARY_CELLS.gcEstimator, value: info.gcEstimator, type: "string" });
+  if (info.spEstimator) cells.push({ ref: SUMMARY_CELLS.spEstimator, value: info.spEstimator, type: "string" });
 
   let taxRateFraction: number | null = null;
   try {
