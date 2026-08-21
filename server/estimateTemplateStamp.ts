@@ -210,18 +210,36 @@ export function extractZipFromAddress(address: string | null | undefined): strin
   return null;
 }
 
+// Pick the highest usable tax rate from a set of raw jurisdiction values and
+// return it as a fraction (e.g. 9.25 → 0.0925). Values are percentage points,
+// so we divide by 100. Highest wins when a ZIP spans multiple jurisdictions —
+// the conservative choice for a bid.
+//
+// IMPORTANT: a real 0% rate (e.g. Oregon, which has no sales tax) must come back
+// as 0, NOT null. Returning null here would skip stamping cell B8 and leave the
+// template's baked-in default rate (9.25%) on the estimate — exactly the bug this
+// replaces, where a Portland OR (97239) address showed 9.25% instead of 0%.
+// Null means only "no usable rate at all" (empty input or non-numeric values),
+// so the caller can leave the template as-is when a ZIP genuinely isn't known.
+export function highestTaxFraction(rawValues: (string | number | null | undefined)[]): number | null {
+  const points = rawValues
+    .filter((v) => v !== null && v !== undefined && String(v).trim() !== "")
+    .map((v) => Number(v))
+    .filter((n) => Number.isFinite(n));
+  if (points.length === 0) return null;
+  return Math.max(...points) / 100;
+}
+
 // Look up the sales/use tax rate for an address's ZIP and return it as a fraction
-// (e.g. 0.0925 for 9.25%). Tax rates are stored in percentage points, so we divide
-// by 100. When a ZIP spans multiple jurisdictions we take the highest rate, which
-// is the conservative choice for a bid. Returns null when nothing is found.
+// (e.g. 0.0925 for 9.25%, or 0 for a no-sales-tax state). Returns null only when
+// the ZIP isn't in the table (or has no usable rate) so the caller can leave the
+// template default untouched; a found 0% rate is returned as 0 and stamped.
 export async function lookupTaxRateFraction(address: string | null | undefined): Promise<number | null> {
   const zip = extractZipFromAddress(address);
   if (!zip) return null;
   const rows = await db.select({ tax: taxRates.totalUseTax }).from(taxRates).where(eq(taxRates.zipCode, zip));
   if (rows.length === 0) return null;
-  const maxPoints = Math.max(...rows.map((r) => Number(r.tax) || 0));
-  if (!maxPoints || !isFinite(maxPoints)) return null;
-  return maxPoints / 100;
+  return highestTaxFraction(rows.map((r) => r.tax));
 }
 
 export interface SummaryStampInfo {
