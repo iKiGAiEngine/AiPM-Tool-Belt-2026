@@ -86,37 +86,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  await seedDefaultData();
-
-  if (process.env.NODE_ENV === "development") {
-    const { runDevSeed } = await import("./devSeed");
-    await runDevSeed();
-  }
-
-  // Always seed permanent accounts (dev + production)
-  const { seedPermanentAccounts } = await import("./seedPermanentAccounts");
-  await seedPermanentAccounts();
-
-  // Initialize permissions table
-  const { initializePermissions } = await import("./permissionsInit");
-  await initializePermissions();
-
-  const { runDataRepairs } = await import("./dataRepair");
-  await runDataRepairs();
-
   await registerRoutes(httpServer, app);
-
-  const { startNightlyBackup } = await import("./nightlyBackup");
-  startNightlyBackup();
-
-  const { isGoogleSheetConfigured, syncProposalLogToSheet } = await import("./googleSheetSync");
-  if (isGoogleSheetConfigured()) {
-    syncProposalLogToSheet().then(() => {
-      console.log("[Startup] Pushed repaired statuses to Google Sheet");
-    }).catch(err => {
-      console.error("[Startup] Failed to push repaired statuses to sheet:", err.message);
-    });
-  }
 
   app.use("/tools", express.static(path.join(process.cwd(), "public", "tools"), {
     setHeaders: (res) => {
@@ -205,6 +175,13 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
+  //
+  // Start listening BEFORE running DB seeding/repair work below. Those steps
+  // can take several seconds, and if they run before listen() the port stays
+  // closed that whole time — the platform's preview/health-check proxy sees
+  // connection-refused/502 on every restart. Routes are already registered
+  // above, so it's safe to accept traffic immediately and let seeding finish
+  // in the background.
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(
     {
@@ -216,6 +193,42 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
     },
   );
+
+  (async () => {
+    try {
+      await seedDefaultData();
+
+      if (process.env.NODE_ENV === "development") {
+        const { runDevSeed } = await import("./devSeed");
+        await runDevSeed();
+      }
+
+      // Always seed permanent accounts (dev + production)
+      const { seedPermanentAccounts } = await import("./seedPermanentAccounts");
+      await seedPermanentAccounts();
+
+      // Initialize permissions table
+      const { initializePermissions } = await import("./permissionsInit");
+      await initializePermissions();
+
+      const { runDataRepairs } = await import("./dataRepair");
+      await runDataRepairs();
+
+      const { startNightlyBackup } = await import("./nightlyBackup");
+      startNightlyBackup();
+
+      const { isGoogleSheetConfigured, syncProposalLogToSheet } = await import("./googleSheetSync");
+      if (isGoogleSheetConfigured()) {
+        syncProposalLogToSheet().then(() => {
+          console.log("[Startup] Pushed repaired statuses to Google Sheet");
+        }).catch(err => {
+          console.error("[Startup] Failed to push repaired statuses to sheet:", err.message);
+        });
+      }
+    } catch (err) {
+      console.error("[Startup] Background initialization failed:", err);
+    }
+  })();
 
   const shutdown = (signal: string) => {
     log(`received ${signal}, closing server...`);
