@@ -285,7 +285,7 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
   // construction start/finish — a prior version of this list included them and it
   // caused a job-walk date to be mistaken for Anticipated Start. Only accept names
   // that are unambiguously about the construction start/finish window.
-  let expectedStart = deepGet(raw,
+  const expectedStart = deepGet(raw,
     "expectedStartAt",
     "expectedStart",
     "expectedStartDate",
@@ -306,7 +306,7 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "project.estStartDate",
   );
 
-  let expectedFinish = deepGet(raw,
+  const expectedFinish = deepGet(raw,
     "expectedFinishAt",
     "expectedEndAt",
     "expectedCompletionAt",
@@ -340,26 +340,13 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "project.estimatedCompletionDate",
   );
 
-  // Defensive guard: if whatever we matched for expectedStart/expectedFinish is
-  // identical to a job-walk / site-visit style milestone, it's a false positive —
-  // discard it rather than silently stamping a walk date onto the project schedule.
-  const walkDate = deepGet(raw,
-    "walkAt", "walkDate", "walkthroughAt", "walkThroughAt", "walkthroughDate",
-    "siteWalkAt", "siteVisitAt", "siteVisitDate", "jobWalkAt", "jobWalkDate",
-    "preBidWalkAt", "preBidMeetingAt",
-    "attributes.walkAt", "attributes.walkDate", "attributes.walkthroughAt", "attributes.siteVisitAt", "attributes.jobWalkAt",
-    "project.walkAt", "project.walkDate", "project.walkthroughAt", "project.siteVisitAt", "project.jobWalkAt",
-  );
-  if (walkDate) {
-    if (expectedStart && expectedStart === walkDate) {
-      console.warn(`[BC Sync] Discarding expectedStart for "${raw.name || raw.id}" — it matched the job-walk date (${walkDate}), not a real Expected Start.`);
-      expectedStart = "";
-    }
-    if (expectedFinish && expectedFinish === walkDate) {
-      console.warn(`[BC Sync] Discarding expectedFinish for "${raw.name || raw.id}" — it matched the job-walk date (${walkDate}), not a real Expected Finish.`);
-      expectedFinish = "";
-    }
-  }
+  // NB: Expected Start / Expected Finish are taken verbatim from BC's own
+  // expected/estimated/construction start-finish fields above — they are the
+  // project schedule dates, referenced consistently from BuildingConnected. The
+  // job walk / site visit is a separate milestone under separate field names
+  // (walkAt, jobWalkAt, …) that is deliberately never read into these values, so
+  // a walk date can't leak in. We therefore trust BC's Expected dates as-is and
+  // do NOT second-guess or discard them.
 
   // Diagnostic: if either construction date failed to resolve, dump the raw
   // key set so an unrecognized BC field name shows up in the server log rather
