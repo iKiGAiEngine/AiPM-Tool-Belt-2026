@@ -10,13 +10,13 @@ import { guessMarket } from "../proposalLogService";
 import { generateProjectId, createProject, getActiveRegions } from "../scopeDictionaryStorage";
 import { sendDraftNotificationEmail } from "../emailService";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "../templateStorage";
+import { stampWorkbookCells, buildSummaryStampCells, SUMMARY_SHEET_NAME } from "../estimateTemplateStamp";
 import { matchRegionWithFallback } from "../regionMatcher";
 import { isSwinerton, matchSwinertonOffice, matchExtRegion, resolveSwinertonSoCalSubregion } from "../swinertonOffices";
 import { findFuzzyDuplicates } from "../fuzzyDuplicates";
 import fs from "fs";
 import path from "path";
 import JSZip from "jszip";
-import ExcelJS from "exceljs";
 
 const BC_GC_API_BASE = "https://developer.api.autodesk.com/construction/buildingconnected/v2";
 const BC_SUB_API_BASE = "https://developer.api.autodesk.com/buildingconnected/v2/bid-board";
@@ -176,6 +176,10 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
   } else if (addr.formattedAddress) {
     formattedAddress = String(addr.formattedAddress);
   }
+  // BC's own geocoded "complete"/"formattedAddress" strings often carry a
+  // trailing country name (e.g. "...OR 97239, United States of America").
+  // The project address just needs to end at the ZIP for our forms/estimates.
+  formattedAddress = formattedAddress.replace(/,?\s*(United States of America|United States|USA|US)\s*$/i, "").trim();
 
   const gcCompanyName = deepGet(raw,
     "client.company.name",
@@ -273,13 +277,20 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "attributes.createdAt",
   );
 
+  // NOTE: bare "startDate"/"endDate"/"constructionStartDate"/"constructionEndDate"
+  // are deliberately NOT in these candidate lists. BC opportunities carry several
+  // independent date milestones (bid due, job walk, RFIs due, expected start/finish)
+  // and a bare "startDate"/"endDate" key is exactly the kind of generic name that
+  // could belong to a different milestone (e.g. a walk-through event) rather than
+  // construction start/finish — a prior version of this list included them and it
+  // caused a job-walk date to be mistaken for Anticipated Start. Only accept names
+  // that are unambiguously about the construction start/finish window.
   const expectedStart = deepGet(raw,
     "expectedStartAt",
     "expectedStart",
     "expectedStartDate",
     "estimatedStartDate",
     "estStartDate",
-    "startDate",
     "constructionStartDate",
     "clientValues.expectedStartAt",
     "clientValues.expectedStart",
@@ -288,13 +299,11 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "attributes.expectedStartDate",
     "attributes.estimatedStartDate",
     "attributes.estStartDate",
-    "attributes.startDate",
     "project.expectedStartAt",
     "project.expectedStart",
     "project.expectedStartDate",
     "project.estimatedStartDate",
     "project.estStartDate",
-    "project.startDate",
   );
 
   const expectedFinish = deepGet(raw,
@@ -311,7 +320,6 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "estCompletionDate",
     "estEndDate",
     "estFinishDate",
-    "endDate",
     "constructionEndDate",
     "clientValues.expectedFinishAt",
     "clientValues.expectedFinish",
@@ -321,7 +329,6 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "attributes.expectedEndDate",
     "attributes.expectedFinishDate",
     "attributes.expectedCompletionDate",
-    "attributes.endDate",
     "project.expectedFinishAt",
     "project.expectedFinish",
     "project.expectedFinishDate",
@@ -331,8 +338,24 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "project.estEndDate",
     "project.estimatedFinishDate",
     "project.estimatedCompletionDate",
-    "project.endDate",
   );
+
+  // NB: Expected Start / Expected Finish are taken verbatim from BC's own
+  // expected/estimated/construction start-finish fields above — they are the
+  // project schedule dates, referenced consistently from BuildingConnected. The
+  // job walk / site visit is a separate milestone under separate field names
+  // (walkAt, jobWalkAt, …) that is deliberately never read into these values, so
+  // a walk date can't leak in. We therefore trust BC's Expected dates as-is and
+  // do NOT second-guess or discard them.
+
+  // Diagnostic: if either construction date failed to resolve, dump the raw
+  // key set so an unrecognized BC field name shows up in the server log rather
+  // than silently leaving Anticipated Start/Finish blank on the draft.
+  if (!expectedStart || !expectedFinish) {
+    const proj = (raw.project && typeof raw.project === "object") ? raw.project : {};
+    const cv = (raw.clientValues && typeof raw.clientValues === "object") ? raw.clientValues : {};
+    console.log(`[BC Sync] date(s) unresolved for "${raw.name || raw.id}" — expectedStart="${expectedStart}", expectedFinish="${expectedFinish}". raw keys: [${Object.keys(raw || {}).join(", ")}]${Object.keys(attrs).length ? `, attributes: [${Object.keys(attrs).join(", ")}]` : ""}${Object.keys(proj).length ? `, project: [${Object.keys(proj).join(", ")}]` : ""}${Object.keys(cv).length ? `, clientValues: [${Object.keys(cv).join(", ")}]` : ""}`);
+  }
 
   const squareFeet = deepGet(raw,
     "squareFootage",
@@ -342,16 +365,22 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "size",
     "estimatedSize",
     "totalSquareFootage",
+    "sizeSqFt",
+    "projectSizeSqFt",
     "attributes.squareFootage",
     "attributes.squareFeet",
     "attributes.buildingSize",
     "attributes.projectSize",
     "attributes.size",
+    "attributes.sizeSqFt",
     "project.squareFootage",
     "project.squareFeet",
     "project.buildingSize",
     "project.size",
   );
+  if (!squareFeet) {
+    console.log(`[BC Sync] squareFeet not resolved for "${raw.name || raw.id}" — raw top-level keys: [${Object.keys(raw || {}).join(", ")}]${attrs && Object.keys(attrs).length ? `, attributes keys: [${Object.keys(attrs).join(", ")}]` : ""}`);
+  }
 
   const rawScopes = src.trades || src.scopes || raw.trades || raw.scopes;
   let scopes: string[] = [];
@@ -1421,7 +1450,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
       if (entry.deletedAt) return res.status(400).json({ message: "Entry has been deleted" });
 
-      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish, force, mergeIntoId, createVendorFolder } = req.body || {};
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, selfPerformEstimator, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish, force, mergeIntoId, createVendorFolder } = req.body || {};
       const includeVendorFolder = createVendorFolder !== false;
 
       const approverNameAC = user!.displayName || user!.email;
@@ -1482,6 +1511,7 @@ export function registerBcSyncRoutes(app: Express) {
       const finalDueDate = dueDate || entry.dueDate || "";
       const finalNbsEstimator = nbsEstimator !== undefined ? nbsEstimator : entry.nbsEstimator;
       const finalGcEstimateLead = gcEstimateLead !== undefined ? gcEstimateLead : entry.gcEstimateLead;
+      const finalSelfPerformEstimator = selfPerformEstimator !== undefined ? selfPerformEstimator : entry.selfPerformEstimator;
       const finalOwner = owner !== undefined ? owner : entry.owner;
       const finalPrimaryMarket = primaryMarket || entry.primaryMarket || guessMarket(finalProjectName);
       const finalScopeList = scopeList !== undefined ? scopeList : entry.scopeList;
@@ -1579,62 +1609,35 @@ export function registerBcSyncRoutes(app: Express) {
       const estimateBuffer = activeEstimateTemplate ? await getEstimateTemplateFileBuffer(activeEstimateTemplate) : null;
       if (activeEstimateTemplate && estimateBuffer) {
         try {
-          const workbook = new ExcelJS.Workbook();
-          await workbook.xlsx.load(estimateBuffer);
-
-          let stampedCount = 0;
-          const summarySheet = workbook.getWorksheet("Summary") || workbook.worksheets[0];
-          
-          if (summarySheet) {
-            // B1: Project Name
-            if (safeName) {
-              summarySheet.getCell("B1").value = safeName;
-              stampedCount++;
-            }
-            
-            // B2: BID DUE DATE
-            if (finalDueDate) {
-              summarySheet.getCell("B2").value = finalDueDate;
-              stampedCount++;
-            }
-            
-            // B4: SHIP TO (Project Address)
-            if (finalProjectAddress) {
-              summarySheet.getCell("B4").value = finalProjectAddress;
-              stampedCount++;
-            }
-            
-            // B6: GC ESTIMATOR (Self Perform Estimator Name)
-            if (finalGcEstimateLead) {
-              summarySheet.getCell("B6").value = finalGcEstimateLead;
-              stampedCount++;
-            }
-            
-            // B12: PROJECT START DATE
-            if (finalAnticipatedStart) {
-              summarySheet.getCell("B12").value = finalAnticipatedStart;
-              stampedCount++;
-            }
-            
-            // B13: PROJECT END DATE
-            if (finalAnticipatedFinish) {
-              summarySheet.getCell("B13").value = finalAnticipatedFinish;
-              stampedCount++;
-            }
-          }
-
-          const dueParts = finalDueDate.split("-");
+          const dueParts = (finalDueDate || "").split("-");
           const formattedDueDate = dueParts.length >= 3 ? `${dueParts[1]}.${dueParts[2]}.${dueParts[0].slice(2)}` : "TBD";
           const ext = path.extname(activeEstimateTemplate.originalFilename || activeEstimateTemplate.filePath) || ".xlsx";
           const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
           const estimatePath = path.join(projectDir, "Estimate Folder", "Estimate", estimateFilename);
 
-          if (ext === ".xlsm") {
-            fs.writeFileSync(estimatePath, estimateBuffer);
-          } else {
-            await workbook.xlsx.writeFile(estimatePath);
+          // Header fields on the Summary Sheet (includes the address-ZIP tax lookup).
+          const stampCells = await buildSummaryStampCells({
+            projectName: safeName,
+            dueDate: finalDueDate,
+            estimateNumber,
+            projectAddress: finalProjectAddress,
+            spEstimator: finalSelfPerformEstimator,
+            anticipatedStart: finalAnticipatedStart,
+            anticipatedFinish: finalAnticipatedFinish,
+          });
+
+          // Patch cells in the worksheet XML so macros/formulas survive (works for
+          // both .xlsm and .xlsx templates). If stamping fails, fall back to the
+          // unstamped template so the folder still contains the estimate workbook.
+          let outputBuffer: Buffer;
+          try {
+            outputBuffer = await stampWorkbookCells(estimateBuffer, SUMMARY_SHEET_NAME, stampCells);
+          } catch (stampErr) {
+            console.error("[BC ApproveCreate] Stamping failed, writing unstamped estimate:", stampErr);
+            outputBuffer = estimateBuffer;
           }
-          console.log(`[BC ApproveCreate] Estimate stamped: ${estimateFilename} (${stampedCount} fields)`);
+          fs.writeFileSync(estimatePath, outputBuffer);
+          console.log(`[BC ApproveCreate] Estimate stamped: ${estimateFilename} (${stampCells.length} fields)`);
         } catch (err) {
           console.error("[BC ApproveCreate] Failed to stamp estimate:", err);
         }
@@ -1771,7 +1774,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry) return res.status(404).json({ message: "Entry not found" });
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
 
-      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish, regionNeedsReview } = req.body;
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, selfPerformEstimator, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish, regionNeedsReview } = req.body;
 
       const updates: Record<string, unknown> = {};
       if (projectName !== undefined) updates.projectName = projectName;
@@ -1779,6 +1782,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (dueDate !== undefined) updates.dueDate = dueDate;
       if (nbsEstimator !== undefined) updates.nbsEstimator = nbsEstimator;
       if (gcEstimateLead !== undefined) updates.gcEstimateLead = gcEstimateLead;
+      if (selfPerformEstimator !== undefined) updates.selfPerformEstimator = selfPerformEstimator;
       if (owner !== undefined) updates.owner = owner;
       if (primaryMarket !== undefined) updates.primaryMarket = primaryMarket;
       if (notes !== undefined) updates.notes = notes;

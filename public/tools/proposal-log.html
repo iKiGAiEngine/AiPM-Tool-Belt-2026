@@ -460,6 +460,9 @@ tbody tr:hover .col-frozen{background:var(--bg3);}
 select.fi{cursor:pointer;}
 input[type="date"].fi::-webkit-calendar-picker-indicator{filter:var(--date-picker-filter);cursor:pointer;}
 textarea.fi{resize:vertical;min-height:60px;}
+.bc-invite-card input[type="date"]::-webkit-calendar-picker-indicator{filter:var(--date-picker-filter);cursor:pointer;opacity:1;}
+.bc-invite-card select{color-scheme:var(--inline-date-scheme);}
+.bc-invite-card select option{background:var(--bg2);color:var(--text);}
 .modal-footer{padding:10px 22px 18px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--bg2);}
 
 /* drag-over line for col reorder */
@@ -2248,15 +2251,81 @@ async function loadBcInvites(){
   }catch(e){console.warn('Failed to load BC invites:',e);}
 }
 
+// Styling for the three fields a reviewer must always double-check against
+// BuildingConnected (Region, Due Date, SP Estimator): a permanent gold
+// outline/highlight so they stand out on every draft, even when filled.
+// When the field is actually blank/missing, that's stacked with a stronger
+// amber "needs attention" treatment (icon, bolder border/background) so an
+// empty required field is unmistakable from a filled-but-verify-me one.
+// Every other field on the card (Square Feet, Address, Anticipated dates)
+// keeps the plain default look — pass always=false for those.
+function bcFlagStyle(always,blank){
+  if(always&&blank){
+    return {
+      labelColor: '#fb923c',
+      labelWeight: '700',
+      labelPrefix: '&#9888; ',
+      border: '#fb923c',
+      bg: 'rgba(249,115,22,.08)',
+      ring: 'box-shadow:0 0 0 1px rgba(249,115,22,.3);',
+    };
+  }
+  if(always){
+    return {
+      labelColor: 'var(--gold)',
+      labelWeight: '600',
+      labelPrefix: '',
+      border: 'var(--gold-dim)',
+      bg: 'var(--bg)',
+      ring: 'box-shadow:0 0 0 1px rgba(201,168,76,.3);',
+    };
+  }
+  return {
+    labelColor: 'var(--text-dim)',
+    labelWeight: '400',
+    labelPrefix: '',
+    border: 'var(--border)',
+    bg: 'var(--bg)',
+    ring: '',
+  };
+}
+
 function bcField(id,label,field,value,opts){
   opts=opts||{};
   const type=opts.type||'text';
   const span=opts.span||1;
   const placeholder=opts.placeholder||'';
   const safeVal=(value||'').toString().replace(/"/g,'&quot;');
+  const always=!!opts.alwaysHighlight;
+  const blank=!!opts.flagEmpty&&!value;
+  const s=bcFlagStyle(always,blank);
   return `<div style="grid-column:span ${span};">
-    <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">${label}</label>
-    <input type="${type}" value="${safeVal}" placeholder="${placeholder}" style="width:100%;font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 6px;" onblur="saveBcInviteField(${id},'${field}',this.value)">
+    <label style="font-size:10px;color:${s.labelColor};font-weight:${s.labelWeight};display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">${s.labelPrefix}${label}</label>
+    <input type="${type}" value="${safeVal}" placeholder="${placeholder}" style="width:100%;font-size:12px;background:${s.bg};color:var(--text);border:1px solid ${s.border};border-radius:4px;padding:5px 6px;${s.ring}" onblur="saveBcInviteField(${id},'${field}',this.value)">
+  </div>`;
+}
+
+// SP Estimator dropdown for the BC draft review card — options are scoped to the
+// entry's currently-selected Region (region drives the roster, not the other way
+// around). Falls back to a free-text input when the region has no estimator
+// roster yet, so the reviewer is never blocked from entering a name. Always
+// highlighted (needs a reviewer's check every time) and additionally flagged
+// amber when blank.
+function bcSpEstimatorField(id,value,region){
+  const roster=lookupSpEstimatorsList(region);
+  const safeVal=(value||'').toString();
+  const s=bcFlagStyle(true,!safeVal);
+  const labelHtml=`<label style="font-size:10px;color:${s.labelColor};font-weight:${s.labelWeight};display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">${s.labelPrefix}SP Estimator</label>`;
+  if(roster.length===0){
+    return `<div>
+      ${labelHtml}
+      <input type="text" value="${safeVal.replace(/"/g,'&quot;')}" placeholder="${region?'No roster for this region':'Select a region first'}" style="width:100%;font-size:12px;background:${s.bg};color:var(--text);border:1px solid ${s.border};border-radius:4px;padding:5px 6px;${s.ring}" onblur="saveBcInviteField(${id},'selfPerformEstimator',this.value)">
+    </div>`;
+  }
+  const options='<option value="">— Select —</option>'+roster.map(name=>`<option value="${name.replace(/"/g,'&quot;')}"${safeVal===name?' selected':''}>${name}</option>`).join('');
+  return `<div>
+    ${labelHtml}
+    <select style="width:100%;font-size:12px;background:${s.bg};color:var(--text);border:1px solid ${s.border};border-radius:4px;padding:5px 6px;${s.ring}" onchange="saveBcInviteField(${id},'selfPerformEstimator',this.value)">${options}</select>
   </div>`;
 }
 
@@ -2308,11 +2377,11 @@ function renderBcInvites(){
 
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px;">
         <div>
-          <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">Region</label>
-          <select style="width:100%;font-size:12px;background:var(--bg);color:var(--text);border:1px solid ${entry.regionNeedsReview?'#fb923c':'var(--border)'};border-radius:4px;padding:5px 6px;" onchange="saveBcInviteField(${entry.id},'region',this.value)">${regionOptions}</select>
+          ${(()=>{const s=bcFlagStyle(true,!entry.region||entry.regionNeedsReview);return `<label style="font-size:10px;color:${s.labelColor};font-weight:${s.labelWeight};display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">${s.labelPrefix}Region</label>
+          <select style="width:100%;font-size:12px;background:${s.bg};color:var(--text);border:1px solid ${s.border};border-radius:4px;padding:5px 6px;${s.ring}" onchange="saveBcInviteField(${entry.id},'region',this.value).then(renderBcInvites);">${regionOptions}</select>`;})()}
         </div>
-        ${bcField(entry.id,'Due Date','dueDate',entry.dueDate,{type:'date'})}
-        ${bcField(entry.id,'GC Lead','gcEstimateLead',entry.gcEstimateLead)}
+        ${bcField(entry.id,'Due Date','dueDate',entry.dueDate,{type:'date',flagEmpty:true,alwaysHighlight:true})}
+        ${bcSpEstimatorField(entry.id,entry.selfPerformEstimator,entry.region)}
         ${bcField(entry.id,'Square Feet','squareFeet',entry.squareFeet,{placeholder:'e.g. 125,000'})}
       </div>
 
