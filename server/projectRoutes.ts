@@ -492,11 +492,10 @@ export function registerProjectRoutes(app: Express) {
 
             // Header fields to stamp on the Summary Sheet (includes the address-ZIP
             // tax-rate lookup — best-effort, leaves the template default when unknown).
-            // SP estimator: explicit value from the form if present, else the
-            // region's first self-perform estimator (its default assignee).
-            const spEstimator = req.body.selfPerformEstimator
-              || validRegionEntry.selfPerformEstimators?.[0]
-              || "";
+            // SP estimator (B6) = the Self-Perform estimator assigned on the entry.
+            // Only an explicitly-assigned value is used; if none is assigned yet,
+            // B6 is left blank (we do NOT auto-fill the region's default assignee).
+            const spEstimator = req.body.selfPerformEstimator || "";
             const stampCells = await buildSummaryStampCells({
               projectName: safeName,
               dueDate,
