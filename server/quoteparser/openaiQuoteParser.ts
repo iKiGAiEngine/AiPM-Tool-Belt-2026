@@ -53,6 +53,7 @@ export interface SpecCheckResult {
   checks: Array<{
     status: "pass" | "fail" | "warn";
     message: string;
+    checkType: "model_match" | "qty_match" | "spec_compliance";
   }>;
 }
 
@@ -293,20 +294,38 @@ export async function checkSpecCompliance(quoteResult: QuoteParseResult, specTex
         content: `You are a construction specification compliance reviewer for Division 10 specialty products.
 
 You will receive:
-1. A list of products from a vendor quote
+1. A list of products from a vendor quote (each with a quantity and model number)
 2. Specification requirements from the project spec section
 
-Compare each quoted product against the spec requirements and return ONLY a valid JSON object:
+Return ONLY a valid JSON object:
 {
   "checks": [
     {
       "status": "pass" | "fail" | "warn",
-      "message": string
+      "message": string,
+      "checkType": "model_match" | "qty_match" | "spec_compliance"
     }
   ]
 }
 
-STATUS RULES:
+You must produce THREE kinds of checks ("checkType"), and the array must contain ALL "model_match" checks first, then ALL "qty_match" checks, then ALL "spec_compliance" checks after that — in that order.
+
+1. "model_match" — one check for EVERY quoted line item, no exceptions:
+   - If the spec names a model/part number for that product and it matches the quoted model number exactly (ignoring case, spacing, and punctuation), status = "pass".
+   - If the spec's model number and the quote's model number are a PARTIAL match — e.g. the quote has extra prefix/suffix characters or digits the spec doesn't mention, or vice versa (such as spec "B-4112" vs quote "B-4112-99" or "B-41"), status = "warn", and the message must name both numbers and describe exactly what differs (what's added/missing).
+   - If the spec names a model number and it does NOT match the quoted one at all, status = "fail", and the message must state both the spec's required model and the quoted model.
+   - If the spec does not specify a model number to check that product against, status = "warn" with a message saying no spec model number was found to verify against.
+   - NEVER omit a line item from this list, even when it is a confident pass. A confirmed match must still be reported, not left out.
+
+2. "qty_match" — one check for EVERY quoted line item, no exceptions:
+   - If the spec states a required quantity for that product and it equals the quoted quantity, status = "pass".
+   - If the spec states a required quantity and it does NOT equal the quoted quantity, status = "fail", and the message must state both the spec-required quantity and the quoted quantity.
+   - If the spec does not state a quantity for that product, status = "warn" with a message saying no spec quantity was found to verify against.
+   - NEVER omit a line item from this list, even when it is a confident pass. A confirmed match must still be reported, not left out.
+
+3. "spec_compliance" — general checks for anything else the spec requires (type, size, mounting, finish, material, mounting height, accessories, alternates, etc.) that isn't a model number or quantity match. Use "pass" / "fail" / "warn" per the rules below.
+
+STATUS RULES (for "spec_compliance" checks):
 - "pass": product clearly meets the spec requirement
 - "fail": product clearly conflicts with the spec (wrong type, wrong size, wrong mounting, etc.)
 - "warn": cannot confirm compliance — something needs verification (finish not specified, alternate accepted language, etc.)
@@ -324,9 +343,20 @@ Return ONLY valid JSON, no prose, no markdown.`,
   const content = response.choices?.[0]?.message?.content || "";
   try {
     const parsed = parseJson(content) as any;
-    return { checks: parsed.checks || [] };
+    const rawChecks: any[] = parsed.checks || [];
+    const checks = rawChecks.map(c => ({
+      status: c.status || "warn",
+      message: c.message || "",
+      checkType: c.checkType || "spec_compliance",
+    }));
+
+    // Guarantee model/qty match results always lead, regardless of AI ordering.
+    const order: Record<string, number> = { model_match: 0, qty_match: 1, spec_compliance: 2 };
+    checks.sort((a, b) => (order[a.checkType] ?? 2) - (order[b.checkType] ?? 2));
+
+    return { checks };
   } catch {
-    return { checks: [{ status: "warn", message: "Could not parse compliance check response — review manually." }] };
+    return { checks: [{ status: "warn", message: "Could not parse compliance check response — review manually.", checkType: "spec_compliance" }] };
   }
 }
 

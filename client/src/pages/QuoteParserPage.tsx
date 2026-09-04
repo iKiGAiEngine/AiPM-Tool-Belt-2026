@@ -38,6 +38,7 @@ interface ParsedRow {
 interface SpecCheck {
   status: "pass" | "fail" | "warn";
   message: string;
+  checkType?: "model_match" | "qty_match" | "spec_compliance";
 }
 
 interface ParseResult {
@@ -475,12 +476,27 @@ export default function QuoteParserPage() {
                 </div>
                 {specExpanded && (
                   <CardContent className="pt-4 space-y-2">
-                    {result.specCheck!.checks.map((check, i) => (
-                      <div key={i} className={`flex items-start gap-2.5 text-sm p-2.5 rounded-md ${check.status === "fail" ? "bg-destructive/10" : check.status === "warn" ? "bg-yellow-500/10" : "bg-green-500/10"}`}>
-                        {specStatusIcon(check.status)}
-                        <span>{check.message}</span>
-                      </div>
-                    ))}
+                    {result.specCheck!.checks.map((check, i) => {
+                      const prevType = i > 0 ? result.specCheck!.checks[i - 1].checkType : undefined;
+                      const showHeading = check.checkType && check.checkType !== prevType;
+                      const headingLabel = check.checkType === "model_match" ? "Model Number Matches"
+                        : check.checkType === "qty_match" ? "Quantity Matches"
+                        : check.checkType === "spec_compliance" ? "Other Spec Requirements"
+                        : null;
+                      return (
+                        <div key={i}>
+                          {showHeading && headingLabel && (
+                            <h3 className={`text-xs font-heading font-semibold uppercase tracking-wide text-muted-foreground ${i > 0 ? "mt-4" : ""} mb-1.5`}>
+                              {headingLabel}
+                            </h3>
+                          )}
+                          <div className={`flex items-start gap-2.5 text-sm p-2.5 rounded-md ${check.status === "fail" ? "bg-destructive/10" : check.status === "warn" ? "bg-yellow-500/10" : "bg-green-500/10"}`}>
+                            {specStatusIcon(check.status)}
+                            <span>{check.message}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </CardContent>
                 )}
               </Card>
