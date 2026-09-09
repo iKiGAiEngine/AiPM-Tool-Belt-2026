@@ -16,6 +16,8 @@ const SCOPE_CATEGORY_LIST = SCHEDULE_SCOPE_CATEGORIES.join(", ");
 // the list). A scope category is always assigned; this just guarantees that
 // even a matching failure doesn't leave the field blank.
 const SCOPE_CATEGORY_FALLBACK = "Equipment";
+// Default unit of measure when no legitimate UOM is shown in the schedule.
+const UOM_FALLBACK = "EA";
 
 const RawItemSchema = z.object({
   planCallout: z.coerce.string().default(""),
@@ -212,7 +214,7 @@ function applyFormattingRules(rawItems: z.infer<typeof RawItemSchema>[]): Schedu
       rawModel: raw.model,
       modelNumber,
       quantity: raw.quantity,
-      uom: raw.uom,
+      uom: raw.uom.trim() || UOM_FALLBACK,
       scopeCategory,
       scopeConfidence: raw.scopeConfidence,
       sourceSection: raw.sourceSection,
