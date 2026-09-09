@@ -7,6 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -39,6 +46,7 @@ import { Link } from "wouter";
 import { BackNav } from "@/components/BackNav";
 import * as XLSX from "xlsx";
 import { copyTsvWithFormatting } from "@/lib/clipboardUtils";
+import { SCHEDULE_SCOPE_CATEGORIES } from "@shared/scheduleScopeCategories";
 
 interface ScheduleItem {
   planCallout: string;
@@ -48,6 +56,7 @@ interface ScheduleItem {
   modelNumber: string;
   quantity: number;
   uom: string;
+  scopeCategory: string;
   sourceSection: string;
   confidence: number;
   flags: string[];
@@ -311,6 +320,14 @@ export default function ScheduleConverterPage() {
     });
   };
 
+  const setScopeCategory = (idx: number, value: string) => {
+    setEditedItems(prev => {
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], scopeCategory: value === "none" ? "" : value };
+      return updated;
+    });
+  };
+
   const allSelected = editedItems.length > 0 && editedItems.every(i => !i.needsReview);
   const noneSelected = editedItems.length > 0 && editedItems.every(i => i.needsReview);
 
@@ -320,9 +337,9 @@ export default function ScheduleConverterPage() {
   };
 
   const copyTSV = useCallback(async () => {
-    const headers = ["PLAN CALLOUT", "DESCRIPTION", "MODEL NUMBER", "ITEM QUANTITY", "UOM"];
+    const headers = ["PLAN CALLOUT", "DESCRIPTION", "MODEL NUMBER", "ITEM QUANTITY", "UOM", "SCOPE CATEGORY"];
     const rows = editedItems.map(item =>
-      [item.planCallout || "", item.description || "", item.modelNumber || "", item.quantity != null ? String(item.quantity) : "", item.uom || ""]
+      [item.planCallout || "", item.description || "", item.modelNumber || "", item.quantity != null ? String(item.quantity) : "", item.uom || "", item.scopeCategory || ""]
     );
     await copyTsvWithFormatting(headers, rows);
     toast({ title: "Copied!", description: "Table copied to clipboard as TSV (NBS format)" });
@@ -334,9 +351,9 @@ export default function ScheduleConverterPage() {
       toast({ title: "No rows approved", description: "All rows are flagged for review", variant: "destructive" });
       return;
     }
-    const headers = ["PLAN CALLOUT", "DESCRIPTION", "MODEL NUMBER", "ITEM QUANTITY", "UOM"];
+    const headers = ["PLAN CALLOUT", "DESCRIPTION", "MODEL NUMBER", "ITEM QUANTITY", "UOM", "SCOPE CATEGORY"];
     const rows = approved.map(item =>
-      [item.planCallout || "", item.description || "", item.modelNumber || "", item.quantity != null ? String(item.quantity) : "", item.uom || ""]
+      [item.planCallout || "", item.description || "", item.modelNumber || "", item.quantity != null ? String(item.quantity) : "", item.uom || "", item.scopeCategory || ""]
     );
     await copyTsvWithFormatting(headers, rows);
     toast({
@@ -346,7 +363,7 @@ export default function ScheduleConverterPage() {
   }, [editedItems, toast]);
 
   const downloadExcel = useCallback(() => {
-    const headers = ["Plan Callout", "Description", "Manufacturer", "Model", "Quantity", "UOM", "Source Section"];
+    const headers = ["Plan Callout", "Description", "Manufacturer", "Model", "Quantity", "UOM", "Scope Category", "Source Section"];
     const rows = editedItems.map(item => [
       item.planCallout || "",
       item.description || "",
@@ -354,6 +371,7 @@ export default function ScheduleConverterPage() {
       item.rawModel || "",
       item.quantity != null ? item.quantity : 0,
       item.uom || "",
+      item.scopeCategory || "",
       item.sourceSection || "",
     ]);
 
@@ -366,6 +384,7 @@ export default function ScheduleConverterPage() {
       { wch: 22 },
       { wch: 10 },
       { wch: 10 },
+      { wch: 20 },
       { wch: 28 },
     ];
 
@@ -854,6 +873,7 @@ export default function ScheduleConverterPage() {
                       <TableHead className="min-w-[180px]">MODEL NUMBER</TableHead>
                       <TableHead className="min-w-[60px] text-center">QTY</TableHead>
                       <TableHead className="min-w-[70px] text-center">UOM</TableHead>
+                      <TableHead className="min-w-[170px]">SCOPE CATEGORY</TableHead>
                       <TableHead className="min-w-[70px] text-center">CONFIDENCE</TableHead>
                       <TableHead className="min-w-[150px]">FLAGS</TableHead>
                     </TableRow>
@@ -894,7 +914,7 @@ export default function ScheduleConverterPage() {
                         <Fragment key={`item-${idx}`}>
                         {showSourceDivider && (
                           <TableRow key={`divider-${item.sourceIndex}`} className="bg-muted/30 border-t-2 border-[var(--gold)]/20">
-                            <TableCell colSpan={8} className="py-1.5 px-4">
+                            <TableCell colSpan={9} className="py-1.5 px-4">
                               <span className="text-xs font-heading font-semibold uppercase tracking-wide" style={{ color: "var(--gold)" }}>
                                 Screenshot {(item.sourceIndex || 0) + 1}
                               </span>
@@ -938,6 +958,26 @@ export default function ScheduleConverterPage() {
                             <span className="text-sm">{item.uom}</span>,
                             "text-center text-sm"
                           )}
+                          <TableCell data-testid={`cell-scopeCategory-${idx}`}>
+                            <Select
+                              value={item.scopeCategory || "none"}
+                              onValueChange={(value) => setScopeCategory(idx, value)}
+                            >
+                              <SelectTrigger className="h-8 text-sm" data-testid={`select-scopeCategory-${idx}`}>
+                                <SelectValue placeholder="Unassigned" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">
+                                  <span className="text-muted-foreground">Unassigned</span>
+                                </SelectItem>
+                                {SCHEDULE_SCOPE_CATEGORIES.map((category) => (
+                                  <SelectItem key={category} value={category}>
+                                    {category}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
                           <TableCell className="text-center">
                             {getConfidenceBadge(item.confidence)}
                           </TableCell>
@@ -959,7 +999,7 @@ export default function ScheduleConverterPage() {
                     })}
                     {editedItems.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                           No items extracted
                         </TableCell>
                       </TableRow>
