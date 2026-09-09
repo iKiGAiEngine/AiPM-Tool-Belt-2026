@@ -978,9 +978,9 @@ export default function ScheduleConverterPage() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            {!item.scopeCategory && item.scopeConfidence > 0 && (
-                              <span className="text-[10px] text-muted-foreground block mt-1">
-                                AI's best guess was {item.scopeConfidence}% confident (needs 90%+ to auto-fill)
+                            {item.flags.includes("Scope category uncertain") && (
+                              <span className="text-[10px] text-yellow-600 block mt-1">
+                                Best guess only — {item.scopeConfidence}% confident, please verify
                               </span>
                             )}
                           </TableCell>

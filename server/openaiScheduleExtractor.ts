@@ -11,6 +11,11 @@ const MAX_CONTINUATION_ATTEMPTS = 3;
 const VERIFICATION_MIN_ITEMS = 3;
 const SCOPE_CATEGORY_CONFIDENCE_THRESHOLD = 90;
 const SCOPE_CATEGORY_LIST = SCHEDULE_SCOPE_CATEGORIES.join(", ");
+// Safety net only — used when the AI's raw label truly can't be matched to
+// any fixed category (should be rare given the prompt requires a pick from
+// the list). A scope category is always assigned; this just guarantees that
+// even a matching failure doesn't leave the field blank.
+const SCOPE_CATEGORY_FALLBACK = "Equipment";
 
 const RawItemSchema = z.object({
   planCallout: z.coerce.string().default(""),
@@ -84,8 +89,8 @@ For each row, extract:
 - model: The model number, product name, or product line exactly as shown. If there is an explicit model number (e.g. "B-2621", "K-14367-CP"), use that. If there is no model number but there IS a product name or item title shown alongside the manufacturer (e.g. "RIGID SHEET PANEL", "PALLADIUM RIGID SHEET"), use the product name/title as the model. The goal is that manufacturer + model together form a complete product identifier.
 - quantity: The numeric quantity as an integer. If not visible, use 0.
 - uom: The unit of measure for the quantity, exactly as shown in the schedule (e.g. "EA", "SET", "LF", "SF", "BOX", "PR"). If there is a column labeled "UOM", "Unit", "U/M", or similar, use its value for this row. If no unit is shown, use "".
-- scopeCategory: Which ONE of these fixed scope categories this line item belongs to, based on its description/model/manufacturer: ${SCOPE_CATEGORY_LIST}. Pick the single best match. If you are not confident it fits any of these categories, or it could plausibly fit more than one, still make your best guess — the scopeConfidence field is where you express uncertainty, not this field.
-- scopeConfidence: Your confidence 0-100 that scopeCategory is the correct category for this item. Only use a value above 90 when you are genuinely certain — most items should NOT score above 90 unless the description unambiguously matches one category (e.g. "Paper Towel Dispenser" -> Toilet Accessories at high confidence, but an ambiguous or generic item should score lower).
+- scopeCategory: Using expert construction-specialty-contractor scope-classification judgment (not simple keyword matching), choose the SINGLE most likely category from this fixed list: ${SCOPE_CATEGORY_LIST}. You MUST always choose exactly one of these — NEVER leave this blank and NEVER invent a category not on the list, even for an ambiguous, generic, or borderline item. Think about what an experienced Division 10 / specialty-contractor estimator would file this item under, then commit to your best answer.
+- scopeConfidence: Your genuine confidence 0-100 that scopeCategory is correct. A low score is expected and completely fine for a genuinely ambiguous item — do NOT inflate this number to look more certain than you are, and do NOT leave scopeCategory blank just because confidence is low. This number exists only to flag uncertain rows for human review; it never changes whether scopeCategory gets filled in.
 - sourceSection: The schedule section name from the nearest header above this row (e.g. "ACCESSORY SCHEDULE", "FIXTURE SCHEDULE")
 - confidence: Your confidence 0-100 that this row was extracted accurately. Lower this if any data is unclear.
 - flags: Array of issue strings. Use these exact flag values when applicable:
@@ -115,7 +120,7 @@ PROCESSING METHOD: Process the schedule image ONE ROW AT A TIME, top to bottom. 
 
 Extract ALL line items from the schedule image. Each field must be present in every item. The description field must include the item name PLUS ALL additional details from every column in the row (finish, size, mounting, material, notes, color, dimensions, ADA, fire rating, location, room numbers, type, style, gauge, coating, etc.) separated by semicolons. Do NOT discard any information — every cell visible in every row must appear in your output.
 
-For scopeCategory, pick the single best match from: ${SCOPE_CATEGORY_LIST}. Set scopeConfidence (0-100) to how certain you are of that match — only score above 90 when the match is unambiguous.
+For scopeCategory, use expert scope-classification judgment to pick the single best match from: ${SCOPE_CATEGORY_LIST}. Every item MUST get one of these — never leave it blank, even for an ambiguous item; make your best expert guess. Set scopeConfidence (0-100) to your genuine certainty in that match — low scores are fine and expected for ambiguous items, they do not mean you can skip assigning a category.
 
 CRITICAL: Extract EVERY row from EVERY section. Do not stop early. Do not skip rows with empty callouts or missing manufacturers. If the schedule has multiple sections, include items from ALL sections. Verify your items count matches totalRowCount.`;
 
@@ -132,12 +137,12 @@ CHECK FOR THESE SPECIFIC ISSUES:
 - Description details that belong to a different row
 - Merged or split rows that should be combined or separated
 - Any column data that was dropped and not included in the description
-- Incorrect scopeCategory or scopeConfidence — re-check each item's scopeCategory against this fixed list: ${SCOPE_CATEGORY_LIST}. scopeConfidence should only be above 90 when the match is unambiguous.
+- scopeCategory accuracy — for EVERY item, independently re-derive the best-fit category using expert Division 10 / specialty-contractor scope-classification judgment, choosing from this fixed list: ${SCOPE_CATEGORY_LIST}. Do not just check that the existing value is technically one of the list options — actually reconsider, from the item's own description, whether it is truly the best-fit category, and correct it if a better fit exists. Every single item must end up with a scopeCategory from this list; never leave one blank or unassigned. Update scopeConfidence (0-100) to reflect your genuine certainty after this re-check — low scores are expected and fine for ambiguous items.
 
 PROCESS:
 1. Go through the image row by row, top to bottom.
 2. For each row in the image, find the corresponding item in the extracted data.
-3. Verify every field matches what is shown in the image for that specific row.
+3. Verify every field matches what is shown in the image for that specific row, including re-deriving scopeCategory as its own independent check rather than trusting the first pass.
 4. If you find errors, correct them.
 5. If rows are missing, add them.
 6. Update totalRowCount if it changed.
@@ -189,11 +194,16 @@ function applyFormattingRules(rawItems: z.infer<typeof RawItemSchema>[]): Schedu
     if (flags.includes("Manufacturer missing") && confidence > 85) confidence = 85;
     confidence = Math.max(0, Math.min(100, confidence));
 
-    const needsReview = confidence < 90 || flags.length > 0;
-
     const resolvedScope = resolveScheduleScopeCategory(raw.scopeCategory);
-    const scopeCategory =
-      resolvedScope && raw.scopeConfidence > SCOPE_CATEGORY_CONFIDENCE_THRESHOLD ? resolvedScope : "";
+    const scopeCategory = resolvedScope || SCOPE_CATEGORY_FALLBACK;
+    if (!resolvedScope) {
+      flags.push("Scope category could not be matched — defaulted, please verify");
+    }
+    if (raw.scopeConfidence <= SCOPE_CATEGORY_CONFIDENCE_THRESHOLD) {
+      flags.push("Scope category uncertain");
+    }
+
+    const needsReview = confidence < 90 || flags.length > 0;
 
     return {
       planCallout: raw.planCallout,
@@ -419,7 +429,7 @@ async function extractWithContinuation(imageBase64: string, mimeType: string, mo
 
       const continuationPrompt = `Your previous response was cut off. You already extracted these items: ${allItems.map(i => i.planCallout).filter(Boolean).join(", ")}.
 
-Continue extracting the REMAINING items from the schedule image that come AFTER "${lastCallout}". Do NOT re-extract items you already provided. Process each remaining row one at a time, top to bottom, reading all columns left to right. Include ALL column data in the description field.
+Continue extracting the REMAINING items from the schedule image that come AFTER "${lastCallout}". Do NOT re-extract items you already provided. Process each remaining row one at a time, top to bottom, reading all columns left to right. Include ALL column data in the description field. Every item MUST get a scopeCategory from this fixed list, chosen with expert scope-classification judgment — never leave it blank: ${SCOPE_CATEGORY_LIST}.
 
 Return ONLY a JSON object with the remaining items:
 { "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "uom": string, "scopeCategory": string, "scopeConfidence": number, "sourceSection": string, "confidence": number, "flags": string[] }] }
@@ -497,8 +507,8 @@ For each row, extract:
 - model: The model number or product name exactly as shown.
 - quantity: The numeric quantity as an integer. If not visible, use 0.
 - uom: The unit of measure for the quantity, exactly as shown (e.g. "EA", "SET", "LF", "SF", "BOX", "PR"). If there is a column labeled "UOM", "Unit", "U/M", or similar, use its value for this row. If no unit is shown, use "".
-- scopeCategory: Which ONE of these fixed scope categories this line item belongs to, based on its description/model/manufacturer: ${SCOPE_CATEGORY_LIST}. Pick the single best match.
-- scopeConfidence: Your confidence 0-100 that scopeCategory is correct. Only use a value above 90 when you are genuinely certain — most items should NOT score above 90 unless the description unambiguously matches one category.
+- scopeCategory: Using expert construction-specialty-contractor scope-classification judgment (not simple keyword matching), choose the SINGLE most likely category from this fixed list: ${SCOPE_CATEGORY_LIST}. You MUST always choose exactly one — NEVER leave this blank, even for an ambiguous or generic item. Make your best expert guess.
+- scopeConfidence: Your genuine confidence 0-100 that scopeCategory is correct. Low scores are fine and expected for ambiguous items — this never means you should leave scopeCategory blank, it's only used to flag uncertain rows for review.
 - sourceSection: The schedule section name from the nearest header above this row (e.g. "ACCESSORY SCHEDULE"). If none, use "".
 - confidence: Your confidence 0-100 that this row was extracted accurately.
 - flags: Array of issue strings: "Callout uncertain", "Model uncertain", "Quantity uncertain", "Manufacturer missing", "Model missing"
