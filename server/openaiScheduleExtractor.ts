@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { z } from "zod";
+import { SCHEDULE_SCOPE_CATEGORIES, resolveScheduleScopeCategory } from "@shared/scheduleScopeCategories";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -8,6 +9,8 @@ const FALLBACK_MODEL = "gpt-4o-mini";
 const MAX_TOKENS = 16384;
 const MAX_CONTINUATION_ATTEMPTS = 3;
 const VERIFICATION_MIN_ITEMS = 3;
+const SCOPE_CATEGORY_CONFIDENCE_THRESHOLD = 90;
+const SCOPE_CATEGORY_LIST = SCHEDULE_SCOPE_CATEGORIES.join(", ");
 
 const RawItemSchema = z.object({
   planCallout: z.coerce.string().default(""),
@@ -15,6 +18,9 @@ const RawItemSchema = z.object({
   manufacturer: z.coerce.string().default(""),
   model: z.coerce.string().default(""),
   quantity: z.coerce.number().default(0),
+  uom: z.coerce.string().default(""),
+  scopeCategory: z.coerce.string().default(""),
+  scopeConfidence: z.coerce.number().min(0).max(100).default(0),
   sourceSection: z.coerce.string().default(""),
   confidence: z.coerce.number().min(0).max(100).default(80),
   flags: z.array(z.coerce.string()).default([]),
@@ -32,6 +38,8 @@ export interface ScheduleItem {
   rawModel: string;
   modelNumber: string;
   quantity: number;
+  uom: string;
+  scopeCategory: string;
   sourceSection: string;
   confidence: number;
   flags: string[];
@@ -74,6 +82,9 @@ For each row, extract:
 - manufacturer: The manufacturer name (e.g. "Bobrick", "Kohler", "ASI")
 - model: The model number, product name, or product line exactly as shown. If there is an explicit model number (e.g. "B-2621", "K-14367-CP"), use that. If there is no model number but there IS a product name or item title shown alongside the manufacturer (e.g. "RIGID SHEET PANEL", "PALLADIUM RIGID SHEET"), use the product name/title as the model. The goal is that manufacturer + model together form a complete product identifier.
 - quantity: The numeric quantity as an integer. If not visible, use 0.
+- uom: The unit of measure for the quantity, exactly as shown in the schedule (e.g. "EA", "SET", "LF", "SF", "BOX", "PR"). If there is a column labeled "UOM", "Unit", "U/M", or similar, use its value for this row. If no unit is shown, use "".
+- scopeCategory: Which ONE of these fixed scope categories this line item belongs to, based on its description/model/manufacturer: ${SCOPE_CATEGORY_LIST}. Pick the single best match. If you are not confident it fits any of these categories, or it could plausibly fit more than one, still make your best guess — the scopeConfidence field is where you express uncertainty, not this field.
+- scopeConfidence: Your confidence 0-100 that scopeCategory is the correct category for this item. Only use a value above 90 when you are genuinely certain — most items should NOT score above 90 unless the description unambiguously matches one category (e.g. "Paper Towel Dispenser" -> Toilet Accessories at high confidence, but an ambiguous or generic item should score lower).
 - sourceSection: The schedule section name from the nearest header above this row (e.g. "ACCESSORY SCHEDULE", "FIXTURE SCHEDULE")
 - confidence: Your confidence 0-100 that this row was extracted accurately. Lower this if any data is unclear.
 - flags: Array of issue strings. Use these exact flag values when applicable:
@@ -93,15 +104,17 @@ Before returning your response, verify:
 3. No data from one row has been accidentally placed in another row's fields.
 
 Response schema:
-{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "uom": string, "scopeCategory": string, "scopeConfidence": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
 
 const STRICT_RETRY_PROMPT = `You MUST return ONLY a valid JSON object matching this exact schema. No markdown, no code fences, no text before or after the JSON. Do not include any explanation.
 
-{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "uom": string, "scopeCategory": string, "scopeConfidence": number, "sourceSection": string, "confidence": number, "flags": string[] }] }
 
 PROCESSING METHOD: Process the schedule image ONE ROW AT A TIME, top to bottom. For each row, read ALL columns left to right before moving to the next row. Count all data rows first and store as totalRowCount.
 
 Extract ALL line items from the schedule image. Each field must be present in every item. The description field must include the item name PLUS ALL additional details from every column in the row (finish, size, mounting, material, notes, color, dimensions, ADA, fire rating, location, room numbers, type, style, gauge, coating, etc.) separated by semicolons. Do NOT discard any information — every cell visible in every row must appear in your output.
+
+For scopeCategory, pick the single best match from: ${SCOPE_CATEGORY_LIST}. Set scopeConfidence (0-100) to how certain you are of that match — only score above 90 when the match is unambiguous.
 
 CRITICAL: Extract EVERY row from EVERY section. Do not stop early. Do not skip rows with empty callouts or missing manufacturers. If the schedule has multiple sections, include items from ALL sections. Verify your items count matches totalRowCount.`;
 
@@ -118,6 +131,7 @@ CHECK FOR THESE SPECIFIC ISSUES:
 - Description details that belong to a different row
 - Merged or split rows that should be combined or separated
 - Any column data that was dropped and not included in the description
+- Incorrect scopeCategory or scopeConfidence — re-check each item's scopeCategory against this fixed list: ${SCOPE_CATEGORY_LIST}. scopeConfidence should only be above 90 when the match is unambiguous.
 
 PROCESS:
 1. Go through the image row by row, top to bottom.
@@ -128,7 +142,7 @@ PROCESS:
 6. Update totalRowCount if it changed.
 
 Return the CORRECTED JSON in the exact same schema. Return ONLY valid JSON, no prose, no markdown fences.
-{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "uom": string, "scopeCategory": string, "scopeConfidence": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
 
 function formatModelNumber(manufacturer: string, rawModel: string, flags: string[]): string {
   const mfr = manufacturer.trim();
@@ -176,6 +190,10 @@ function applyFormattingRules(rawItems: z.infer<typeof RawItemSchema>[]): Schedu
 
     const needsReview = confidence < 90 || flags.length > 0;
 
+    const resolvedScope = resolveScheduleScopeCategory(raw.scopeCategory);
+    const scopeCategory =
+      resolvedScope && raw.scopeConfidence > SCOPE_CATEGORY_CONFIDENCE_THRESHOLD ? resolvedScope : "";
+
     return {
       planCallout: raw.planCallout,
       description: raw.description,
@@ -183,6 +201,8 @@ function applyFormattingRules(rawItems: z.infer<typeof RawItemSchema>[]): Schedu
       rawModel: raw.model,
       modelNumber,
       quantity: raw.quantity,
+      uom: raw.uom,
+      scopeCategory,
       sourceSection: raw.sourceSection,
       confidence,
       flags,
@@ -400,7 +420,7 @@ async function extractWithContinuation(imageBase64: string, mimeType: string, mo
 Continue extracting the REMAINING items from the schedule image that come AFTER "${lastCallout}". Do NOT re-extract items you already provided. Process each remaining row one at a time, top to bottom, reading all columns left to right. Include ALL column data in the description field.
 
 Return ONLY a JSON object with the remaining items:
-{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "uom": string, "scopeCategory": string, "scopeConfidence": number, "sourceSection": string, "confidence": number, "flags": string[] }] }
 
 Set totalRowCount to the TOTAL number of data rows in the entire schedule (not just the remaining ones).`;
 
@@ -474,6 +494,9 @@ For each row, extract:
 - manufacturer: The manufacturer name (e.g. "Bobrick", "Kohler", "ASI")
 - model: The model number or product name exactly as shown.
 - quantity: The numeric quantity as an integer. If not visible, use 0.
+- uom: The unit of measure for the quantity, exactly as shown (e.g. "EA", "SET", "LF", "SF", "BOX", "PR"). If there is a column labeled "UOM", "Unit", "U/M", or similar, use its value for this row. If no unit is shown, use "".
+- scopeCategory: Which ONE of these fixed scope categories this line item belongs to, based on its description/model/manufacturer: ${SCOPE_CATEGORY_LIST}. Pick the single best match.
+- scopeConfidence: Your confidence 0-100 that scopeCategory is correct. Only use a value above 90 when you are genuinely certain — most items should NOT score above 90 unless the description unambiguously matches one category.
 - sourceSection: The schedule section name from the nearest header above this row (e.g. "ACCESSORY SCHEDULE"). If none, use "".
 - confidence: Your confidence 0-100 that this row was extracted accurately.
 - flags: Array of issue strings: "Callout uncertain", "Model uncertain", "Quantity uncertain", "Manufacturer missing", "Model missing"
@@ -482,7 +505,7 @@ DESCRIPTION FIELD — ZERO DATA LOSS RULE:
 Do NOT leave any data out. Every piece of text in the row must appear somewhere in your extracted fields. If unsure where it belongs, append it to description with a semicolon.
 
 Response schema:
-{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "uom": string, "scopeCategory": string, "scopeConfidence": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
 
 export async function extractScheduleFromText(text: string): Promise<ExtractionResult> {
   const startTime = Date.now();
