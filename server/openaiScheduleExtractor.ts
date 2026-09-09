@@ -15,6 +15,7 @@ const RawItemSchema = z.object({
   manufacturer: z.coerce.string().default(""),
   model: z.coerce.string().default(""),
   quantity: z.coerce.number().default(0),
+  uom: z.coerce.string().default(""),
   sourceSection: z.coerce.string().default(""),
   confidence: z.coerce.number().min(0).max(100).default(80),
   flags: z.array(z.coerce.string()).default([]),
@@ -32,6 +33,7 @@ export interface ScheduleItem {
   rawModel: string;
   modelNumber: string;
   quantity: number;
+  uom: string;
   sourceSection: string;
   confidence: number;
   flags: string[];
@@ -74,6 +76,7 @@ For each row, extract:
 - manufacturer: The manufacturer name (e.g. "Bobrick", "Kohler", "ASI")
 - model: The model number, product name, or product line exactly as shown. If there is an explicit model number (e.g. "B-2621", "K-14367-CP"), use that. If there is no model number but there IS a product name or item title shown alongside the manufacturer (e.g. "RIGID SHEET PANEL", "PALLADIUM RIGID SHEET"), use the product name/title as the model. The goal is that manufacturer + model together form a complete product identifier.
 - quantity: The numeric quantity as an integer. If not visible, use 0.
+- uom: The unit of measure for the quantity, exactly as shown in the schedule (e.g. "EA", "SET", "LF", "SF", "BOX", "PR"). If there is a column labeled "UOM", "Unit", "U/M", or similar, use its value for this row. If no unit is shown, use "".
 - sourceSection: The schedule section name from the nearest header above this row (e.g. "ACCESSORY SCHEDULE", "FIXTURE SCHEDULE")
 - confidence: Your confidence 0-100 that this row was extracted accurately. Lower this if any data is unclear.
 - flags: Array of issue strings. Use these exact flag values when applicable:
@@ -93,11 +96,11 @@ Before returning your response, verify:
 3. No data from one row has been accidentally placed in another row's fields.
 
 Response schema:
-{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "uom": string, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
 
 const STRICT_RETRY_PROMPT = `You MUST return ONLY a valid JSON object matching this exact schema. No markdown, no code fences, no text before or after the JSON. Do not include any explanation.
 
-{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "uom": string, "sourceSection": string, "confidence": number, "flags": string[] }] }
 
 PROCESSING METHOD: Process the schedule image ONE ROW AT A TIME, top to bottom. For each row, read ALL columns left to right before moving to the next row. Count all data rows first and store as totalRowCount.
 
@@ -128,7 +131,7 @@ PROCESS:
 6. Update totalRowCount if it changed.
 
 Return the CORRECTED JSON in the exact same schema. Return ONLY valid JSON, no prose, no markdown fences.
-{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "uom": string, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
 
 function formatModelNumber(manufacturer: string, rawModel: string, flags: string[]): string {
   const mfr = manufacturer.trim();
@@ -183,6 +186,7 @@ function applyFormattingRules(rawItems: z.infer<typeof RawItemSchema>[]): Schedu
       rawModel: raw.model,
       modelNumber,
       quantity: raw.quantity,
+      uom: raw.uom,
       sourceSection: raw.sourceSection,
       confidence,
       flags,
@@ -400,7 +404,7 @@ async function extractWithContinuation(imageBase64: string, mimeType: string, mo
 Continue extracting the REMAINING items from the schedule image that come AFTER "${lastCallout}". Do NOT re-extract items you already provided. Process each remaining row one at a time, top to bottom, reading all columns left to right. Include ALL column data in the description field.
 
 Return ONLY a JSON object with the remaining items:
-{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "uom": string, "sourceSection": string, "confidence": number, "flags": string[] }] }
 
 Set totalRowCount to the TOTAL number of data rows in the entire schedule (not just the remaining ones).`;
 
@@ -474,6 +478,7 @@ For each row, extract:
 - manufacturer: The manufacturer name (e.g. "Bobrick", "Kohler", "ASI")
 - model: The model number or product name exactly as shown.
 - quantity: The numeric quantity as an integer. If not visible, use 0.
+- uom: The unit of measure for the quantity, exactly as shown (e.g. "EA", "SET", "LF", "SF", "BOX", "PR"). If there is a column labeled "UOM", "Unit", "U/M", or similar, use its value for this row. If no unit is shown, use "".
 - sourceSection: The schedule section name from the nearest header above this row (e.g. "ACCESSORY SCHEDULE"). If none, use "".
 - confidence: Your confidence 0-100 that this row was extracted accurately.
 - flags: Array of issue strings: "Callout uncertain", "Model uncertain", "Quantity uncertain", "Manufacturer missing", "Model missing"
@@ -482,7 +487,7 @@ DESCRIPTION FIELD — ZERO DATA LOSS RULE:
 Do NOT leave any data out. Every piece of text in the row must appear somewhere in your extracted fields. If unsure where it belongs, append it to description with a semicolon.
 
 Response schema:
-{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "uom": string, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
 
 export async function extractScheduleFromText(text: string): Promise<ExtractionResult> {
   const startTime = Date.now();

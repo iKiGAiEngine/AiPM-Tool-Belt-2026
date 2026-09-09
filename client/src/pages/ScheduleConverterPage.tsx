@@ -47,6 +47,7 @@ interface ScheduleItem {
   rawModel: string;
   modelNumber: string;
   quantity: number;
+  uom: string;
   sourceSection: string;
   confidence: number;
   flags: string[];
@@ -319,9 +320,9 @@ export default function ScheduleConverterPage() {
   };
 
   const copyTSV = useCallback(async () => {
-    const headers = ["PLAN CALLOUT", "DESCRIPTION", "MODEL NUMBER", "ITEM QUANTITY"];
+    const headers = ["PLAN CALLOUT", "DESCRIPTION", "MODEL NUMBER", "ITEM QUANTITY", "UOM"];
     const rows = editedItems.map(item =>
-      [item.planCallout || "", item.description || "", item.modelNumber || "", item.quantity != null ? String(item.quantity) : ""]
+      [item.planCallout || "", item.description || "", item.modelNumber || "", item.quantity != null ? String(item.quantity) : "", item.uom || ""]
     );
     await copyTsvWithFormatting(headers, rows);
     toast({ title: "Copied!", description: "Table copied to clipboard as TSV (NBS format)" });
@@ -333,9 +334,9 @@ export default function ScheduleConverterPage() {
       toast({ title: "No rows approved", description: "All rows are flagged for review", variant: "destructive" });
       return;
     }
-    const headers = ["PLAN CALLOUT", "DESCRIPTION", "MODEL NUMBER", "ITEM QUANTITY"];
+    const headers = ["PLAN CALLOUT", "DESCRIPTION", "MODEL NUMBER", "ITEM QUANTITY", "UOM"];
     const rows = approved.map(item =>
-      [item.planCallout || "", item.description || "", item.modelNumber || "", item.quantity != null ? String(item.quantity) : ""]
+      [item.planCallout || "", item.description || "", item.modelNumber || "", item.quantity != null ? String(item.quantity) : "", item.uom || ""]
     );
     await copyTsvWithFormatting(headers, rows);
     toast({
@@ -345,13 +346,14 @@ export default function ScheduleConverterPage() {
   }, [editedItems, toast]);
 
   const downloadExcel = useCallback(() => {
-    const headers = ["Plan Callout", "Description", "Manufacturer", "Model", "Quantity", "Source Section"];
+    const headers = ["Plan Callout", "Description", "Manufacturer", "Model", "Quantity", "UOM", "Source Section"];
     const rows = editedItems.map(item => [
       item.planCallout || "",
       item.description || "",
       item.manufacturer || "",
       item.rawModel || "",
       item.quantity != null ? item.quantity : 0,
+      item.uom || "",
       item.sourceSection || "",
     ]);
 
@@ -362,6 +364,7 @@ export default function ScheduleConverterPage() {
       { wch: 55 },
       { wch: 18 },
       { wch: 22 },
+      { wch: 10 },
       { wch: 10 },
       { wch: 28 },
     ];
@@ -850,6 +853,7 @@ export default function ScheduleConverterPage() {
                       <TableHead className="min-w-[250px]">DESCRIPTION</TableHead>
                       <TableHead className="min-w-[180px]">MODEL NUMBER</TableHead>
                       <TableHead className="min-w-[60px] text-center">QTY</TableHead>
+                      <TableHead className="min-w-[70px] text-center">UOM</TableHead>
                       <TableHead className="min-w-[70px] text-center">CONFIDENCE</TableHead>
                       <TableHead className="min-w-[150px]">FLAGS</TableHead>
                     </TableRow>
@@ -890,7 +894,7 @@ export default function ScheduleConverterPage() {
                         <Fragment key={`item-${idx}`}>
                         {showSourceDivider && (
                           <TableRow key={`divider-${item.sourceIndex}`} className="bg-muted/30 border-t-2 border-[var(--gold)]/20">
-                            <TableCell colSpan={7} className="py-1.5 px-4">
+                            <TableCell colSpan={8} className="py-1.5 px-4">
                               <span className="text-xs font-heading font-semibold uppercase tracking-wide" style={{ color: "var(--gold)" }}>
                                 Screenshot {(item.sourceIndex || 0) + 1}
                               </span>
@@ -929,6 +933,11 @@ export default function ScheduleConverterPage() {
                             <span className="text-sm">{item.quantity}</span>,
                             "text-center text-sm"
                           )}
+                          {renderEditableCell(
+                            "uom",
+                            <span className="text-sm">{item.uom}</span>,
+                            "text-center text-sm"
+                          )}
                           <TableCell className="text-center">
                             {getConfidenceBadge(item.confidence)}
                           </TableCell>
@@ -950,7 +959,7 @@ export default function ScheduleConverterPage() {
                     })}
                     {editedItems.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                           No items extracted
                         </TableCell>
                       </TableRow>
