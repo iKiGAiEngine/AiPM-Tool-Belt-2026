@@ -40,6 +40,7 @@ export interface ScheduleItem {
   quantity: number;
   uom: string;
   scopeCategory: string;
+  scopeConfidence: number;
   sourceSection: string;
   confidence: number;
   flags: string[];
@@ -203,6 +204,7 @@ function applyFormattingRules(rawItems: z.infer<typeof RawItemSchema>[]): Schedu
       quantity: raw.quantity,
       uom: raw.uom,
       scopeCategory,
+      scopeConfidence: raw.scopeConfidence,
       sourceSection: raw.sourceSection,
       confidence,
       flags,

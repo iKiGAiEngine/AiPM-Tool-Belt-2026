@@ -27,15 +27,47 @@ export const SCHEDULE_SCOPE_CATEGORIES = [
 
 export type ScheduleScopeCategory = (typeof SCHEDULE_SCOPE_CATEGORIES)[number];
 
-const NORMALIZED_LOOKUP = new Map<string, string>(
-  SCHEDULE_SCOPE_CATEGORIES.map((name) => [name.toLowerCase().trim(), name])
-);
+function normalize(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ") // strip punctuation to spaces
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Strip a trailing "s" so "Appliance" / "Appliances" both normalize the same way. */
+function singularize(norm: string): string {
+  return norm.endsWith("s") ? norm.slice(0, -1) : norm;
+}
+
+const NORMALIZED_LOOKUP = new Map<string, string>();
+for (const name of SCHEDULE_SCOPE_CATEGORIES) {
+  const norm = normalize(name);
+  NORMALIZED_LOOKUP.set(norm, name);
+  NORMALIZED_LOOKUP.set(singularize(norm), name);
+}
 
 /** Resolve a raw AI-returned label to one of the exact canonical category
- * strings, or null if it doesn't match any option. */
+ * strings, or null if it doesn't match any option. Tolerant of case,
+ * punctuation, and singular/plural mismatches (e.g. "appliance" still
+ * matches "Appliances") so a near-miss from the model isn't silently
+ * dropped. */
 export function resolveScheduleScopeCategory(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  const norm = raw.toLowerCase().trim();
+  const norm = normalize(raw);
   if (!norm) return null;
-  return NORMALIZED_LOOKUP.get(norm) ?? null;
+
+  const exact = NORMALIZED_LOOKUP.get(norm) ?? NORMALIZED_LOOKUP.get(singularize(norm));
+  if (exact) return exact;
+
+  // Fallback: the raw label contains (or is contained in) a category name,
+  // e.g. "Kitchen Appliances" -> "Appliances".
+  for (const name of SCHEDULE_SCOPE_CATEGORIES) {
+    const nName = normalize(name);
+    if (nName.length >= 4 && (norm.includes(nName) || nName.includes(norm))) {
+      return name;
+    }
+  }
+
+  return null;
 }

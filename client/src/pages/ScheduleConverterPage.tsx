@@ -57,6 +57,7 @@ interface ScheduleItem {
   quantity: number;
   uom: string;
   scopeCategory: string;
+  scopeConfidence: number;
   sourceSection: string;
   confidence: number;
   flags: string[];
@@ -977,6 +978,11 @@ export default function ScheduleConverterPage() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            {!item.scopeCategory && item.scopeConfidence > 0 && (
+                              <span className="text-[10px] text-muted-foreground block mt-1">
+                                AI's best guess was {item.scopeConfidence}% confident (needs 90%+ to auto-fill)
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell className="text-center">
                             {getConfidenceBadge(item.confidence)}
