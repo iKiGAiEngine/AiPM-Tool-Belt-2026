@@ -311,6 +311,8 @@ input[type="date"].fd::-webkit-calendar-picker-indicator{filter:var(--date-picke
 .btn-icon-sm:hover{border-color:var(--gold-dim);color:var(--gold);}
 .btn-preset{background:var(--bg3);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:5px;font-size:11px;font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:all .2s;white-space:nowrap;}
 .btn-preset:hover{border-color:var(--gold-dim);color:var(--gold);}
+.search-note{display:none;align-items:center;font-size:10px;font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--gold);opacity:.85;white-space:nowrap;}
+.search-note.on{display:flex;}
 .btn-preset.active{background:linear-gradient(135deg,rgba(201,168,76,.18),rgba(201,168,76,.08));border-color:var(--gold);color:var(--gold);}
 
 .readonly-banner{display:none;align-items:center;gap:8px;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.25);border-radius:7px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--gold);}
@@ -795,17 +797,8 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
     <div class="toolbar">
       <div class="toolbar-filters">
         <div class="search-wrap"><span class="search-icon">&#128269;</span><input type="text" id="search" placeholder="Search all columns..."></div>
-        <div class="mr-wrap" id="mr-wrap">
-          <button class="mr-btn" id="mr-btn" onclick="toggleMR(event)" data-testid="button-region-filter">
-            <span class="mr-label" id="mr-label">All Regions</span>
-            <span class="mr-arrow">&#9660;</span>
-          </button>
-          <div class="mr-drop" id="mr-drop">
-            <span class="mr-clear-lnk" onclick="clearMR()">Clear selection</span>
-            <div id="mr-list"></div>
-          </div>
-        </div>
-        <select class="fs" id="f-status"><option value="">All Statuses</option></select>
+        <span class="search-note" id="search-note">Searching entire log &mdash; all filters ignored</span>
+        <button class="btn-preset" id="btn-mybids" onclick="toggleMyBids()" title="Filter: bids with my initials in the NBS Estimator column" data-testid="button-my-bids">My Bids</button>
         <button class="btn-preset" id="btn-socal" onclick="toggleSoCal()" title="Filter: LAX, SAN, and sub-regions" data-testid="button-socal-filter">SoCal Bids</button>
       </div>
       <div class="toolbar-actions-wrap" style="position:relative;display:flex;align-items:center;gap:6px;">
@@ -1277,6 +1270,10 @@ const saveLayout = () => localStorage.setItem('nbs_layout', JSON.stringify(layou
 let colFilters = { estimateStatus: ['Estimating','Revising'] };
 let selectedRegions = new Set();
 let socalActive = false;
+let myBidsActive = false;
+/* Initials of whoever is signed in, e.g. "HK" — this is what we look for in
+   the NBS Estimator column when the My Bids button is switched on. */
+function myInitials(){ return String(currentUser?.initials||'').trim().toUpperCase(); }
 const SOCAL_REGIONS = r => r && (/^LAX/i.test(r) || /^SAN/i.test(r) || /san.?diego/i.test(r));
 
 const fmt$ = n => { if(!n&&n!==0)return'\u2014';const num=Number(n);if(!num||isNaN(num))return'\u2014';return'$'+num.toLocaleString(); };
@@ -1309,9 +1306,39 @@ function setTab(t) {
   if(t==='newbids') loadBcInvites();
 }
 
+/* Everything about one entry, flattened into one lower-case string, so the
+   search box can look through every column (including hidden ones) instead of
+   the handful of fields it used to check. Dates and dollar amounts are added
+   in their on-screen form too, so "01/15/2026" and "$25,000" both find a hit. */
+function searchHaystack(p) {
+  const bits=[];
+  for(const [k,v] of Object.entries(p)) {
+    if(k.charAt(0)==='_') continue;               // internal bookkeeping fields
+    if(v==null || typeof v==='object') continue;
+    const str=String(v);
+    if(!str) continue;
+    bits.push(str);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(str)) bits.push(fmtD(str));      // 2026-01-15 -> 01/15/2026
+    if(typeof v==='number' || (/^\d+(\.\d+)?$/.test(str) && str.length>3)) bits.push(fmt$(v));
+  }
+  return bits.join(' \u2022 ').toLowerCase();
+}
+
+/* Every space-separated word must appear somewhere in the entry. */
+function matchesSearch(p, terms) {
+  const hay=searchHaystack(p);
+  return terms.every(t=>hay.includes(t));
+}
+
+function isMyBid(p) {
+  const me=myInitials();
+  if(!me) return false;
+  return String(p.nbsEstimator||'').split(/[,;/|]+/).map(x=>x.trim().toUpperCase()).filter(Boolean).includes(me);
+}
+
 function getFiltered() {
-  const s=document.getElementById('search').value.toLowerCase();
-  const fs=document.getElementById('f-status').value;
+  const s=document.getElementById('search').value.trim().toLowerCase();
+  const terms=s?s.split(/\s+/):[];
   const fm=document.getElementById('f-market').value;
   const fsw=document.getElementById('f-swinerton').value;
   const ff=document.getElementById('f-from').value;
@@ -1323,10 +1350,14 @@ function getFiltered() {
       const myIdent = currentUser?.initials||currentUser?.displayName||'';
       if(!isAdm && p._pendingDeletionBy !== myIdent) return false;
     }
-    if(s && ![p.projectName,p.estimateNumber,p.nbsEstimator,p.gcEstimateLead,p.region,p.primaryMarket,p.owner,p.estimateNumber].some(v=>v&&v.toLowerCase().includes(s))) return false;
+    /* FULL-LOG SEARCH: while there is text in the search box we deliberately
+       ignore every other filter (status, My Bids, SoCal, market, dates and the
+       per-column header filters) so a search always covers the entire log.
+       Clearing the box puts those filters straight back. */
+    if(terms.length) return matchesSearch(p,terms);
+    if(myBidsActive && !isMyBid(p)) return false;
     if(socalActive && !SOCAL_REGIONS(p.region)) return false;
     if(selectedRegions.size && !selectedRegions.has(p.region)) return false;
-    if(fs && p.estimateStatus!==fs) return false;
     if(fm && p.primaryMarket!==fm) return false;
     if(fsw && p.swinertonProject!==fsw) return false;
     if(ff && p.dueDate && p.dueDate<ff) return false;
@@ -1358,7 +1389,6 @@ function populateGlobalFilters() {
     el.innerHTML='<option value="">'+el.options[0].text+'</option>'+items.map(v=>`<option${v===cur?' selected':''}>${v}</option>`).join('');
   };
   populateMRList();
-  pop('f-status', STATUSES);
   pop('f-market', MARKETS);
 }
 
@@ -1931,6 +1961,30 @@ function toggleSoCal() {
   buildRows();
 }
 
+function toggleMyBids() {
+  if(!myInitials()) { alert('No initials are set on your AiPM user profile, so we can\u2019t tell which bids are yours. Ask an admin to add your initials, then try again.'); return; }
+  myBidsActive = !myBidsActive;
+  const btn = document.getElementById('btn-mybids');
+  if(btn) btn.classList.toggle('active', myBidsActive);
+  buildRows();
+}
+
+function clearMyBids() {
+  myBidsActive = false;
+  const btn = document.getElementById('btn-mybids');
+  if(btn) btn.classList.remove('active');
+}
+
+/* Hide the My Bids shortcut for anyone whose profile has no initials on it. */
+function updateMyBidsBtn() {
+  const btn = document.getElementById('btn-mybids');
+  if(!btn) return;
+  const me = myInitials();
+  btn.style.display = me ? '' : 'none';
+  btn.title = me ? 'Filter: bids with "' + me + '" in the NBS Estimator column' : '';
+  if(!me) clearMyBids();
+}
+
 function clearSoCal() {
   socalActive = false;
   const btn = document.getElementById('btn-socal');
@@ -1944,6 +1998,7 @@ function resetColLayout() {
   selectedRegions.clear();
   updateMRLabel();
   clearSoCal();
+  clearMyBids();
   saveLayout();
   buildHeaders();
   buildRows();
@@ -4458,9 +4513,15 @@ async function initApp() {
 
   document.addEventListener('click', e => { const w = document.getElementById('mr-wrap'); if(w && !w.contains(e.target)) closeAllMR(); });
   document.addEventListener('click', e => { if(!e.target.closest('.cfm-wrap')) closeAllCfm(); });
-  document.getElementById('search').addEventListener('input', () => buildRows());
-  ['f-status','f-market','f-swinerton','f-from','f-to']
-    .forEach(id => document.getElementById(id).addEventListener('change', () => buildRows()));
+  const searchEl = document.getElementById('search');
+  const searchNote = document.getElementById('search-note');
+  searchEl.addEventListener('input', () => {
+    if(searchNote) searchNote.classList.toggle('on', searchEl.value.trim() !== '');
+    buildRows();
+  });
+  ['f-market','f-swinerton','f-from','f-to']
+    .forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('change', () => buildRows()); });
+  updateMyBidsBtn();
   ['df-region','df-market','df-swinerton','df-from','df-to']
     .forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('change', renderDash); });
 
