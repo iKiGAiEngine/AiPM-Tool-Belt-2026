@@ -422,7 +422,7 @@ export default function ScheduleConverterPage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background animate-page-enter">
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-[1800px] mx-auto px-6 py-8">
         <ReadOnlyBanner />
         <div className="mb-8">
           <div className="flex items-center justify-between gap-4 flex-wrap mb-2">
@@ -874,7 +874,7 @@ export default function ScheduleConverterPage() {
                       <TableHead className="min-w-[180px]">MODEL NUMBER</TableHead>
                       <TableHead className="min-w-[60px] text-center">QTY</TableHead>
                       <TableHead className="min-w-[70px] text-center">UOM</TableHead>
-                      <TableHead className="min-w-[170px]">SCOPE CATEGORY</TableHead>
+                      <TableHead className="min-w-[240px]">SCOPE CATEGORY</TableHead>
                       <TableHead className="min-w-[70px] text-center">CONFIDENCE</TableHead>
                       <TableHead className="min-w-[150px]">FLAGS</TableHead>
                     </TableRow>
@@ -959,12 +959,15 @@ export default function ScheduleConverterPage() {
                             <span className="text-sm">{item.uom}</span>,
                             "text-center text-sm"
                           )}
-                          <TableCell data-testid={`cell-scopeCategory-${idx}`}>
+                          <TableCell className="w-[240px]" data-testid={`cell-scopeCategory-${idx}`}>
                             <Select
                               value={item.scopeCategory || "none"}
                               onValueChange={(value) => setScopeCategory(idx, value)}
                             >
-                              <SelectTrigger className="h-8 text-sm" data-testid={`select-scopeCategory-${idx}`}>
+                              <SelectTrigger
+                                className="h-auto min-h-8 w-full text-sm [&>span]:line-clamp-none [&>span]:whitespace-normal [&>span]:text-left"
+                                data-testid={`select-scopeCategory-${idx}`}
+                              >
                                 <SelectValue placeholder="Unassigned" />
                               </SelectTrigger>
                               <SelectContent>

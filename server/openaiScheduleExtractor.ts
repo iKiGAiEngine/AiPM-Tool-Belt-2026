@@ -85,7 +85,7 @@ CRITICAL RULES:
 - Section headers (like "ACCESSORY SCHEDULE", "096400 CUSTOM CASEWORK"): these are NOT data rows. Use them as the sourceSection value for items beneath them. Do NOT count them in totalRowCount.
 
 For each row, extract:
-- planCallout: The plan callout/tag/mark (e.g. "TA-01", "PF-03", "EQ-1"). If the row has no callout, use "".
+- planCallout: The plan callout/tag/mark for this item (e.g. "TA-01", "PF-03", "EQ-1", "TWC", "PTD", "WP1", "CC-055"). This is normally SHORT — typically just a few letters and/or numbers, not a full word or phrase. If the schedule's callout/tag cell for this row also contains extra descriptive text beyond that short code (for example the cell reads "RA1 BABY" or "RA2 MIRROR 24x48" instead of just "RA1" / "RA2"), extract ONLY the short code itself as planCallout — do NOT include the trailing word(s) in planCallout. Use your own judgment on where those leftover word(s) belong instead: if they name or describe the item, put them in description; if they read like part of a product/model identifier, put them in model. Never combine a short code with a spelled-out word or phrase in planCallout. If the row has no callout at all, use "".
 - description: The item description PLUS ALL additional details from every other column in this row that is not planCallout, manufacturer, model, or quantity. You MUST capture every single piece of data visible in the row. This includes but is not limited to: finish, color, size, dimensions, mounting type, material, ADA compliance notes, door swing, hinge type, fire rating, installation notes, remarks, location, room numbers, specifications, series, options, accessories, voltage, capacity, weight, type, style, coating, UL listing, gauge, and ANY other column data. Separate each detail with a semicolon. Example: "Paper Towel Dispenser; Surface Mounted; Satin Finish; ADA Compliant; 18 ga. stainless steel; Type 304; UL Listed"
 - manufacturer: The manufacturer name (e.g. "Bobrick", "Kohler", "ASI")
 - model: The model number, product name, or product line exactly as shown. If there is an explicit model number (e.g. "B-2621", "K-14367-CP"), use that. If there is no model number but there IS a product name or item title shown alongside the manufacturer (e.g. "RIGID SHEET PANEL", "PALLADIUM RIGID SHEET"), use the product name/title as the model. The goal is that manufacturer + model together form a complete product identifier.
@@ -122,6 +122,8 @@ PROCESSING METHOD: Process the schedule image ONE ROW AT A TIME, top to bottom. 
 
 Extract ALL line items from the schedule image. Each field must be present in every item. The description field must include the item name PLUS ALL additional details from every column in the row (finish, size, mounting, material, notes, color, dimensions, ADA, fire rating, location, room numbers, type, style, gauge, coating, etc.) separated by semicolons. Do NOT discard any information — every cell visible in every row must appear in your output.
 
+planCallout must be ONLY the short callout/tag code itself (e.g. "TA-01", "WP1", "CC-055") — never a code plus extra descriptive words. If a callout cell also contains descriptive text (e.g. "RA1 BABY"), keep only the short code ("RA1") in planCallout and move the rest into description or model, whichever fits better.
+
 For scopeCategory, use expert scope-classification judgment to pick the single best match from: ${SCOPE_CATEGORY_LIST}. Every item MUST get one of these — never leave it blank, even for an ambiguous item; make your best expert guess. Set scopeConfidence (0-100) to your genuine certainty in that match — low scores are fine and expected for ambiguous items, they do not mean you can skip assigning a category.
 
 CRITICAL: Extract EVERY row from EVERY section. Do not stop early. Do not skip rows with empty callouts or missing manufacturers. If the schedule has multiple sections, include items from ALL sections. Verify your items count matches totalRowCount.`;
@@ -139,6 +141,7 @@ CHECK FOR THESE SPECIFIC ISSUES:
 - Description details that belong to a different row
 - Merged or split rows that should be combined or separated
 - Any column data that was dropped and not included in the description
+- planCallout containing more than just the short callout code — planCallout should normally be just a few letters/numbers (e.g. "TA-01", "WP1", "CC-055"), never a code plus a spelled-out word or phrase. If you find one like "RA1 BABY" or "RA2 MIRROR 24x48", fix it: keep only the short code in planCallout, and move the extra word(s) into description or model (whichever fits — use your judgment), making sure they aren't lost or duplicated.
 - scopeCategory accuracy — for EVERY item, independently re-derive the best-fit category using expert Division 10 / specialty-contractor scope-classification judgment, choosing from this fixed list: ${SCOPE_CATEGORY_LIST}. Do not just check that the existing value is technically one of the list options — actually reconsider, from the item's own description, whether it is truly the best-fit category, and correct it if a better fit exists. Every single item must end up with a scopeCategory from this list; never leave one blank or unassigned. Update scopeConfidence (0-100) to reflect your genuine certainty after this re-check — low scores are expected and fine for ambiguous items.
 
 PROCESS:
@@ -503,7 +506,7 @@ CRITICAL RULES:
 - If the text is free-form (paragraph-style), identify each distinct item/product and extract it as a separate row.
 
 For each row, extract:
-- planCallout: The plan callout/tag/mark (e.g. "TA-01", "PF-03"). If none, use "".
+- planCallout: The plan callout/tag/mark for this item (e.g. "TA-01", "PF-03", "TWC", "WP1", "CC-055"). This is normally SHORT — typically just a few letters and/or numbers, not a full word or phrase. If the callout/tag text for this row also contains extra descriptive words beyond that short code (for example "RA1 BABY" instead of just "RA1"), extract ONLY the short code as planCallout, and use your own judgment on where the leftover word(s) belong: description if they name/describe the item, model if they look like part of a product identifier. If none, use "".
 - description: The item description PLUS ALL additional details that don't map to other fields. Include finish, color, size, dimensions, mounting type, material, notes, remarks, location, room numbers, etc. Separate each detail with a semicolon.
 - manufacturer: The manufacturer name (e.g. "Bobrick", "Kohler", "ASI")
 - model: The model number or product name exactly as shown.
