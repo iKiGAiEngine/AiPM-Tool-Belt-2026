@@ -959,12 +959,15 @@ export default function ScheduleConverterPage() {
                             <span className="text-sm">{item.uom}</span>,
                             "text-center text-sm"
                           )}
-                          <TableCell data-testid={`cell-scopeCategory-${idx}`}>
+                          <TableCell className="w-[240px]" data-testid={`cell-scopeCategory-${idx}`}>
                             <Select
                               value={item.scopeCategory || "none"}
                               onValueChange={(value) => setScopeCategory(idx, value)}
                             >
-                              <SelectTrigger className="h-8 text-sm" data-testid={`select-scopeCategory-${idx}`}>
+                              <SelectTrigger
+                                className="h-auto min-h-8 w-full text-sm [&>span]:line-clamp-none [&>span]:whitespace-normal [&>span]:text-left"
+                                data-testid={`select-scopeCategory-${idx}`}
+                              >
                                 <SelectValue placeholder="Unassigned" />
                               </SelectTrigger>
                               <SelectContent>
