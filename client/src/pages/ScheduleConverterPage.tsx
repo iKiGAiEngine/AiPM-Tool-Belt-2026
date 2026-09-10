@@ -422,7 +422,7 @@ export default function ScheduleConverterPage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background animate-page-enter">
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-[1800px] mx-auto px-6 py-8">
         <ReadOnlyBanner />
         <div className="mb-8">
           <div className="flex items-center justify-between gap-4 flex-wrap mb-2">
@@ -874,7 +874,7 @@ export default function ScheduleConverterPage() {
                       <TableHead className="min-w-[180px]">MODEL NUMBER</TableHead>
                       <TableHead className="min-w-[60px] text-center">QTY</TableHead>
                       <TableHead className="min-w-[70px] text-center">UOM</TableHead>
-                      <TableHead className="min-w-[170px]">SCOPE CATEGORY</TableHead>
+                      <TableHead className="min-w-[240px]">SCOPE CATEGORY</TableHead>
                       <TableHead className="min-w-[70px] text-center">CONFIDENCE</TableHead>
                       <TableHead className="min-w-[150px]">FLAGS</TableHead>
                     </TableRow>
