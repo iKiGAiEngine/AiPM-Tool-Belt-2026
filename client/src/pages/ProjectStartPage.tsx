@@ -404,6 +404,9 @@ export default function ProjectStartPage() {
     if (extractionResult?.location) {
       formData.append("screenshotLocation", extractionResult.location);
     }
+    if (extractionResult?.gcContactName) {
+      formData.append("gcEstimator", extractionResult.gcContactName);
+    }
     if (extractionResult?.rawText) {
       formData.append("screenshotRawText", extractionResult.rawText);
     }

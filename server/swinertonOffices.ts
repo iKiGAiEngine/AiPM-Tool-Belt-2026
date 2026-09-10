@@ -79,8 +79,15 @@ export function matchSwinertonOffice(
   }
 
   // --- PDX ---
-  if (/boise|portland/i.test(office)) {
-    return result("PDX");
+  // Two distinct PDX office rows exist (PDX - Portland, PDX - Idaho/Boise).
+  // Passing name=undefined into result() would match whichever PDX row
+  // happens to come first in the regions array — resolve the sub-office
+  // explicitly instead of relying on array order.
+  if (/portland/i.test(office)) {
+    return result("PDX", "Portland");
+  }
+  if (/boise|idaho/i.test(office)) {
+    return result("PDX", "Idaho");
   }
 
   // --- SFO ---
@@ -98,8 +105,10 @@ export function matchSwinertonOffice(
     return result("DFW");
   }
 
-  // --- DEN ---
-  if (/denver|colorado/i.test(office)) {
+  // --- DEN --- (Arvada is Swinerton's Denver-metro office address, seen when
+  // an invite email only gives the office's street address, not a city name
+  // literally called "Denver"/"Colorado")
+  if (/denver|colorado|arvada/i.test(office)) {
     return result("DEN");
   }
 
