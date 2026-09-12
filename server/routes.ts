@@ -35,6 +35,7 @@ import { registerScopeManufacturerRoutes } from "./scopeManufacturerRoutes";
 import { registerErrorRoutes } from "./errorRoutes";
 import { registerChatRoutes } from "./chatRoutes";
 import { registerTaxRateRoutes } from "./taxRateRoutes";
+import { registerIntegrationRoutes, INTEGRATION_API_PREFIX } from "./integration/routes";
 import { auditLog } from "./auditService";
 import { db } from "./db";
 import { users as usersTable } from "@shared/schema";
@@ -78,6 +79,14 @@ export async function registerRoutes(
     res.json({ name: pkg.name, version: pkg.version, buildTime: BUILD_TIME });
   });
 
+  // ── SharePoint / Power Automate integration API ──
+  // Registered FIRST, on purpose. Everything below this line authenticates
+  // with a browser login session; this router authenticates with an API key
+  // and must not be caught by the session middleware that follows. It applies
+  // its own auth, CORS, rate limiting and audit logging under the
+  // /api/integration/v1 prefix — see server/integration/security.ts.
+  registerIntegrationRoutes(app);
+
   // Block viewer role from all write operations globally — must be registered
   // BEFORE any route files so it intercepts every POST/PUT/PATCH/DELETE.
   const writeViewerExemptPaths = [
@@ -91,6 +100,7 @@ export async function registerRoutes(
     const isWrite = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
     if (!isWrite) return next();
     const fullPath = req.originalUrl || req.path;
+    if (fullPath.startsWith(INTEGRATION_API_PREFIX)) return next();
     if (writeViewerExemptPaths.some(p => fullPath.startsWith(p))) return next();
     requireWriteAccess(req, res, next);
   });
@@ -124,7 +134,9 @@ export async function registerRoutes(
     res.sendFile(path.resolve(process.cwd(), "public", "tools", "proposal-log.html"));
   });
 
-  const publicPaths = ["/api/auth/", "/api/version", "/health", "/api/mfr/export-excel", "/api/mfr/contacts-report"];
+  // INTEGRATION_API_PREFIX is exempt because it runs its own API-key auth
+  // above; it is listed here so the exemption survives any future reordering.
+  const publicPaths = ["/api/auth/", "/api/version", "/health", "/api/mfr/export-excel", "/api/mfr/contacts-report", INTEGRATION_API_PREFIX];
   app.use("/api", (req, res, next) => {
     const fullPath = req.originalUrl || req.path;
     if (publicPaths.some(p => fullPath.startsWith(p))) return next();

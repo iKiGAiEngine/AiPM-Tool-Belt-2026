@@ -21,34 +21,14 @@ import {
 } from "lucide-react";
 import { exportEstimateToExcel } from "@/lib/exportEstimateExcel";
 import { MAX_UPLOAD_LABEL } from "@shared/uploadLimits";
+import { ALL_SCOPES, UNCATEGORIZED_SCOPE } from "@shared/estimateScopes";
+import { computeEstimateCalc, computeBreakoutCalc } from "@shared/estimateCalc";
 import nbsLogoUrl from "@assets/image_1777258527973.png";
 
 // ══════════════════════════════════════════════════
 // CONSTANTS
 // ══════════════════════════════════════════════════
 
-const ALL_SCOPES = [
-  { id: "accessories",      label: "Toilet Accessories",   csi: "10 28 00" },
-  { id: "partitions",       label: "Toilet Compartments",  csi: "10 21 00" },
-  { id: "fire_ext",         label: "FEC",                  csi: "10 44 00" },
-  { id: "corner_guards",    label: "Wall Protection",      csi: "10 26 00" },
-  { id: "appliances",       label: "Appliances",           csi: "11 31 00" },
-  { id: "lockers",          label: "Lockers",              csi: "10 51 00" },
-  { id: "display_boards",   label: "Visual Displays",      csi: "10 11 00" },
-  { id: "bike_racks",       label: "Bike Racks",           csi: "10 73 00" },
-  { id: "wire_mesh",        label: "Wire Mesh Partitions", csi: "10 22 13" },
-  { id: "cubicle_curtains", label: "Cubicle Curtains",     csi: "12 48 00" },
-  { id: "med_equipment",    label: "Med Equipment",        csi: "11 71 00" },
-  { id: "expansion_joints", label: "Expansion Joints",     csi: "07 95 00" },
-  { id: "storage_units",    label: "Shelving",             csi: "10 51 13" },
-  { id: "equipment",        label: "Equipment",            csi: "11 00 00" },
-  { id: "entrance_mats",    label: "Entrance Mats",        csi: "12 48 13" },
-  { id: "mailboxes",        label: "Mailbox",              csi: "10 55 00" },
-  { id: "flagpoles",        label: "Flagpole",             csi: "10 75 00" },
-  { id: "knox_box",         label: "Knox Box",             csi: "08 71 13" },
-  { id: "site_furnishing",  label: "Site Furnishing",      csi: "12 93 00" },
-];
-const UNCATEGORIZED_SCOPE = { id: "uncategorized", label: "Uncategorized", csi: "" };
 
 const CHECKLIST_TEMPLATE = [
   { id: "c1", stage: "intake", label: "Spec sections identified and reviewed", done: false, auto: false },
@@ -1078,58 +1058,17 @@ function EstimatingModuleInner() {
   // CALCULATIONS ENGINE
   // ══════════════════════════════════════════════════
 
-  const calcData = useMemo(() => {
-    const data: Record<string, any> = {};
-    [...ALL_SCOPES, ...(activeScopes.includes("uncategorized") ? [UNCATEGORIZED_SCOPE] : [])].forEach(cat => {
-      const items = lineItems.filter(i => i.category === cat.id);
-      const catQ = quotes.filter(q => q.category === cat.id);
-      const material = items.reduce((s, i) => s + n(i.unitCost) * i.qty, 0);
-      const lumpAdj = catQ.reduce((s, q) => {
-        if (q.pricingMode === "lump_sum" && n(q.lumpSumTotal) > 0) {
-          const qTotal = items.filter(i => i.quoteId === q.id).reduce((ss, i) => ss + n(i.unitCost) * i.qty, 0);
-          return s + Math.max(0, n(q.lumpSumTotal) - qTotal);
-        }
-        return s;
-      }, 0);
-      const effMat = material + lumpAdj;
-      const escRate = catOverrides[cat.id]?.esc ?? defaultEsc;
-      const isEscOvr = catOverrides[cat.id]?.esc != null;
-      const escalation = items.reduce((s, i) => {
-        const r = i.escOverride != null ? n(i.escOverride) : escRate;
-        return s + n(i.unitCost) * i.qty * (r / 100);
-      }, 0) + lumpAdj * (escRate / 100);
-      const totalFreight = catQ.reduce((s, q) => s + n(q.freight), 0);
-      const subtotal = effMat + escalation + totalFreight;
-      const ohRate = catOverrides[cat.id]?.oh ?? defaultOh;
-      const isOhOvr = catOverrides[cat.id]?.oh != null;
-      const oh = subtotal * (ohRate / 100);
-      const ohImpact = oh - subtotal * (defaultOh / 100);
-      const feeRate = catOverrides[cat.id]?.fee ?? defaultFee;
-      const isFeeOvr = catOverrides[cat.id]?.fee != null;
-      const feePct = feeRate / 100;
-      const fee = feePct <= 0 || feePct >= 1 ? 0 : (subtotal / (1 - feePct)) - subtotal;
-      const defaultFeePct = defaultFee / 100;
-      const defaultFeeAmt = defaultFeePct <= 0 || defaultFeePct >= 1 ? 0 : (subtotal / (1 - defaultFeePct)) - subtotal;
-      const feeImpact = fee - defaultFeeAmt;
-      const escImpact = escalation - effMat * (defaultEsc / 100);
-      const tax = effMat * (taxRate / 100);
-      const bond = subtotal * (bondRate / 100);
-      const total = subtotal + oh + fee + tax + bond;
-      const missingBackup = items.filter(i => !i.hasBackup).length;
-      const isComplete = catComplete[cat.id] || false;
-      data[cat.id] = {
-        items: items.length, material: effMat, escalation, escRate, isEscOvr, escImpact,
-        totalFreight, catQuotes: catQ, subtotal, ohRate, isOhOvr, oh, ohImpact,
-        feeRate, isFeeOvr, fee, feeImpact, tax, bond, total, missingBackup, isComplete,
-      };
-    });
-    const g = (fn: (d: any) => number) => Object.values(data).reduce((s, d) => s + fn(d), 0);
-    const allMat = g(d => d.material), allEsc = g(d => d.escalation), allFrt = g(d => d.totalFreight);
-    const allSub = g(d => d.subtotal), allOh = g(d => d.oh), allFee = g(d => d.fee);
-    const allTax = g(d => d.tax), allBond = g(d => d.bond);
-    const grandTotal = allSub + allOh + allFee + allTax + allBond;
-    return { ...data, allMat, allEsc, allFrt, allSub, allOh, allFee, allTax, allBond, grandTotal };
-  }, [lineItems, quotes, catOverrides, defaultOh, defaultFee, defaultEsc, taxRate, bondRate, catComplete]);
+  // Totals live in shared/estimateCalc.ts so the number on screen, the number
+  // in the Excel export, and the number the SharePoint integration API hands
+  // to Power Automate are all produced by the same code.
+  const calcData = useMemo(() => computeEstimateCalc({
+    lineItems: lineItems as any,
+    quotes: quotes as any,
+    scopeIds: [...ALL_SCOPES, ...(activeScopes.includes("uncategorized") ? [UNCATEGORIZED_SCOPE] : [])].map(s => s.id),
+    catOverrides,
+    catComplete,
+    defaultOh, defaultFee, defaultEsc, taxRate, bondRate,
+  }), [lineItems, quotes, activeScopes, catOverrides, defaultOh, defaultFee, defaultEsc, taxRate, bondRate, catComplete]);
 
   // ── Breakout calculations ──
   const allocMap = useMemo(() => {
@@ -1141,34 +1080,13 @@ function EstimatingModuleInner() {
     return m;
   }, [allocations]);
 
-  const breakoutCalcData = useMemo(() => {
-    if (breakoutGroups.length === 0) return {};
-    const data: Record<number, any> = {};
-    breakoutGroups.forEach(group => {
-      let material = 0; let itemCount = 0;
-      lineItems.forEach(item => {
-        const allocQty = allocMap[item.id]?.[group.id] || 0;
-        if (allocQty > 0) { material += n(item.unitCost) * allocQty; itemCount++; }
-      });
-      const ohRate = n(group.ohOverride) || defaultOh;
-      const feeRate = n(group.feeOverride) || defaultFee;
-      const escRate = n(group.escOverride) || defaultEsc;
-      const escalation = material * (escRate / 100);
-      const totalMat = calcData.allMat || 1;
-      const freight = group.freightMethod === "manual" && group.manualFreight != null
-        ? n(group.manualFreight)
-        : totalMat > 0 ? (material / totalMat) * calcData.allFrt : 0;
-      const subtotal = material + escalation + freight;
-      const oh = subtotal * (ohRate / 100);
-      const breakoutFeePct = feeRate / 100;
-      const fee = breakoutFeePct <= 0 || breakoutFeePct >= 1 ? 0 : (subtotal / (1 - breakoutFeePct)) - subtotal;
-      const tax = material * (taxRate / 100);
-      const bond = subtotal * (bondRate / 100);
-      const total = subtotal + oh + fee + tax + bond;
-      data[group.id] = { material, escalation, freight, subtotal, oh, fee, tax, bond, total, itemCount, ohRate, feeRate, escRate };
-    });
-    return data;
-  }, [breakoutGroups, lineItems, allocMap, defaultOh, defaultFee, defaultEsc, taxRate, bondRate, calcData]);
+  const breakoutCalcData = useMemo(() => computeBreakoutCalc({
+    breakoutGroups: breakoutGroups as any,
+    lineItems: lineItems as any,
+    allocMap,
+    totals: { allMat: calcData.allMat, allFrt: calcData.allFrt },
+    defaultOh, defaultFee, defaultEsc, taxRate, bondRate,
+  }), [breakoutGroups, lineItems, allocMap, defaultOh, defaultFee, defaultEsc, taxRate, bondRate, calcData]);
 
   // ── Breakout validation ──
   const breakoutValidation = useMemo(() => {
