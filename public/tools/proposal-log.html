@@ -2525,10 +2525,14 @@ function loadBcSyncDemo(){
   bcDemoMode=true;
   const bc=(id)=>`https://app.buildingconnected.com/opportunities/${id}`;
   bcSyncPreview={
-    totalFound:300, afterFilter:18, sinceDateUsed:null, moreExist:false,
+    totalFound:300, afterFilter:18, sinceDateUsed:null, moreExist:false, duplicatesCollapsed:2,
     preview:[
       {opportunityId:'demo-1',action:'create',projectName:'ELAC Facilities M & O Replacement',gcCompanyName:'Swinerton Builders',region:'LAX - OCLA',primaryMarket:'Education',dueDate:'2026-08-11',inviteDate:'2026-07-02',anticipatedStart:'2026-09',anticipatedFinish:'2027-05',squareFeet:'85,000',projectAddress:'1301 Avenida Cesar Chavez, Monterey Park, CA',scopeChanges:['Concrete','Framing','Drywall'],bcLink:bc('demo-1'),ndaRequired:false,regionNotConfident:false},
       {opportunityId:'demo-2',action:'create',projectName:'Confidential Data Center — Phase 2',gcCompanyName:'Swinerton Builders',region:'',regionNotConfident:true,ndaRequired:true,dueDate:'2026-08-20',inviteDate:'2026-07-05',scopeChanges:[],bcLink:bc('demo-2')},
+      // Three BC invites for one job — one per bid package — collapsed into a
+      // single card with all three scopes kept. This is what the duplicate
+      // auto-review produces; the two folded IDs still get sent on Pull.
+      {opportunityId:'demo-6',action:'create',projectName:'KIA of Central Austin',gcCompanyName:'Swinerton Builders',region:'',regionNotConfident:true,dueDate:'2026-10-09',inviteDate:'2026-09-14',anticipatedStart:'2026-11-11',anticipatedFinish:'2028-06-28',squareFeet:'206,601',projectAddress:'7715 Chevy Chase Drive, Austin, TX 78752',scopeChanges:['Expansion Joint Covers','Site Furnishings','Specialties'],duplicateOpportunityIds:['demo-6b','demo-6c'],bcLink:bc('demo-6'),ndaRequired:false},
       {opportunityId:'demo-3',action:'merge',projectName:'Southwest Airlines West Gate TI- 90%',gcCompanyName:'Swinerton Builders',existingEntryId:900003,scopeChanges:['Electrical','Low Voltage'],bcLink:bc('demo-3')},
       {opportunityId:'demo-4',action:'update',projectName:'JMH Behring Pavillion – Level 2 TI',gcCompanyName:'Swinerton Builders',existingEntryId:900004,fieldChanges:['dueDate: 2026-07-15 → 2026-07-28','gcEstimateLead: none → Priya Anand'],bcLink:bc('demo-4')},
       {opportunityId:'demo-5',action:'update',projectName:'Mercy General – ED Expansion',gcCompanyName:'Swinerton Builders',existingEntryId:900005,fieldChanges:['squareFeet: 40,000 → 52,500','anticipatedFinish: none → 2027-02','scopes added: Plumbing'],bcLink:bc('demo-5')},
@@ -2604,6 +2608,8 @@ function renderBcSyncPreview(){
   const summary=[`${bcSyncPreview.totalFound} found`,`${bcSyncPreview.afterFilter} from approved GCs`];
   if(newBids.length) summary.push(newBids.length+' new');
   if(updates.length) summary.push(updates.length+' update'+(updates.length!==1?'s':''));
+  const dupes=bcSyncPreview.duplicatesCollapsed||0;
+  if(dupes) summary.push(dupes+' duplicate invite'+(dupes!==1?'s':'')+' auto-merged');
 
   let html=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg3);">
       <span style="font-size:11px;color:var(--text-dim);">${summary.join(' · ')}</span>
@@ -2642,8 +2648,14 @@ function renderBcSyncPreview(){
 
 // A New Bid card — surfaces the project context a reviewer needs to decide
 // whether it's worth pulling in. Blank fields are omitted to keep it clean.
+//
+// BC sends one invite per bid package, so the same job can arrive several times
+// over, differing only by scope. The server already folds those into this single
+// card (scopes unioned); the badge below just says so, so nobody wonders where
+// the other rows went.
 function renderBcNewBidCard(item){
   const checked=bcSyncPreviewSelected.has(item.opportunityId);
+  const dupBadge=bcMergedInvitesBadge(item);
   const regionHtml=item.region
     ? bcEscHtml(item.region)+(item.regionNotConfident?' <span style="color:#fb923c;" title="Region needs review">&#9888;</span>':'')
     : '<span style="color:#fb923c;">No region</span>';
@@ -2666,7 +2678,7 @@ function renderBcNewBidCard(item){
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span style="font-weight:600;font-size:13px;">${bcEscHtml(item.projectName||'(untitled)')}</span>
-          <span style="font-size:11px;">${regionHtml}</span>${nda}${bc}
+          <span style="font-size:11px;">${regionHtml}</span>${nda}${dupBadge}${bc}
         </div>
         ${meta.length?`<div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${meta.join(' &middot; ')}</div>`:''}
         ${detail.length?`<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${detail.join(' &middot; ')}</div>`:''}
@@ -2676,9 +2688,20 @@ function renderBcNewBidCard(item){
   </div>`;
 }
 
+// Says how many BC invites were auto-merged into this one card, so nobody
+// wonders where the near-identical rows went. Empty when nothing was merged.
+function bcMergedInvitesBadge(item){
+  const dupCount=(item.duplicateOpportunityIds||[]).length;
+  if(!dupCount) return '';
+  const total=dupCount+1;
+  const title=`BuildingConnected sent ${total} separate invites for this project — one per bid package. They were auto-merged into this single invite and every scope was kept.`;
+  return ` <span class="badge" style="background:rgba(74,222,128,.15);color:#4ade80;border:1px solid rgba(74,222,128,.35);" title="${bcEscHtml(title)}">&#8644; ${total} invites merged</span>`;
+}
+
 // An Update card — shows which existing bid is affected and exactly what changes.
 function renderBcUpdateCard(item){
   const checked=bcSyncPreviewSelected.has(item.opportunityId);
+  const dupBadge=bcMergedInvitesBadge(item);
   const bc=item.bcLink?` <a href="${bcEscHtml(item.bcLink)}" target="_blank" rel="noopener noreferrer" style="color:#60a5fa;font-size:11px;text-decoration:none;white-space:nowrap;">&#128279; View on BC</a>`:'';
   return `<div style="border:1px solid var(--border);border-radius:6px;background:var(--bg);padding:10px;margin:8px 0;">
     <div style="display:flex;align-items:flex-start;gap:8px;">
@@ -2686,7 +2709,7 @@ function renderBcUpdateCard(item){
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span style="font-weight:600;font-size:13px;">${bcEscHtml(item.projectName||'(untitled)')}</span>
-          ${bcUpdateTargetTag(item)}${bc}
+          ${bcUpdateTargetTag(item)}${dupBadge}${bc}
         </div>
         <div style="margin-top:5px;">${renderBcSyncChanges(item)}</div>
       </div>
@@ -2752,9 +2775,18 @@ function bcSyncSelectAll(group,checked){
 
 function bcSelectedIds(group){
   const {newBids,updates}=bcSyncGroups();
-  return (group==='create'?newBids:updates)
+  const ids=[];
+  (group==='create'?newBids:updates)
     .filter(i=>bcSyncPreviewSelected.has(i.opportunityId))
-    .map(i=>i.opportunityId);
+    .forEach(i=>{
+      ids.push(i.opportunityId);
+      // Duplicate BC invites (same job, different bid package) were collapsed
+      // into this one card server-side. They have no card of their own, so their
+      // IDs ride along here — otherwise the server never records them and the
+      // next sync offers them up as brand-new bids all over again.
+      (i.duplicateOpportunityIds||[]).forEach(dupId=>{ if(!ids.includes(dupId)) ids.push(dupId); });
+    });
+  return ids;
 }
 
 // New bids are additive — pull them straight in, no confirm needed.

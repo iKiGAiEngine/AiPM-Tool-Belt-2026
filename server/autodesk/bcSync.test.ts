@@ -1,5 +1,5 @@
 import assert from "assert";
-import { normalizeOpportunity, filterByGcAllowlist, guessRegionFromLocation, looksLikeNdaInvite, deriveBidDueDate } from "./bcSync.js";
+import { normalizeOpportunity, filterByGcAllowlist, guessRegionFromLocation, looksLikeNdaInvite, deriveBidDueDate, bcProjectMatchKeys, bcOpportunityMatchKeys, BcProjectIndex, foldDuplicateIntoPreviewItem } from "./bcSync.js";
 
 const swinertonV2Payload = {
   id: "6627779ac415eba5996c5723",
@@ -241,6 +241,109 @@ console.log("PASS: Project-nested dates (project.expectedStart / project.expecte
 const v2WithDates = normalizeOpportunity(swinertonV2Payload);
 assert.strictEqual(v2WithDates.location?.formattedAddress, "5200 Illumina Way, San Diego, CA 92122");
 console.log("PASS: V2 payload formattedAddress now includes street + zip");
+
+
+// ─── Duplicate invite collapsing ─────────────────────────────────────
+// BuildingConnected invites a sub once per bid package, so one job lands as
+// several opportunities differing only by trade. The real-world case this
+// guards: "KIA of Central Austin" arriving three times (Expansion Joint Covers,
+// Site Furnishings, Specialties) with no projectId on any of them, which used to
+// produce three near-identical rows in the invites list.
+
+const kiaPayload = (id: string, trade: string) => ({
+  id,
+  name: "KIA of Central Austin",
+  client: { company: { name: "Swinerton Builders" } },
+  dueAt: "2026-10-09T21:00:00.000Z",
+  invitedAt: "2026-09-14T15:00:00.000Z",
+  address: { street: "7715 Chevy Chase Drive", city: "Austin", state: "TX", zip: "78752" },
+  tradeName: trade,
+});
+
+const kiaOpps = [
+  normalizeOpportunity(kiaPayload("kia-1", "Expansion Joint Covers")),
+  normalizeOpportunity(kiaPayload("kia-2", "Site Furnishings")),
+  normalizeOpportunity(kiaPayload("kia-3", "Specialties")),
+];
+
+// Precondition for the whole feature: these carry no projectId, so projectId
+// alone could never have grouped them.
+assert.ok(!kiaOpps[0].projectId, "the KIA bid-board payload carries no projectId");
+
+const kiaKeys = kiaOpps.map(bcOpportunityMatchKeys);
+assert.deepStrictEqual(kiaKeys[0], kiaKeys[1], "same job, different bid package → same match key");
+assert.deepStrictEqual(kiaKeys[1], kiaKeys[2], "third bid package matches the first two");
+console.log("PASS: scope-only duplicate invites share a match key even with no projectId");
+
+// BC's own projectId stays authoritative and is tried first.
+assert.deepStrictEqual(
+  bcProjectMatchKeys({ projectId: "p1" })[0], "id:p1",
+  "projectId produces an exact-id key");
+
+// Names are normalized, so punctuation, case and filler words don't split a pair.
+assert.deepStrictEqual(
+  bcProjectMatchKeys({ projectName: "KIA of Central Austin", gcCompanyName: "Swinerton Builders", dueDate: "2026-10-09" }),
+  bcProjectMatchKeys({ projectName: "Kia Of  Central Austin!", gcCompanyName: "Swinerton, Builders Inc.", dueDate: "2026-10-09" }),
+  "punctuation/case/filler differences must not split an otherwise identical pair");
+
+// Guard against over-merging: a re-bid or later phase with its own deadline, and
+// the same project name coming from a different GC, both stay separate.
+assert.notDeepStrictEqual(
+  bcProjectMatchKeys({ projectName: "KIA of Central Austin", gcCompanyName: "Swinerton Builders", dueDate: "2026-10-09" }),
+  bcProjectMatchKeys({ projectName: "KIA of Central Austin", gcCompanyName: "Swinerton Builders", dueDate: "2027-02-01" }),
+  "a different bid due date must NOT be treated as the same invite");
+assert.notDeepStrictEqual(
+  bcProjectMatchKeys({ projectName: "KIA of Central Austin", gcCompanyName: "Swinerton Builders", dueDate: "2026-10-09" }),
+  bcProjectMatchKeys({ projectName: "KIA of Central Austin", gcCompanyName: "Hensel Phelps", dueDate: "2026-10-09" }),
+  "a different GC must NOT be treated as the same invite");
+
+// A name that normalizes away to nothing yields no fingerprint, so unnamed
+// invites are never silently merged into each other.
+assert.deepStrictEqual(bcProjectMatchKeys({ projectName: "The Building" }), [],
+  "a name made entirely of filler words produces no fingerprint key");
+assert.deepStrictEqual(bcProjectMatchKeys({}), [], "an empty opportunity produces no keys at all");
+console.log("PASS: match keys merge scope-only duplicates without merging genuinely different bids");
+
+// The index hits on ANY candidate key and keeps the first registration.
+const idx = new BcProjectIndex<string>();
+idx.register(bcProjectMatchKeys({ projectId: "p1", projectName: "KIA of Central Austin", gcCompanyName: "Swinerton", dueDate: "2026-10-09" }), "first");
+idx.register(bcProjectMatchKeys({ projectId: "p2", projectName: "KIA of Central Austin", gcCompanyName: "Swinerton", dueDate: "2026-10-09" }), "second");
+assert.strictEqual(idx.find(["id:p1"]), "first", "exact projectId lookup hits");
+assert.strictEqual(
+  idx.find(bcProjectMatchKeys({ projectName: "KIA of Central Austin", gcCompanyName: "Swinerton", dueDate: "2026-10-09" })),
+  "first", "fingerprint lookup resolves to the FIRST registration, not the later one");
+assert.strictEqual(idx.find(bcProjectMatchKeys({ projectName: "Unrelated Job", gcCompanyName: "Swinerton", dueDate: "2026-10-09" })), undefined,
+  "an unrelated project does not match");
+console.log("PASS: BcProjectIndex matches on any key and keeps the earliest invite as the fold target");
+
+// End-to-end shape of what /sync/preview builds: three invites in, one card out,
+// carrying every scope and the two folded opportunity IDs.
+const collapsed = new BcProjectIndex<any>();
+const cards: any[] = [];
+let collapsedCount = 0;
+for (const opp of kiaOpps) {
+  const keys = bcOpportunityMatchKeys(opp);
+  const hit = collapsed.find(keys);
+  if (hit) { collapsedCount++; foldDuplicateIntoPreviewItem(hit, opp); continue; }
+  const card = {
+    opportunityId: opp.id, action: "create" as const, projectName: opp.projectName || "",
+    region: "", dueDate: "", inviteDate: "", gcEstimateLead: "", gcCompanyName: opp.gcCompanyName || "",
+    primaryMarket: "", location: "", bcLink: "", anticipatedStart: "", anticipatedFinish: "",
+    projectAddress: "", squareFeet: "", scopeChanges: opp.scopes || [],
+  };
+  cards.push(card);
+  collapsed.register(keys, card);
+}
+assert.strictEqual(cards.length, 1, "three KIA invites collapse to a single New Bid card");
+assert.strictEqual(collapsedCount, 2, "the other two are counted as auto-merged duplicates");
+assert.deepStrictEqual(cards[0].scopeChanges.slice().sort(),
+  ["Expansion Joint Covers", "Site Furnishings", "Specialties"],
+  "no scope is lost when duplicates are folded in");
+assert.deepStrictEqual(cards[0].duplicateOpportunityIds, ["kia-2", "kia-3"],
+  "the folded opportunity IDs ride along so confirm can log them against the same entry");
+assert.strictEqual(cards[0].projectAddress, "7715 Chevy Chase Drive, Austin, TX 78752",
+  "a field the first invite left blank is backfilled from a duplicate");
+console.log("PASS: three KIA of Central Austin invites weed down to one invite with all three scopes");
 
 
 async function runRegionMappingTests() {

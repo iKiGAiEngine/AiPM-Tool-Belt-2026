@@ -12,7 +12,7 @@ import { sendDraftNotificationEmail } from "../emailService";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "../templateStorage";
 import { matchRegionWithFallback } from "../regionMatcher";
 import { isSwinerton, matchSwinertonOffice, matchExtRegion, resolveSwinertonSoCalSubregion } from "../swinertonOffices";
-import { findFuzzyDuplicates } from "../fuzzyDuplicates";
+import { findFuzzyDuplicates, normalizeProjectName } from "../fuzzyDuplicates";
 import fs from "fs";
 import path from "path";
 import JSZip from "jszip";
@@ -783,6 +783,92 @@ interface PreviewItem {
   existingEntryId?: number;
   scopeChanges?: string[];
   fieldChanges?: string[];
+  /**
+   * Opportunity IDs of duplicate invites folded into this one card (see
+   * bcProjectMatchKeys). They are NOT separate preview items — the reviewer
+   * sees one invite — but they still have to be sent to /sync/confirm so the
+   * server records them against the same entry.
+   */
+  duplicateOpportunityIds?: string[];
+}
+
+// ─── Duplicate-invite collapsing ───────────────────────────────────────
+// BuildingConnected sends ONE invite per bid package, so a single job can arrive
+// as several opportunities that differ only by scope — e.g. "KIA of Central
+// Austin" landing three times for Expansion Joint Covers, Site Furnishings and
+// Specialties, each with the same GC, due date and address. To us that is one
+// bid, so they get collapsed into a single invite (scopes unioned) before the
+// reviewer ever sees them.
+//
+// Two opportunities are treated as the same project when they share EITHER:
+//   • BC's own projectId — authoritative, since BC groups bid packages under it; or
+//   • a fingerprint of normalized project name + normalized GC + bid due date.
+//
+// The fingerprint is the fallback for the common case where the bid-board
+// payload carries no projectId at all. It deliberately includes the due date so
+// two genuinely separate bids that merely share a name — a re-bid months later,
+// or a second phase — stay separate. Names are normalized with the same helper
+// the fuzzy duplicate checker uses, so punctuation and filler words
+// ("The", "Building", "Phase") don't split an otherwise identical pair.
+export function bcProjectMatchKeys(src: {
+  projectId?: string | null;
+  projectName?: string | null;
+  gcCompanyName?: string | null;
+  dueDate?: string | null;
+}): string[] {
+  const keys: string[] = [];
+  if (src.projectId) keys.push(`id:${src.projectId}`);
+  const name = normalizeProjectName(src.projectName || "");
+  if (name) {
+    const gc = normalizeProjectName(src.gcCompanyName || "");
+    keys.push(`fp:${name}|${gc}|${src.dueDate || ""}`);
+  }
+  return keys;
+}
+
+/** The match keys for a BC opportunity, using the same due date the entry stores. */
+export function bcOpportunityMatchKeys(opp: BcOpportunity): string[] {
+  return bcProjectMatchKeys({
+    projectId: opp.projectId,
+    projectName: opp.projectName,
+    gcCompanyName: opp.gcCompanyName,
+    dueDate: deriveBidDueDate(opp.bidDueDate),
+  });
+}
+
+/**
+ * A small multi-key index: one value is registered under every key that can
+ * identify it, and a lookup hits if ANY candidate key matches. First
+ * registration wins, so the earliest invite stays the one everything folds into.
+ */
+export class BcProjectIndex<T> {
+  private map = new Map<string, T>();
+  register(keys: string[], value: T): void {
+    for (const k of keys) {
+      if (!this.map.has(k)) this.map.set(k, value);
+    }
+  }
+  find(keys: string[]): T | undefined {
+    for (const k of keys) {
+      const hit = this.map.get(k);
+      if (hit !== undefined) return hit;
+    }
+    return undefined;
+  }
+}
+
+/**
+ * Folds a duplicate invite into the New Bid card that already represents this
+ * project: union the scopes, backfill anything the first invite left blank, and
+ * remember the opportunity ID so /sync/confirm can log it against the same entry.
+ */
+export function foldDuplicateIntoPreviewItem(item: PreviewItem, opp: BcOpportunity): void {
+  item.scopeChanges = Array.from(new Set([...(item.scopeChanges || []), ...(opp.scopes || [])]));
+  item.duplicateOpportunityIds = [...(item.duplicateOpportunityIds || []), opp.id];
+  if (!item.projectAddress) item.projectAddress = getLocationStr(opp);
+  if (!item.location) item.location = getLocationStr(opp);
+  if (!item.squareFeet && opp.squareFeet) item.squareFeet = opp.squareFeet;
+  if (!item.gcEstimateLead && opp.gcContactName) item.gcEstimateLead = opp.gcContactName;
 }
 
 function isAdmin(user: { role: string } | null | undefined): boolean {
@@ -877,18 +963,32 @@ export function registerBcSyncRoutes(app: Express) {
 
       const existingEntries = await db.select().from(proposalLogEntries);
       const entriesById = new Map(existingEntries.map(e => [e.id, e]));
-      const entriesByBcProjectId = new Map<string, typeof proposalLogEntries.$inferSelect>();
+      // Indexed by projectId AND name/GC/due-date fingerprint so a scope-only
+      // duplicate of a bid we already track finds its home even when BC sent no
+      // projectId. Soft-deleted entries are skipped — a rejected invite must
+      // never swallow a fresh one.
+      const entriesByProject = new BcProjectIndex<typeof proposalLogEntries.$inferSelect>();
       for (const e of existingEntries) {
-        if (e.bcProjectId) entriesByBcProjectId.set(e.bcProjectId, e);
+        if (e.deletedAt) continue;
+        entriesByProject.register(bcProjectMatchKeys({
+          projectId: e.bcProjectId,
+          projectName: e.projectName,
+          gcCompanyName: e.owner,
+          dueDate: e.dueDate,
+        }), e);
       }
 
       const preview: PreviewItem[] = [];
-      let createCount = 0, mergeCount = 0, updateCount = 0;
+      let createCount = 0, mergeCount = 0, updateCount = 0, duplicatesCollapsed = 0;
 
-      const inRunCreates = new Map<string, PreviewItem>();
+      // Every card emitted this run, indexed by project — creates AND merges — so a
+      // second bid package for the same job folds into whichever card already
+      // represents it rather than opening a near-identical row beside it.
+      const inRunCards = new BcProjectIndex<PreviewItem>();
 
       for (const opp of filteredOpps) {
         const existingLog = existingLogMap.get(opp.id);
+        const oppKeys = bcOpportunityMatchKeys(opp);
 
         if (existingLog && existingLog.entryId) {
           const existingEntry = entriesById.get(existingLog.entryId);
@@ -921,11 +1021,23 @@ export function registerBcSyncRoutes(app: Express) {
           }
         }
 
-        if (!existingLog && opp.projectId && entriesByBcProjectId.has(opp.projectId)) {
-          const existingEntry = entriesByBcProjectId.get(opp.projectId)!;
+        // Same project, same batch — BC just split it across bid packages. Fold it
+        // into the card already standing for this project instead of showing the
+        // reviewer a second near-identical row; its opportunity ID rides along on
+        // that card so /sync/confirm still records it against the same entry.
+        const inRunDuplicate = existingLog ? undefined : inRunCards.find(oppKeys);
+        if (inRunDuplicate) {
+          duplicatesCollapsed++;
+          foldDuplicateIntoPreviewItem(inRunDuplicate, opp);
+          continue;
+        }
+
+        const existingProjectEntry = existingLog ? undefined : entriesByProject.find(oppKeys);
+        if (existingProjectEntry) {
+          const existingEntry = existingProjectEntry;
           mergeCount++;
           const mrgMapped = await mapOpportunityToEntry(opp);
-          preview.push({
+          const mergeItem: PreviewItem = {
             opportunityId: opp.id,
             action: "merge",
             projectName: existingEntry.projectName,
@@ -943,32 +1055,9 @@ export function registerBcSyncRoutes(app: Express) {
             squareFeet: mrgMapped.squareFeet || existingEntry.squareFeet || "",
             existingEntryId: existingEntry.id,
             scopeChanges: opp.scopes || [],
-          });
-          continue;
-        }
-
-        if (!existingLog && opp.projectId && inRunCreates.has(opp.projectId)) {
-          const existing = inRunCreates.get(opp.projectId)!;
-          mergeCount++;
-          existing.scopeChanges = [...new Set([...(existing.scopeChanges || []), ...(opp.scopes || [])])];
-          preview.push({
-            opportunityId: opp.id,
-            action: "merge",
-            projectName: existing.projectName,
-            region: existing.region,
-            dueDate: existing.dueDate,
-            inviteDate: existing.inviteDate,
-            gcEstimateLead: existing.gcEstimateLead,
-            gcCompanyName: existing.gcCompanyName,
-            primaryMarket: existing.primaryMarket,
-            location: getLocationStr(opp),
-            bcLink: existing.bcLink,
-            anticipatedStart: existing.anticipatedStart,
-            anticipatedFinish: existing.anticipatedFinish,
-            projectAddress: existing.projectAddress,
-            squareFeet: existing.squareFeet,
-            scopeChanges: opp.scopes || [],
-          });
+          };
+          preview.push(mergeItem);
+          inRunCards.register(oppKeys, mergeItem);
           continue;
         }
 
@@ -995,14 +1084,23 @@ export function registerBcSyncRoutes(app: Express) {
             scopeChanges: opp.scopes || [],
           };
           preview.push(item);
-          if (opp.projectId) {
-            inRunCreates.set(opp.projectId, item);
-          }
+          inRunCards.register(oppKeys, item);
         }
       }
 
-      const cappedPreview = preview.slice(0, MAX_SYNC_ENTRIES);
-      const wasCapped = preview.length > MAX_SYNC_ENTRIES;
+      // MAX_SYNC_ENTRIES caps how many BC opportunities one run may write, and a
+      // collapsed card now stands for several of them — all of which get sent to
+      // /sync/confirm together. So the cap is counted in opportunities, not cards,
+      // or a full page of merged invites would be rejected there as over-limit.
+      const cappedPreview: PreviewItem[] = [];
+      let previewOppCount = 0;
+      for (const item of preview) {
+        const cost = 1 + (item.duplicateOpportunityIds?.length || 0);
+        if (previewOppCount + cost > MAX_SYNC_ENTRIES) break;
+        cappedPreview.push(item);
+        previewOppCount += cost;
+      }
+      const wasCapped = cappedPreview.length < preview.length;
 
       res.json({
         totalFound: allOpps.length,
@@ -1012,7 +1110,8 @@ export function registerBcSyncRoutes(app: Express) {
         newEntries: createCount,
         mergeEntries: mergeCount,
         updateEntries: updateCount,
-        alreadySynced: filteredOpps.length - (createCount + mergeCount + updateCount),
+        duplicatesCollapsed,
+        alreadySynced: filteredOpps.length - (createCount + mergeCount + updateCount + duplicatesCollapsed),
         preview: cappedPreview,
         wasCapped,
         cappedAt: wasCapped ? MAX_SYNC_ENTRIES : null,
@@ -1087,15 +1186,26 @@ export function registerBcSyncRoutes(app: Express) {
 
       const existingEntries = await db.select().from(proposalLogEntries);
       const entriesById = new Map(existingEntries.map(e => [e.id, e]));
-      const entriesByBcProjectId = new Map<string, typeof proposalLogEntries.$inferSelect>();
+      // Same matching rules as /sync/preview (projectId or name/GC/due-date
+      // fingerprint) so what gets applied is exactly what the reviewer approved.
+      const entriesByProject = new BcProjectIndex<typeof proposalLogEntries.$inferSelect>();
       for (const e of existingEntries) {
-        if (e.bcProjectId) entriesByBcProjectId.set(e.bcProjectId, e);
+        if (e.deletedAt) continue;
+        entriesByProject.register(bcProjectMatchKeys({
+          projectId: e.bcProjectId,
+          projectName: e.projectName,
+          gcCompanyName: e.owner,
+          dueDate: e.dueDate,
+        }), e);
       }
 
-      const inRunCreatedByProjectId = new Map<string, number>();
+      // Entries born in this very run: a duplicate folding into one of them is
+      // expected, not news, so it skips the "scopes updated" alert.
+      const createdThisRun = new Set<number>();
 
       for (const opp of filteredOpps) {
         const existingLog = existingLogMap.get(opp.id);
+        const oppKeys = bcOpportunityMatchKeys(opp);
 
         if (existingLog && existingLog.entryId) {
           const existingEntry = entriesById.get(existingLog.entryId);
@@ -1156,11 +1266,9 @@ export function registerBcSyncRoutes(app: Express) {
           }
         }
 
-        const mergeTargetId = (!existingLog && opp.projectId)
-          ? (entriesByBcProjectId.has(opp.projectId)
-            ? entriesByBcProjectId.get(opp.projectId)!.id
-            : inRunCreatedByProjectId.get(opp.projectId) ?? null)
-          : null;
+        const mergeTargetId = existingLog
+          ? null
+          : (entriesByProject.find(oppKeys)?.id ?? null);
 
         if (mergeTargetId !== null) {
           const [targetEntry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, mergeTargetId));
@@ -1177,7 +1285,9 @@ export function registerBcSyncRoutes(app: Express) {
             await db.update(proposalLogEntries).set({
               bcOpportunityIds: JSON.stringify(existingOppIds),
               scopeList: JSON.stringify(mergedScopes),
-              bcUpdateFlag: addedScopes.length > 0,
+              // Scopes arriving on an entry this run just created are part of
+              // that entry, not a change to it — no UPDATED badge.
+              bcUpdateFlag: addedScopes.length > 0 && !createdThisRun.has(targetEntry.id),
             }).where(eq(proposalLogEntries.id, targetEntry.id));
 
             await db.insert(bcSyncLog).values({
@@ -1188,7 +1298,7 @@ export function registerBcSyncRoutes(app: Express) {
 
             merged.push(targetEntry.id);
 
-            if (addedScopes.length > 0) {
+            if (addedScopes.length > 0 && !createdThisRun.has(targetEntry.id)) {
               await createNotificationForAdmins({
                 type: "draft_scope_updated",
                 title: "Draft Scopes Updated",
@@ -1236,10 +1346,10 @@ export function registerBcSyncRoutes(app: Express) {
               console.warn("[BC Sync] Dup check failed for draft, continuing:", dupErr);
             }
 
-            if (opp.projectId) {
-              inRunCreatedByProjectId.set(opp.projectId, entry.id);
-              entriesByBcProjectId.set(opp.projectId, entry);
-            }
+            // Registering here is what lets the rest of this run's duplicate
+            // invites fold into the entry instead of creating their own.
+            createdThisRun.add(entry.id);
+            entriesByProject.register(oppKeys, entry);
 
             await createNotificationForAdmins({
               type: "draft_created",
