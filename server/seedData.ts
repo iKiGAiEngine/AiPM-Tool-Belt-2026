@@ -64,12 +64,25 @@ async function ensureProposalLogExtraColumns(): Promise<void> {
   }
 }
 
+async function ensureSpecExtractorDetailReviewColumns(): Promise<void> {
+  try {
+    await db.execute(sql`ALTER TABLE spec_extractor_sessions ADD COLUMN IF NOT EXISTS detail_review_enabled boolean NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE spec_extractor_sessions ADD COLUMN IF NOT EXISTS detail_review_status varchar(50)`);
+    await db.execute(sql`ALTER TABLE spec_extractor_sessions ADD COLUMN IF NOT EXISTS detail_review_message text`);
+    await db.execute(sql`ALTER TABLE spec_extractor_sessions ADD COLUMN IF NOT EXISTS detail_review_completed_at varchar(100)`);
+    await db.execute(sql`ALTER TABLE spec_extractor_sections ADD COLUMN IF NOT EXISTS detail_review jsonb`);
+  } catch (e: any) {
+    console.log("[Migration] spec extractor detail review columns check:", e.message);
+  }
+}
+
 export async function seedDefaultData(): Promise<void> {
   try {
     await ensureUserAuthColumns();
     await ensureRegionAliasesColumn();
     await ensureProposalLogExtraColumns();
     await ensureProposalChangeLogTable();
+    await ensureSpecExtractorDetailReviewColumns();
     const [regionCount] = await db.select({ value: count() }).from(regions);
     if (regionCount.value === 0) {
       const defaultRegions = [

@@ -6,6 +6,7 @@ import {
   Download, ArrowLeft, Building2, FolderOpen, FileStack, Trash2,
   Eye, EyeOff, Sparkles, Check, Minus, SquareCheck, Pencil,
   Package, Tag, Ban, ClipboardList, AlertTriangle,
+  FileSpreadsheet, ClipboardCheck, ChevronDown, ChevronRight, Flag,
 } from "lucide-react";
 import { useToolUsage } from "@/lib/useToolUsage";
 import { useAuth } from "@/lib/auth";
@@ -23,6 +24,13 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import ProjectNameComboBox from "@/components/ProjectNameComboBox";
 import type { SpecExtractorSession, SpecExtractorSection } from "@shared/schema";
+import {
+  ORDER_FORM_FIELDS,
+  OPEN_ITEM_LABELS,
+  orderFormValue,
+  summarizeDetailReviews,
+  type SpecSectionDetailReview,
+} from "@shared/specDetailReview";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL, UPLOAD_CHUNK_BYTES } from "@shared/uploadLimits";
 
 type ViewState = "upload" | "processing" | "results";
@@ -34,6 +42,13 @@ interface PreviewData {
   endPage: number;
   pageCount: number;
   previewPages: { pageNumber: number; text: string }[];
+}
+
+interface DetailReviewState {
+  status: string;
+  message: string;
+  completedAt: string | null;
+  reviews: SpecSectionDetailReview[];
 }
 
 interface AiReview {
@@ -60,7 +75,7 @@ export default function SpecExtractorPage() {
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [sessionData, setSessionData] = useState<{ status: string; progress: number; message: string } | null>(null);
+  const [sessionData, setSessionData] = useState<{ status: string; progress: number; message: string; detailReviewEnabled?: boolean } | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   const [selectedSections, setSelectedSections] = useState<Set<string>>(new Set());
@@ -78,6 +93,14 @@ export default function SpecExtractorPage() {
   const [selectedAccessories, setSelectedAccessories] = useState<Set<string>>(new Set());
   const [tocHints, setTocHints] = useState("");
 
+  // Detailed Spec Review — opt-in deep read producing the estimator's workbook.
+  const [detailReviewEnabled, setDetailReviewEnabled] = useState(false);
+  const [detailReview, setDetailReview] = useState<DetailReviewState | null>(null);
+  const [isStartingDetailReview, setIsStartingDetailReview] = useState(false);
+  const [isExportingReport, setIsExportingReport] = useState(false);
+  const [expandedReviews, setExpandedReviews] = useState<Set<string>>(new Set());
+  const detailPollRef = useRef<NodeJS.Timeout | null>(null);
+
   const { data: accessoryScopes = [] } = useQuery<{ name: string; keywords: string[]; sectionHint: string }[]>({
     queryKey: ["/api/spec-extractor/accessory-scopes"],
   });
@@ -85,6 +108,7 @@ export default function SpecExtractorPage() {
   useEffect(() => {
     return () => {
       if (pollRef.current) clearTimeout(pollRef.current);
+      if (detailPollRef.current) clearTimeout(detailPollRef.current);
     };
   }, []);
 
@@ -131,6 +155,34 @@ export default function SpecExtractorPage() {
     }
   }, [sections]);
 
+  // Poll the detailed review while it runs. It is deliberately started after
+  // extraction finishes, so the section list is already on screen.
+  const pollDetailReview = useCallback((sid: string) => {
+    const check = async () => {
+      try {
+        const res = await fetch(`/api/spec-extractor/sessions/${sid}/detail-review`);
+        if (!res.ok) throw new Error("Detail review status check failed");
+        const data: DetailReviewState = await res.json();
+        setDetailReview(data);
+
+        if (data.status === "running" || data.status === "pending") {
+          detailPollRef.current = setTimeout(check, 2000);
+        } else {
+          detailPollRef.current = null;
+          if (data.status === "complete" && data.reviews.length > 0) {
+            toast({ title: "Detailed Review Complete", description: data.message });
+          } else if (data.status === "error") {
+            toast({ title: "Detailed Review Failed", description: data.message, variant: "destructive" });
+          }
+        }
+      } catch {
+        detailPollRef.current = null;
+      }
+    };
+    if (detailPollRef.current) clearTimeout(detailPollRef.current);
+    check();
+  }, [toast]);
+
   const loadSessionData = useCallback(async (sid: string) => {
     try {
       const res = await fetch(`/api/spec-extractor/sessions/${sid}`);
@@ -163,6 +215,9 @@ export default function SpecExtractorPage() {
           setViewState("results");
           loadSessionData(sid);
           toast({ title: "Extraction Complete", description: data.message });
+          if (data.detailReviewEnabled) {
+            pollDetailReview(sid);
+          }
         } else if (data.status === "error") {
           pollRef.current = null;
           toast({ title: "Processing Error", description: data.message, variant: "destructive" });
@@ -173,7 +228,7 @@ export default function SpecExtractorPage() {
     };
     if (pollRef.current) clearTimeout(pollRef.current);
     check();
-  }, [toast, loadSessionData]);
+  }, [toast, loadSessionData, pollDetailReview]);
 
   const validateFile = (file: File): boolean => {
     setFileError(null);
@@ -228,6 +283,7 @@ export default function SpecExtractorPage() {
     if (projectName.trim()) formData.append("projectName", projectName.trim());
     if (selectedAccessories.size > 0) formData.append("selectedAccessories", JSON.stringify(Array.from(selectedAccessories)));
     if (tocHints.trim()) formData.append("tocHints", tocHints.trim());
+    formData.append("detailReview", detailReviewEnabled ? "true" : "false");
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 600000);
@@ -261,6 +317,7 @@ export default function SpecExtractorPage() {
         projectName: projectName.trim(),
         selectedAccessories: JSON.stringify(Array.from(selectedAccessories)),
         tocHints: tocHints.trim(),
+        detailReview: detailReviewEnabled,
         totalSize: file.size,
         totalChunks,
       }),
@@ -337,6 +394,10 @@ export default function SpecExtractorPage() {
       setPreviewSectionId(null);
       setPreviewData(null);
       setSuggestedProjectName(null);
+      setDetailReview(detailReviewEnabled
+        ? { status: "pending", message: "Detailed review will start when extraction finishes.", completedAt: null, reviews: [] }
+        : null);
+      setExpandedReviews(new Set());
       pollStatus(session.id);
     } catch (err: any) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -382,8 +443,83 @@ export default function SpecExtractorPage() {
     }
   };
 
+  const handleRunDetailReview = async () => {
+    if (guardViewer(isViewer, toast)) return;
+    if (!sessionId) return;
+    if (selectedSections.size === 0) {
+      toast({ title: "Nothing Selected", description: "Check the sections you want reviewed in detail.", variant: "destructive" });
+      return;
+    }
+
+    setIsStartingDetailReview(true);
+    try {
+      const res = await fetch(`/api/spec-extractor/sessions/${sessionId}/detail-review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectionIds: Array.from(selectedSections) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Detailed review failed to start" }));
+        throw new Error(err.message);
+      }
+      const data = await res.json();
+      setDetailReview({
+        status: "running",
+        message: `Reviewing ${data.sectionCount} section${data.sectionCount === 1 ? "" : "s"}...`,
+        completedAt: null,
+        reviews: detailReview?.reviews || [],
+      });
+      toast({ title: "Detailed Review Started", description: `Reading ${data.sectionCount} section${data.sectionCount === 1 ? "" : "s"} in full. This takes a minute or two.` });
+      pollDetailReview(sessionId);
+    } catch (err: any) {
+      toast({ title: "Detailed Review Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsStartingDetailReview(false);
+    }
+  };
+
+  const handleExportReport = async () => {
+    if (!sessionId) return;
+    setIsExportingReport(true);
+    try {
+      const res = await fetch(`/api/spec-extractor/sessions/${sessionId}/detail-review/export`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Report export failed" }));
+        throw new Error(err.message);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const exportName = resultsProjectName || suggestedProjectName || "Project";
+      a.download = `${exportName} - Spec Review Report.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Report Downloaded", description: "Open the Estimator Summary tab first." });
+    } catch (err: any) {
+      toast({ title: "Report Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsExportingReport(false);
+    }
+  };
+
+  const toggleReviewExpanded = (sectionId: string) => {
+    setExpandedReviews(prev => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      return next;
+    });
+  };
+
   const handleReset = () => {
     if (pollRef.current) clearTimeout(pollRef.current);
+    if (detailPollRef.current) clearTimeout(detailPollRef.current);
     setViewState("upload");
     setSessionId(null);
     setSelectedFile(null);
@@ -401,6 +537,8 @@ export default function SpecExtractorPage() {
     setIsEditingProjectName(false);
     setSelectedAccessories(new Set());
     setTocHints("");
+    setDetailReview(null);
+    setExpandedReviews(new Set());
   };
 
   const toggleAccessory = (name: string) => {
@@ -657,6 +795,12 @@ export default function SpecExtractorPage() {
   const someSelected = selectedCount > 0 && selectedCount < selectableCount;
   const signageCount = sections.filter(s => s.isSignage).length;
 
+  const detailReviews = detailReview?.reviews || [];
+  const reviewBySection = new Map(detailReviews.map(r => [r.sectionId, r]));
+  const detailSummary = summarizeDetailReviews(detailReviews);
+  const detailRunning = detailReview?.status === "running" || detailReview?.status === "pending";
+  const hasDetailResults = detailReviews.length > 0;
+
   return (
     <div className="min-h-[calc(100vh-4rem)] animate-page-enter">
       <ReadOnlyBanner />
@@ -839,6 +983,53 @@ export default function SpecExtractorPage() {
                 )}
               </div>
 
+              <div className="mx-auto max-w-2xl">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setDetailReviewEnabled(v => !v)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetailReviewEnabled(v => !v); } }}
+                  className={cn(
+                    "flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors cursor-pointer",
+                    detailReviewEnabled ? "border-[var(--gold)]" : "border-border hover:border-muted-foreground/50"
+                  )}
+                  style={detailReviewEnabled ? { background: "rgba(200,164,78,0.06)" } : undefined}
+                  data-testid="button-detail-review-toggle"
+                >
+                  <Checkbox
+                    checked={detailReviewEnabled}
+                    onCheckedChange={(v) => setDetailReviewEnabled(v === true)}
+                    className="mt-0.5 pointer-events-none"
+                    data-testid="checkbox-detail-review"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <ClipboardCheck className="h-4 w-4" style={{ color: "var(--gold)" }} />
+                      <span className="text-sm font-semibold text-foreground">
+                        Detailed Spec Review &amp; Estimator Report
+                      </span>
+                      <Badge variant="outline" className="text-xs">Excel output</Badge>
+                    </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Reads every extracted section line by line and fills out a Short Order Form for each material —
+                      manufacturer, model, material, size, finish, mounting, fire rating. Anything the spec does not say is
+                      logged as an <span className="font-medium text-foreground">RFI</span>, an{" "}
+                      <span className="font-medium text-foreground">assumption</span>, or something to{" "}
+                      <span className="font-medium text-foreground">qualify</span> in the proposal.
+                    </p>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Flags what the estimator needs to catch: multiple versions of the same material (two wall protection
+                      panel types, several visual display board types), fire-rated fire extinguisher cabinets, no-substitution
+                      language, missing manufacturers, custom finishes and more. Downloads as a multi-tab Excel workbook
+                      covering every section extracted.
+                    </p>
+                    <p className="mt-1.5 text-xs text-muted-foreground italic">
+                      Adds a couple of minutes after extraction. You can also run it later from the results screen.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {accessoryScopes.length > 0 && (
                 <div className="mx-auto max-w-2xl">
                   <Label className="flex items-center gap-2 text-sm font-medium text-foreground mb-3">
@@ -896,11 +1087,12 @@ export default function SpecExtractorPage() {
               )}
 
               <div className="mt-16">
-                <div className="grid gap-8 md:grid-cols-3">
+                <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
                   {[
                     { icon: FileText, title: "Division 10 Detection", description: "Regex-based scanning identifies all Division 10 specification sections" },
                     { icon: FolderOpen, title: "Organized Export", description: "Each section exported as a separate PDF in its own named folder" },
                     { icon: FileStack, title: "Accurate Boundaries", description: "End-of-section markers and header detection prevent page bleeding" },
+                    { icon: ClipboardCheck, title: "Estimator Report", description: "Optional detailed review fills out a short order form per material and flags what needs an RFI" },
                   ].map((f) => (
                     <div key={f.title} className="flex flex-col items-center text-center">
                       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg" style={{ background: "rgba(200,164,78,0.1)" }}>
@@ -1012,6 +1204,44 @@ export default function SpecExtractorPage() {
                     )}
                   </Button>
                   <Button
+                    variant="outline"
+                    onClick={handleRunDetailReview}
+                    disabled={isStartingDetailReview || detailRunning || selectedCount === 0 || isViewer}
+                    data-testid="button-se-detail-review"
+                  >
+                    {isStartingDetailReview || detailRunning ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Reviewing...
+                      </>
+                    ) : (
+                      <>
+                        <ClipboardCheck className="mr-2 h-4 w-4" />
+                        {hasDetailResults ? "Re-run Detailed Review" : "Detailed Review"} ({selectedCount})
+                      </>
+                    )}
+                  </Button>
+                  {hasDetailResults && (
+                    <Button
+                      variant="outline"
+                      onClick={handleExportReport}
+                      disabled={isExportingReport}
+                      data-testid="button-se-export-report"
+                    >
+                      {isExportingReport ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Building...
+                        </>
+                      ) : (
+                        <>
+                          <FileSpreadsheet className="mr-2 h-4 w-4" />
+                          Estimator Report (Excel)
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  <Button
                     onClick={handleExport}
                     disabled={isExporting || selectedCount === 0 || isViewer}
                     data-testid="button-se-export"
@@ -1092,6 +1322,90 @@ export default function SpecExtractorPage() {
                 </CardContent>
               </Card>
 
+              {(detailReview && detailReview.status !== "off") && (
+                <Card
+                  className="border-l-4"
+                  style={{ borderLeftColor: "var(--gold)" }}
+                  data-testid="card-se-detail-review"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-md shrink-0" style={{ background: "rgba(200,164,78,0.1)" }}>
+                          {detailRunning ? (
+                            <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--gold)" }} />
+                          ) : detailReview.status === "error" ? (
+                            <AlertCircle className="h-4 w-4 text-destructive" />
+                          ) : (
+                            <ClipboardCheck className="h-4 w-4" style={{ color: "var(--gold)" }} />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground font-heading">
+                            Detailed Spec Review
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground" data-testid="text-se-detail-review-message">
+                            {detailReview.message || (detailRunning ? "Reading each section in full..." : "Ready")}
+                          </p>
+                        </div>
+                      </div>
+                      {hasDetailResults && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleExportReport}
+                          disabled={isExportingReport}
+                          data-testid="button-se-detail-report-inline"
+                        >
+                          {isExportingReport ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <FileSpreadsheet className="mr-2 h-4 w-4" />
+                          )}
+                          Download Estimator Report
+                        </Button>
+                      )}
+                    </div>
+
+                    {hasDetailResults && (
+                      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                        {[
+                          { label: "Sections reviewed", value: detailSummary.sectionsReviewed, tone: "" },
+                          { label: "Materials found", value: detailSummary.totalItems, tone: "" },
+                          { label: "Flags", value: detailSummary.totalFlags, tone: detailSummary.totalFlags > 0 ? "warn" : "" },
+                          { label: "High priority", value: detailSummary.highSeverityFlags, tone: detailSummary.highSeverityFlags > 0 ? "bad" : "" },
+                          { label: "RFIs needed", value: detailSummary.rfiCount, tone: detailSummary.rfiCount > 0 ? "bad" : "" },
+                          { label: "Assumptions", value: detailSummary.assumedCount, tone: detailSummary.assumedCount > 0 ? "warn" : "" },
+                        ].map((stat) => (
+                          <div key={stat.label} className="rounded-md border border-border px-3 py-2">
+                            <p
+                              className={cn(
+                                "text-lg font-semibold",
+                                stat.tone === "bad" ? "text-destructive" : "text-foreground"
+                              )}
+                              style={stat.tone === "warn" ? { color: "var(--gold)" } : undefined}
+                              data-testid={`text-se-detail-stat-${stat.label.replace(/\s+/g, "-").toLowerCase()}`}
+                            >
+                              {stat.value}
+                            </p>
+                            <p className="text-[11px] leading-tight text-muted-foreground">{stat.label}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {hasDetailResults && (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        The Excel workbook has four tabs: <span className="font-medium text-foreground">Estimator Summary</span> (every
+                        section extracted), <span className="font-medium text-foreground">Short Order Form</span> (one row per material),{" "}
+                        <span className="font-medium text-foreground">Flags</span>, and{" "}
+                        <span className="font-medium text-foreground">Open Items &amp; RFIs</span>. It is also included in the ZIP download.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               {sections.length === 0 ? (
                 <Card>
                   <CardContent className="p-8 text-center">
@@ -1119,6 +1433,10 @@ export default function SpecExtractorPage() {
                     const isSelected = selectedSections.has(section.id);
                     const isPreviewing = previewSectionId === section.id;
                     const review = aiReviews.get(section.id);
+                    const detail = reviewBySection.get(section.id);
+                    const detailExpanded = expandedReviews.has(section.id);
+                    const highFlags = detail?.flags.filter(f => f.severity === "high").length || 0;
+                    const rfiCount = detail?.openItems.filter(o => o.classification === "rfi").length || 0;
                     const isEditingThisFolder = editingFolderId === section.id;
                     const isFirstOfGroup = idx === 0 || sortedSections[idx - 1]?.sectionType !== section.sectionType;
                     const showGroupHeader = presentGroupCount > 1 && isFirstOfGroup;
@@ -1208,6 +1526,23 @@ export default function SpecExtractorPage() {
                                         Verified
                                       </Badge>
                                     )}
+                                    {detail && !detail.error && (
+                                      <Badge variant="outline" className="shrink-0" data-testid={`badge-se-detail-items-${section.sectionNumber.replace(/\s/g, "")}`}>
+                                        <ClipboardCheck className="mr-1 h-3 w-3" />
+                                        {detail.items.length} {detail.items.length === 1 ? "material" : "materials"}
+                                      </Badge>
+                                    )}
+                                    {highFlags > 0 && (
+                                      <Badge variant="destructive" className="shrink-0" data-testid={`badge-se-detail-flags-${section.sectionNumber.replace(/\s/g, "")}`}>
+                                        <Flag className="mr-1 h-3 w-3" />
+                                        {highFlags} to review
+                                      </Badge>
+                                    )}
+                                    {rfiCount > 0 && (
+                                      <Badge variant="secondary" className="shrink-0" data-testid={`badge-se-detail-rfi-${section.sectionNumber.replace(/\s/g, "")}`}>
+                                        {rfiCount} RFI
+                                      </Badge>
+                                    )}
                                     <Button
                                       variant="ghost"
                                       size="icon"
@@ -1282,6 +1617,128 @@ export default function SpecExtractorPage() {
                                   <div className="mt-2 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm">
                                     <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
                                     <span className="text-muted-foreground">{review.notes || "AI determined this is not a Division 10 specification section"}</span>
+                                  </div>
+                                )}
+
+                                {detail && (
+                                  <div className="mt-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => toggleReviewExpanded(section.id)}
+                                      className="h-7 px-2"
+                                      data-testid={`button-se-detail-toggle-${section.sectionNumber.replace(/\s/g, "")}`}
+                                    >
+                                      {detailExpanded ? (
+                                        <ChevronDown className="mr-1 h-3.5 w-3.5" />
+                                      ) : (
+                                        <ChevronRight className="mr-1 h-3.5 w-3.5" />
+                                      )}
+                                      <span className="text-xs">
+                                        {detailExpanded ? "Hide" : "Show"} short order form
+                                        {detail.error ? " (review failed)" : ` · ${detail.completeness}% of fields answered by the spec`}
+                                      </span>
+                                    </Button>
+
+                                    {detailExpanded && (
+                                      <div className="mt-2 space-y-3 rounded-md border border-border p-3">
+                                        {detail.error ? (
+                                          <p className="text-xs text-destructive">{detail.error}</p>
+                                        ) : (
+                                          <>
+                                            {detail.scopeSummary && (
+                                              <p className="text-xs text-muted-foreground">{detail.scopeSummary}</p>
+                                            )}
+
+                                            {detail.flags.length > 0 && (
+                                              <div className="space-y-1.5">
+                                                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Flags</p>
+                                                {detail.flags.map((flag, fi) => (
+                                                  <div
+                                                    key={`${flag.code}-${fi}`}
+                                                    className={cn(
+                                                      "rounded-md px-3 py-2 text-xs",
+                                                      flag.severity === "high" ? "bg-destructive/10" : "bg-muted/50"
+                                                    )}
+                                                    data-testid={`text-se-flag-${flag.code}`}
+                                                  >
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                      <Flag className={cn("h-3 w-3 shrink-0", flag.severity === "high" ? "text-destructive" : "text-muted-foreground")} />
+                                                      <span className="font-semibold text-foreground">{flag.label}</span>
+                                                      <Badge variant="outline" className="text-[10px]">{flag.severity}</Badge>
+                                                    </div>
+                                                    <p className="mt-1 text-muted-foreground">{flag.detail}</p>
+                                                    {flag.recommendedAction && (
+                                                      <p className="mt-1 text-muted-foreground"><span className="font-medium text-foreground">Do:</span> {flag.recommendedAction}</p>
+                                                    )}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+
+                                            {detail.items.length > 0 ? (
+                                              <div className="space-y-2">
+                                                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                  Short Order Form ({detail.items.length} {detail.items.length === 1 ? "material" : "materials"})
+                                                </p>
+                                                {detail.items.map((item, ii) => (
+                                                  <div key={`${item.itemName}-${ii}`} className="rounded-md bg-muted/40 p-3">
+                                                    <p className="text-xs font-semibold text-foreground">
+                                                      {item.itemName || item.materialType || `Item ${ii + 1}`}
+                                                    </p>
+                                                    <dl className="mt-1.5 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+                                                      {ORDER_FORM_FIELDS.filter(f => f.key !== "itemName").map(({ key, label }) => {
+                                                        const value = orderFormValue(item, key);
+                                                        return (
+                                                          <div key={key} className="flex gap-2 text-[11px]">
+                                                            <dt className="shrink-0 text-muted-foreground">{label}:</dt>
+                                                            <dd className={cn("min-w-0 break-words", value ? "text-foreground" : "text-destructive")}>
+                                                              {value || "not specified"}
+                                                            </dd>
+                                                          </div>
+                                                        );
+                                                      })}
+                                                    </dl>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ) : (
+                                              <p className="text-xs text-muted-foreground italic">No priceable materials were identified in this section.</p>
+                                            )}
+
+                                            {detail.openItems.length > 0 && (
+                                              <div className="space-y-1.5">
+                                                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                  Missing Information ({detail.openItems.length})
+                                                </p>
+                                                {detail.openItems.map((open, oi) => (
+                                                  <div key={`${open.field}-${oi}`} className="rounded-md bg-muted/40 px-3 py-2 text-xs">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                      <Badge
+                                                        variant={open.classification === "rfi" ? "destructive" : "secondary"}
+                                                        className="text-[10px]"
+                                                      >
+                                                        {OPEN_ITEM_LABELS[open.classification]}
+                                                      </Badge>
+                                                      <span className="font-medium text-foreground">{open.field}</span>
+                                                      {open.itemName && (
+                                                        <span className="text-muted-foreground">— {open.itemName}</span>
+                                                      )}
+                                                    </div>
+                                                    {open.question && <p className="mt-1 text-muted-foreground">{open.question}</p>}
+                                                    {open.assumption && (
+                                                      <p className="mt-1 text-muted-foreground">
+                                                        <span className="font-medium text-foreground">If unanswered:</span> {open.assumption}
+                                                      </p>
+                                                    )}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>

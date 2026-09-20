@@ -3,6 +3,7 @@ import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar, uni
 import { createInsertSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
 import type { BuyoutBoard } from "./buyout/types";
+import type { SpecSectionDetailReview } from "./specDetailReview";
 
 // External tables not owned by this schema file but present in the database.
 // These stubs exist so `db:push` does NOT propose dropping them. Do not remove.
@@ -754,6 +755,12 @@ export const specExtractorSessions = pgTable("spec_extractor_sessions", {
   tocStart: integer("toc_start"),
   tocEnd: integer("toc_end"),
   selectedAccessories: jsonb("selected_accessories").$type<string[]>().default([]),
+  // Detailed Spec Review: opt-in deep read of every extracted section into a
+  // Short Order Form + flags + RFI/assumption log for the estimator.
+  detailReviewEnabled: boolean("detail_review_enabled").notNull().default(false),
+  detailReviewStatus: varchar("detail_review_status", { length: 50 }),
+  detailReviewMessage: text("detail_review_message"),
+  detailReviewCompletedAt: varchar("detail_review_completed_at", { length: 100 }),
   createdAt: varchar("created_at", { length: 100 }).notNull(),
 });
 
@@ -772,6 +779,7 @@ export const specExtractorSections = pgTable("spec_extractor_sections", {
   sectionType: varchar("section_type", { length: 50 }).notNull().default("div10"),
   isSignage: boolean("is_signage").notNull().default(false),
   matchedKeywords: jsonb("matched_keywords").$type<string[]>().default([]),
+  detailReview: jsonb("detail_review").$type<SpecSectionDetailReview>(),
 });
 
 export const specExtractorSessionSchema = z.object({
@@ -786,6 +794,10 @@ export const specExtractorSessionSchema = z.object({
   tocStart: z.number().nullable().optional(),
   tocEnd: z.number().nullable().optional(),
   selectedAccessories: z.array(z.string()).optional().default([]),
+  detailReviewEnabled: z.boolean().optional().default(false),
+  detailReviewStatus: z.string().nullable().optional(),
+  detailReviewMessage: z.string().nullable().optional(),
+  detailReviewCompletedAt: z.string().nullable().optional(),
   createdAt: z.string(),
 });
 export type SpecExtractorSession = z.infer<typeof specExtractorSessionSchema>;
@@ -805,6 +817,7 @@ export const specExtractorSectionSchema = z.object({
   sectionType: z.string().default("div10"),
   isSignage: z.boolean().default(false),
   matchedKeywords: z.array(z.string()).optional().default([]),
+  detailReview: z.custom<SpecSectionDetailReview>().nullable().optional(),
 });
 export type SpecExtractorSection = z.infer<typeof specExtractorSectionSchema>;
 

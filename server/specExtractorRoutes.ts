@@ -11,6 +11,9 @@ import path from "path";
 import { pipeline } from "stream/promises";
 import OpenAI from "openai";
 import { UPLOAD_CHUNK_BYTES, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@shared/uploadLimits";
+import { runDetailReview, type DetailReviewTarget } from "./specDetailReview";
+import { buildSpecReviewBuffer } from "./specDetailReportExcel";
+import type { SpecSectionDetailReview } from "@shared/specDetailReview";
 
 const DATA_DIR = path.join(process.cwd(), "data", "spec-extractor");
 const UPLOAD_TMP_DIR = path.join(DATA_DIR, "uploads");
@@ -75,6 +78,7 @@ interface PendingUpload {
   projectName: string;
   selectedAccessories: string[];
   tocHints: string;
+  detailReview: boolean;
   totalChunks: number;
   totalSize: number;
   dir: string;
@@ -96,6 +100,13 @@ async function cleanupStaleUploads(): Promise<void> {
       }
     }
   }
+}
+
+/** Form fields arrive as strings; JSON bodies as booleans. Accept both. */
+function parseBooleanFlag(raw: unknown): boolean {
+  if (typeof raw === "boolean") return raw;
+  if (typeof raw === "string") return raw === "true" || raw === "1" || raw === "on";
+  return false;
 }
 
 function generateId(): string {
@@ -163,6 +174,7 @@ export function registerSpecExtractorRoutes(app: Express) {
         }
       } catch {}
       let tocHintsRaw = (req.body.tocHints as string)?.trim() || "";
+      const detailReviewEnabled = parseBooleanFlag(req.body.detailReview);
       const now = new Date().toISOString();
 
       await fs.promises.mkdir(DATA_DIR, { recursive: true });
@@ -175,6 +187,8 @@ export function registerSpecExtractorRoutes(app: Express) {
         filename: req.file.originalname,
         projectName,
         selectedAccessories,
+        detailReviewEnabled,
+        detailReviewStatus: detailReviewEnabled ? "pending" : null,
         status: "processing",
         progress: 0,
         message: "Starting extraction...",
@@ -187,13 +201,14 @@ export function registerSpecExtractorRoutes(app: Express) {
         filename: req.file.originalname,
         projectName,
         selectedAccessories,
+        detailReviewEnabled,
         status: "processing",
         progress: 0,
         message: "Starting extraction...",
         createdAt: now,
       });
 
-      processInBackground(sessionId, req.file.buffer, tocHintsRaw).catch(err => {
+      processInBackground(sessionId, req.file.buffer, tocHintsRaw, detailReviewEnabled).catch(err => {
         console.error(`[SpecExtractor] Background processing failed for ${sessionId}:`, err);
       });
 
@@ -233,6 +248,7 @@ export function registerSpecExtractorRoutes(app: Express) {
         if (req.body.selectedAccessories) selectedAccessories = JSON.parse(req.body.selectedAccessories);
       } catch {}
       const tocHints = (req.body.tocHints as string)?.trim() || "";
+      const detailReview = parseBooleanFlag(req.body.detailReview);
 
       const sessionId = generateId();
       const dir = path.join(UPLOAD_TMP_DIR, sessionId);
@@ -243,6 +259,7 @@ export function registerSpecExtractorRoutes(app: Express) {
         projectName,
         selectedAccessories,
         tocHints,
+        detailReview,
         totalChunks,
         totalSize: Number.isFinite(totalSize) ? totalSize : 0,
         dir,
@@ -336,6 +353,8 @@ export function registerSpecExtractorRoutes(app: Express) {
         filename: info.filename,
         projectName: info.projectName,
         selectedAccessories: info.selectedAccessories,
+        detailReviewEnabled: info.detailReview,
+        detailReviewStatus: info.detailReview ? "pending" : null,
         status: "processing",
         progress: 0,
         message: "Starting extraction...",
@@ -348,6 +367,7 @@ export function registerSpecExtractorRoutes(app: Express) {
         filename: info.filename,
         projectName: info.projectName,
         selectedAccessories: info.selectedAccessories,
+        detailReviewEnabled: info.detailReview,
         status: "processing",
         progress: 0,
         message: "Starting extraction...",
@@ -355,7 +375,7 @@ export function registerSpecExtractorRoutes(app: Express) {
       });
 
       const pdfBuffer = await fs.promises.readFile(pdfPath);
-      processInBackground(sessionId, pdfBuffer, info.tocHints).catch(err => {
+      processInBackground(sessionId, pdfBuffer, info.tocHints, info.detailReview).catch(err => {
         console.error(`[SpecExtractor] Background processing failed for ${sessionId}:`, err);
       });
     } catch (error: any) {
@@ -386,6 +406,9 @@ export function registerSpecExtractorRoutes(app: Express) {
         status: session.status,
         progress: session.progress,
         message: session.message,
+        detailReviewEnabled: session.detailReviewEnabled ?? false,
+        detailReviewStatus: session.detailReviewStatus || null,
+        detailReviewMessage: session.detailReviewMessage || null,
       });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -453,6 +476,24 @@ export function registerSpecExtractorRoutes(app: Express) {
         } catch (err: any) {
           console.error(`[SpecExtractor Export] Failed to extract ${section.sectionNumber}: ${err.message}`);
           errors.push(`${section.sectionNumber}: ${err.message}`);
+        }
+      }
+
+      // When a detailed review has run, drop the estimator's Excel report at the
+      // root of the ZIP alongside the section folders.
+      const reviews = collectReviews(sections);
+      if (reviews.length > 0) {
+        try {
+          const reportBuffer = await buildSpecReviewBuffer({
+            projectName: session.projectName || session.suggestedProjectName || "Project",
+            fileName: session.filename,
+            sections,
+            reviews,
+          });
+          zip.file(`${projectName} - Spec Review Report.xlsx`, reportBuffer);
+        } catch (reportErr: any) {
+          console.error("[SpecExtractor Export] Failed to build review report:", reportErr.message);
+          errors.push(`Spec Review Report: ${reportErr.message}`);
         }
       }
 
@@ -548,6 +589,99 @@ export function registerSpecExtractorRoutes(app: Express) {
     }
   });
 
+  // ── Detailed Spec Review ─────────────────────────────────────────────────
+  // Reads each extracted section in full, fills out a Short Order Form per
+  // material, and logs what the spec never said as RFI / assumption / proposal
+  // qualification. Runs in the background; the client polls the GET below.
+
+  app.post("/api/spec-extractor/sessions/:id/detail-review", async (req: Request, res: Response) => {
+    try {
+      const [session] = await db.select().from(specExtractorSessions).where(eq(specExtractorSessions.id, req.params.id));
+      if (!session) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(400).json({ message: "OpenAI API key not configured" });
+      }
+      if (session.detailReviewStatus === "running") {
+        return res.status(409).json({ message: "A detailed review is already running for this extraction." });
+      }
+
+      const sectionIds: string[] | undefined = Array.isArray(req.body?.sectionIds) ? req.body.sectionIds : undefined;
+      const targets = await detailReviewTargets(req.params.id, sectionIds);
+      if (targets.length === 0) {
+        return res.status(400).json({ message: "No reviewable sections were selected" });
+      }
+
+      await db.update(specExtractorSessions)
+        .set({
+          detailReviewEnabled: true,
+          detailReviewStatus: "running",
+          detailReviewMessage: `Reviewing ${targets.length} section${targets.length === 1 ? "" : "s"}...`,
+        })
+        .where(eq(specExtractorSessions.id, req.params.id));
+
+      res.json({ status: "running", sectionCount: targets.length });
+
+      startDetailReview(req.params.id, sectionIds).catch(err => {
+        console.error(`[SpecExtractor] Detail review failed for ${req.params.id}:`, err);
+      });
+    } catch (error: any) {
+      console.error("[SpecExtractor] Detail review error:", error);
+      res.status(500).json({ message: error.message || "Detailed review failed" });
+    }
+  });
+
+  app.get("/api/spec-extractor/sessions/:id/detail-review", async (req: Request, res: Response) => {
+    try {
+      const [session] = await db.select().from(specExtractorSessions).where(eq(specExtractorSessions.id, req.params.id));
+      if (!session) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+      const sections = await db.select().from(specExtractorSections)
+        .where(eq(specExtractorSections.sessionId, req.params.id));
+
+      res.json({
+        status: session.detailReviewStatus || (session.detailReviewEnabled ? "pending" : "off"),
+        message: session.detailReviewMessage || "",
+        completedAt: session.detailReviewCompletedAt || null,
+        reviews: collectReviews(sections),
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/spec-extractor/sessions/:id/detail-review/export", async (req: Request, res: Response) => {
+    try {
+      const [session] = await db.select().from(specExtractorSessions).where(eq(specExtractorSessions.id, req.params.id));
+      if (!session) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+      const sections = await db.select().from(specExtractorSections)
+        .where(eq(specExtractorSections.sessionId, req.params.id));
+      const reviews = collectReviews(sections);
+      if (reviews.length === 0) {
+        return res.status(400).json({ message: "No detailed review results yet. Run the detailed review first." });
+      }
+
+      const projectName = session.projectName || session.suggestedProjectName || "Project";
+      const buffer = await buildSpecReviewBuffer({
+        projectName,
+        fileName: session.filename,
+        sections,
+        reviews,
+      });
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${sanitizeFilename(projectName)} - Spec Review Report.xlsx"`);
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("[SpecExtractor] Detail review export error:", error);
+      res.status(500).json({ message: error.message || "Report export failed" });
+    }
+  });
+
   app.patch("/api/spec-extractor/sections/:sectionId", async (req: Request, res: Response) => {
     try {
       const { title, folderName } = req.body;
@@ -636,6 +770,96 @@ export function registerSpecExtractorRoutes(app: Express) {
       res.status(500).json({ message: error.message });
     }
   });
+}
+
+/** Sections worth a detailed read: real product sections, not signage or rejects. */
+async function detailReviewTargets(sessionId: string, sectionIds?: string[]): Promise<DetailReviewTarget[]> {
+  const all = await db.select().from(specExtractorSections)
+    .where(eq(specExtractorSections.sessionId, sessionId));
+
+  const eligible = all.filter(s =>
+    !s.isSignage &&
+    s.aiReviewStatus !== "not_div10" &&
+    (!sectionIds || sectionIds.length === 0 || sectionIds.includes(s.id))
+  );
+
+  // With no explicit selection, review what the results screen pre-checks:
+  // Division 10 plus any accessory sections the estimator asked for.
+  const scoped = (sectionIds && sectionIds.length > 0)
+    ? eligible
+    : eligible.filter(s => s.sectionType === "div10" || s.sectionType === "accessory");
+
+  return scoped
+    .sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber))
+    .map(s => ({
+      id: s.id,
+      sectionNumber: s.sectionNumber,
+      title: s.title,
+      startPage: s.startPage,
+      endPage: s.endPage,
+    }));
+}
+
+function collectReviews(sections: { detailReview?: SpecSectionDetailReview | null }[]): SpecSectionDetailReview[] {
+  return sections
+    .map(s => s.detailReview)
+    .filter((r): r is SpecSectionDetailReview => !!r && typeof r === "object")
+    .sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber));
+}
+
+/**
+ * Run the detailed review and keep the session row updated so the UI can show
+ * progress. Never throws — a failure is recorded on the session instead.
+ */
+async function startDetailReview(sessionId: string, sectionIds?: string[]): Promise<void> {
+  try {
+    const [session] = await db.select().from(specExtractorSessions).where(eq(specExtractorSessions.id, sessionId));
+    if (!session) return;
+
+    const targets = await detailReviewTargets(sessionId, sectionIds);
+    if (targets.length === 0) {
+      await db.update(specExtractorSessions)
+        .set({ detailReviewStatus: "complete", detailReviewMessage: "No sections were eligible for a detailed review." })
+        .where(eq(specExtractorSessions.id, sessionId));
+      return;
+    }
+
+    const projectName = session.projectName || session.suggestedProjectName || "Project";
+    const pages = await getCachedPages(sessionId);
+
+    const reviews = await runDetailReview(targets, pages, projectName, async (done, total, sectionNumber) => {
+      await db.update(specExtractorSessions)
+        .set({
+          detailReviewMessage: done < total
+            ? `Reviewing section ${sectionNumber} (${done + 1} of ${total})...`
+            : `Reviewed ${total} section${total === 1 ? "" : "s"}.`,
+        })
+        .where(eq(specExtractorSessions.id, sessionId));
+    });
+
+    const failed = reviews.filter(r => r.error).length;
+    const itemCount = reviews.reduce((n, r) => n + r.items.length, 0);
+    const flagCount = reviews.reduce((n, r) => n + r.flags.length, 0);
+
+    await db.update(specExtractorSessions)
+      .set({
+        detailReviewStatus: "complete",
+        detailReviewCompletedAt: new Date().toISOString(),
+        detailReviewMessage: `Reviewed ${reviews.length} section${reviews.length === 1 ? "" : "s"} — ${itemCount} material${itemCount === 1 ? "" : "s"}, ${flagCount} flag${flagCount === 1 ? "" : "s"}${failed > 0 ? `, ${failed} could not be read` : ""}.`,
+      })
+      .where(eq(specExtractorSessions.id, sessionId));
+
+    console.log(`[SpecExtractor] Detail review complete for ${sessionId}: ${reviews.length} sections, ${itemCount} items, ${flagCount} flags`);
+  } catch (error: any) {
+    console.error(`[SpecExtractor] Detail review failed for ${sessionId}:`, error);
+    await db.update(specExtractorSessions)
+      .set({
+        detailReviewStatus: "error",
+        detailReviewMessage: error?.message || "Detailed review failed",
+      })
+      .where(eq(specExtractorSessions.id, sessionId))
+      .catch(() => {});
+  }
 }
 
 async function runAiReview(sessionId: string, projectName: string): Promise<void> {
@@ -924,7 +1148,7 @@ Be concise - just the project name without extra descriptions like "for" or "at"
   }
 }
 
-async function processInBackground(sessionId: string, pdfBuffer: Buffer, tocHintsRaw?: string) {
+async function processInBackground(sessionId: string, pdfBuffer: Buffer, tocHintsRaw?: string, detailReviewEnabled = false) {
   try {
     let tocHints: TOCHint[] | undefined;
     if (tocHintsRaw) {
@@ -1073,6 +1297,8 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer, tocHint
         .where(eq(specExtractorSessions.id, sessionId));
     }
 
+    // The detailed review is the slow part, so hand the estimator the section
+    // list first and let the review fill in behind it.
     await db.update(specExtractorSessions)
       .set({
         status: "complete",
@@ -1082,6 +1308,13 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer, tocHint
       .where(eq(specExtractorSessions.id, sessionId));
 
     console.log(`[SpecExtractor] Completed session ${sessionId}: ${result.sections.length} sections`);
+
+    if (detailReviewEnabled) {
+      await db.update(specExtractorSessions)
+        .set({ detailReviewStatus: "running", detailReviewMessage: "Starting detailed review..." })
+        .where(eq(specExtractorSessions.id, sessionId));
+      await startDetailReview(sessionId);
+    }
   } catch (error: any) {
     console.error(`[SpecExtractor] Processing error for ${sessionId}:`, error);
     await db.update(specExtractorSessions)
