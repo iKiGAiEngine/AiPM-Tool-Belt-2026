@@ -1565,8 +1565,7 @@ export function registerBcSyncRoutes(app: Express) {
       }
 
       const requiredSubfolders = [
-        "Estimate Folder/Bid Documents/Plans",
-        "Estimate Folder/Bid Documents/Specs",
+        "Estimate Folder/Bid Documents/Plans and Specs",
         ...(includeVendorFolder ? ["Estimate Folder/Vendors"] : []),
         "Estimate Folder/Estimate",
       ];

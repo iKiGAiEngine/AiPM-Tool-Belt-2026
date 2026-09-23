@@ -109,6 +109,19 @@ function ensureDir(dirPath: string): void {
   }
 }
 
+// Plans and specs share one combined bid-documents folder. Projects created
+// before that change kept them in separate "Plans" and "Specs" folders, so
+// reads fall back to those legacy names and keep working un-migrated.
+const BID_DOCS_DIR = "Estimate Folder/Bid Documents/Plans and Specs";
+const LEGACY_PLANS_DIR = "Estimate Folder/Bid Documents/Plans";
+const LEGACY_SPECS_DIR = "Estimate Folder/Bid Documents/Specs";
+
+function resolveBidDocPath(folderPath: string, filename: string, legacyDir: string): string {
+  const currentPath = path.join(folderPath, BID_DOCS_DIR, filename);
+  if (fs.existsSync(currentPath)) return currentPath;
+  return path.join(folderPath, legacyDir, filename);
+}
+
 export function registerProjectRoutes(app: Express) {
 
   app.post("/api/extract-project-details", handleImageUploadError, async (req: Request, res: Response) => {
@@ -472,8 +485,7 @@ export function registerProjectRoutes(app: Express) {
         }
 
         const requiredSubfolders = [
-          "Estimate Folder/Bid Documents/Plans",
-          "Estimate Folder/Bid Documents/Specs",
+          BID_DOCS_DIR,
           "Estimate Folder/Vendors",
           "Estimate Folder/Estimate",
         ];
@@ -538,10 +550,19 @@ export function registerProjectRoutes(app: Express) {
         }
 
         if (plansFile) {
-          fs.writeFileSync(path.join(projectDir, "Estimate Folder/Bid Documents/Plans", plansFile.originalname), plansFile.buffer);
+          fs.writeFileSync(path.join(projectDir, BID_DOCS_DIR, plansFile.originalname), plansFile.buffer);
         }
+        // Plans and specs now share one folder, so identically named uploads
+        // would silently overwrite each other. Disambiguate the specs copy and
+        // record the name actually written to disk.
+        let specsStoredName = specsFile?.originalname;
         if (specsFile) {
-          fs.writeFileSync(path.join(projectDir, "Estimate Folder/Bid Documents/Specs", specsFile.originalname), specsFile.buffer);
+          if (plansFile && specsFile.originalname === plansFile.originalname) {
+            const ext = path.extname(specsFile.originalname);
+            specsStoredName = `${path.basename(specsFile.originalname, ext)} - Specs${ext}`;
+            console.log(`[ProjectCreate] Plans and specs share the filename "${specsFile.originalname}"; specs saved as "${specsStoredName}"`);
+          }
+          fs.writeFileSync(path.join(projectDir, BID_DOCS_DIR, specsStoredName!), specsFile.buffer);
         }
 
         let specsiftSessionId: string | undefined;
@@ -588,7 +609,7 @@ export function registerProjectRoutes(app: Express) {
           planparserJobId: planParserJobId,
           folderPath: projectDir,
           plansFilename: plansFile?.originalname,
-          specsFilename: specsFile?.originalname,
+          specsFilename: specsStoredName,
           isTest: isTest === "true",
         });
 
@@ -1087,7 +1108,7 @@ export function registerProjectRoutes(app: Express) {
       if (project.status === "specsift_error") {
         (async () => {
           try {
-            const specsPath = path.join(folderPath, "Estimate Folder/Bid Documents/Specs", project.specsFilename || "");
+            const specsPath = resolveBidDocPath(folderPath, project.specsFilename || "", LEGACY_SPECS_DIR);
             if (!fs.existsSync(specsPath)) {
               await updateProject(projectId, { status: "specsift_error" });
               return;
@@ -1190,7 +1211,7 @@ export function registerProjectRoutes(app: Express) {
 
             await updateProject(projectId, { status: "specsift_complete" });
 
-            const plansPath = path.join(folderPath, "Estimate Folder/Bid Documents/Plans", project.plansFilename || "");
+            const plansPath = resolveBidDocPath(folderPath, project.plansFilename || "", LEGACY_PLANS_DIR);
             if (fs.existsSync(plansPath) && project.planparserJobId) {
               try {
                 await updateProject(projectId, { status: "planparser_baseline_running" });
@@ -1221,7 +1242,7 @@ export function registerProjectRoutes(app: Express) {
       } else if (project.status === "planparser_baseline_error") {
         (async () => {
           try {
-            const plansPath = path.join(folderPath, "Estimate Folder/Bid Documents/Plans", project.plansFilename || "");
+            const plansPath = resolveBidDocPath(folderPath, project.plansFilename || "", LEGACY_PLANS_DIR);
             if (!fs.existsSync(plansPath) || !project.planparserJobId) {
               return;
             }
@@ -2761,8 +2782,7 @@ export function registerProjectRoutes(app: Express) {
       // Always ensure the canonical bid subfolders exist, even if the template
       // didn't include them.
       const requiredSubfolders = [
-        "Estimate Folder/Bid Documents/Plans",
-        "Estimate Folder/Bid Documents/Specs",
+        BID_DOCS_DIR,
         "Estimate Folder/Vendors",
         "Estimate Folder/Estimate",
       ];
