@@ -85,6 +85,8 @@ export async function createProposalLogEntry(data: {
   anticipatedFinish?: string;
   nbsEstimator?: string;
   bcLink?: string;
+  shareDriveLink?: string;
+  oneDriveLink?: string;
   sourceType?: string;
   sourceEmail?: string;
   sourceEmailSubject?: string;
@@ -116,6 +118,8 @@ export async function createProposalLogEntry(data: {
     nbsEstimator: data.nbsEstimator || null,
     selfPerformEstimator: spEstimator || null,
     bcLink: data.bcLink || null,
+    shareDriveLink: data.shareDriveLink || null,
+    oneDriveLink: data.oneDriveLink || null,
     sourceType: data.sourceType || null,
     sourceEmail: data.sourceEmail || null,
     sourceEmailSubject: data.sourceEmailSubject || null,
@@ -266,6 +270,8 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   dueDate: string;
   inviteDate: string;
   bcLink: string;
+  shareDriveLink: string;
+  oneDriveLink: string;
   nbsSelectedScopes: string;
   scopeList: string;
   finalReviewer: string;
@@ -296,6 +302,8 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   if (updates.dueDate !== undefined) cleanUpdates.dueDate = updates.dueDate;
   if (updates.inviteDate !== undefined) cleanUpdates.inviteDate = updates.inviteDate;
   if (updates.bcLink !== undefined) cleanUpdates.bcLink = updates.bcLink;
+  if (updates.shareDriveLink !== undefined) cleanUpdates.shareDriveLink = updates.shareDriveLink;
+  if (updates.oneDriveLink !== undefined) cleanUpdates.oneDriveLink = updates.oneDriveLink;
   if (updates.nbsSelectedScopes !== undefined) cleanUpdates.nbsSelectedScopes = updates.nbsSelectedScopes;
   if (updates.scopeList !== undefined) cleanUpdates.scopeList = updates.scopeList;
   if (updates.finalReviewer !== undefined) cleanUpdates.finalReviewer = updates.finalReviewer;

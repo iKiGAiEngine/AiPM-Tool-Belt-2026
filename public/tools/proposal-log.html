@@ -823,6 +823,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
           <button class="btn-icon-sm" id="btn-force-sync" onclick="forceSync()" title="Push app data to Google Sheet" style="display:none;width:100%;text-align:left" data-testid="button-force-sync">&#8635; Push to Sheet</button>
           <button class="btn-icon-sm" id="btn-import-sheet" onclick="importFromSheet()" title="Pull changes from Google Sheet into app" style="display:none;width:100%;text-align:left" data-testid="button-import-sheet">&#11015; Pull from Sheet</button>
           <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
+          <button class="btn-icon-sm" id="btn-folder-links" onclick="openFolderLinkSetup();toggleMoreMenu()" title="Set the Share Drive / OneDrive locations used to build folder links" style="display:none;width:100%;text-align:left" data-testid="button-folder-links">&#128279; Folder Link Setup</button>
           <button class="btn-icon-sm" onclick="exportCSV();toggleMoreMenu()" style="width:100%;text-align:left" data-testid="button-export-csv">&#11015; Export CSV</button>
           <button class="btn-icon-sm" onclick="resetColLayout();toggleMoreMenu()" style="width:100%;text-align:left" data-testid="button-reset-columns">&#8634; Reset Columns</button>
         </div>
@@ -1225,7 +1226,7 @@ const COL_DEFS = [
   {key:'filePath',       label:'File Path',           w:90,  filter:'none'},
   {key:'selfPerformEstimator', label:'SP Estimator',    w:120, filter:'text'},
   {key:'_screenshot',    label:'Source',              w:110, filter:'none'},
-  {key:'_folder',        label:'Folder',              w:70,  filter:'none'},
+  {key:'_folder',        label:'Folder',              w:120,  filter:'none'},
   {key:'_actions',       label:'',                    w:70,  filter:'none'},
 ];
 
@@ -1508,7 +1509,12 @@ function buildRows() {
     const cells = visKeys.map(key=>{
       if(key==='_folder') {
         if(!p._serverDbId) return `<td style="text-align:center"></td>`;
-        return `<td style="text-align:center"><button onclick="recreateFolder(${oi})" title="Re-create project bid folder" style="background:none;border:none;padding:2px 4px;cursor:pointer;font-size:18px;line-height:1;color:var(--gold);opacity:.85;transition:opacity .15s,transform .15s" onmouseover="this.style.opacity='1';this.style.transform='scale(1.15)'" onmouseout="this.style.opacity='.85';this.style.transform='scale(1)'">&#128194;</button></td>`;
+        const fbtn='background:none;border:none;padding:2px 4px;cursor:pointer;font-size:18px;line-height:1;color:var(--gold);transition:opacity .15s,transform .15s';
+        const canEditLinks=mode==='estimator' && can('editRow');
+        const odOn=!!p.oneDriveLink, sdOn=!!p.shareDriveLink;
+        const odBtn=(odOn||canEditLinks)?`<button onclick="folderLinkClick(event,${oi},'oneDriveLink')" title="${odOn?'Open project folder in OneDrive (Ctrl+click to change link)':'Add OneDrive folder link'}" style="${fbtn};opacity:${odOn?1:.3}">&#9729;&#65039;</button>`:'';
+        const sdBtn=(sdOn||canEditLinks)?`<button onclick="folderLinkClick(event,${oi},'shareDriveLink')" title="${sdOn?'Copy Share Drive folder path (Ctrl+click to change link)':'Add Share Drive folder path'}" style="${fbtn};opacity:${sdOn?1:.3}">&#128421;&#65039;</button>`:'';
+        return `<td style="text-align:center;white-space:nowrap">${odBtn}${sdBtn}<button onclick="recreateFolder(${oi})" title="Re-create project bid folder (.zip download)" style="${fbtn};opacity:.85" onmouseover="this.style.opacity='1';this.style.transform='scale(1.15)'" onmouseout="this.style.opacity='.85';this.style.transform='scale(1)'">&#128194;</button></td>`;
       }
       if(key==='_actions') {
         if(mode==='leadership') return `<td></td>`;
@@ -2218,6 +2224,8 @@ async function checkGoogleSheet(){
     const btn=document.getElementById('btn-gsheet');
     const syncBtn=document.getElementById('btn-force-sync');
     const importBtn=document.getElementById('btn-import-sheet');
+    const flBtn=document.getElementById('btn-folder-links');
+    if(flBtn && currentUser && currentUser.role==='admin') flBtn.style.display='';
     if(d.url && currentUser && currentUser.role==='admin'){
       btn.href=d.url;
       btn.style.display='';
@@ -3588,8 +3596,8 @@ function estimatorCodes(p){ return (p&&p.nbsEstimator||'').split('/').map(s=>s.t
     sel.innerHTML=ESTIMATORS.map(e=>`<option value="${e.code}">${e.label}</option>`).join('');
   }
 })();
-const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator-multi',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',gcEstimateLead:'text',selfPerformEstimator:'select-sp-estimator',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date',estimateNumber:'text',filePath:'text',sourceType:'text',sourceEmail:'text',sourceEmailSubject:'text',sourceAttachmentUrl:'text'};
-const FIELD_LABELS={proposalTotal:'Proposal Total',estimateStatus:'Status',nbsEstimator:'NBS Estimator',anticipatedStart:'Est. Start',anticipatedFinish:'Est. End',dueDate:'Due Date',notes:'Notes',bcLink:'BC Link',gcEstimateLead:'GC Estimate Lead',selfPerformEstimator:'SP Estimator',finalReviewer:'Final Reviewer',swinertonProject:'Swinerton?',region:'Region',primaryMarket:'Primary Market',inviteDate:'Invite Date',estimateNumber:'Estimate #',filePath:'File Path'};
+const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator-multi',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',shareDriveLink:'text',oneDriveLink:'text',gcEstimateLead:'text',selfPerformEstimator:'select-sp-estimator',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date',estimateNumber:'text',filePath:'text',sourceType:'text',sourceEmail:'text',sourceEmailSubject:'text',sourceAttachmentUrl:'text'};
+const FIELD_LABELS={proposalTotal:'Proposal Total',estimateStatus:'Status',nbsEstimator:'NBS Estimator',anticipatedStart:'Est. Start',anticipatedFinish:'Est. End',dueDate:'Due Date',notes:'Notes',bcLink:'BC Link',shareDriveLink:'Share Drive Folder',oneDriveLink:'OneDrive Folder',gcEstimateLead:'GC Estimate Lead',selfPerformEstimator:'SP Estimator',finalReviewer:'Final Reviewer',swinertonProject:'Swinerton?',region:'Region',primaryMarket:'Primary Market',inviteDate:'Invite Date',estimateNumber:'Estimate #',filePath:'File Path'};
 let editPopupState=null;
 
 function startInlineEdit(e,oi,field){
@@ -3868,7 +3876,7 @@ function closeNoBidModal(withReason) {
 
 async function syncFieldToServer(entry, field, value) {
   if (isReadOnlyAccount(currentUser)) { showToast('\u26a0\ufe0f Read-only access \u2014 changes cannot be saved.', 'error'); return; }
-  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','selfPerformEstimator','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink','nbsSelectedScopes','finalReviewer','swinertonProject','region','primaryMarket','inviteDate','filePath'];
+  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','selfPerformEstimator','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink','shareDriveLink','oneDriveLink','nbsSelectedScopes','finalReviewer','swinertonProject','region','primaryMarket','inviteDate','filePath'];
   if (!syncableFields.includes(field)) return;
   if (!entry._serverDbId) { console.warn('Cannot sync field: entry has no _serverDbId'); return; }
   try {
@@ -4159,6 +4167,38 @@ async function pushLocalEntriesToServer(entries){
   }catch(err){console.warn('Failed to push imported entries to server:',err);}
 }
 
+function folderLinkClick(e,oi,field){
+  e.stopPropagation();
+  const entry=data[oi]; if(!entry) return;
+  const val=(entry[field]||'').trim();
+  const canEdit=currentUser && !isReadOnlyAccount(currentUser) && can('editRow');
+  if(!val || e.ctrlKey || e.metaKey){
+    if(canEdit) openEditPopup(e,oi,field);
+    return;
+  }
+  if(/^https?:\/\//i.test(val)){ window.open(val,'_blank','noopener,noreferrer'); return; }
+  // Network paths (\\server\share\...) can't be opened by a web page, so copy it for File Explorer.
+  const done=()=>showToast('Share Drive path copied. Paste it into File Explorer\'s address bar.');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(val).then(done,()=>showToast(val));
+  } else { showToast(val); }
+}
+
+async function openFolderLinkSetup(){
+  try{
+    const r=await fetch('/api/settings/folder-links',{credentials:'include'});
+    if(!r.ok){ showToast('Admins only.','error'); return; }
+    const cur=await r.json();
+    const sd=prompt('SHARE DRIVE root folder.\nNew projects get this + their folder name.\nExample: \\\\nbs-server\\Projects\\Bids\n(leave blank to turn off)', cur.shareDriveRoot||'');
+    if(sd===null) return;
+    const od=prompt('ONEDRIVE / SharePoint root folder link (must start with https://).\nNew projects get this + their folder name.\n(leave blank to turn off)', cur.oneDriveRoot||'');
+    if(od===null) return;
+    const w=await fetch('/api/settings/folder-links',{method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({shareDriveRoot:sd,oneDriveRoot:od})});
+    if(!w.ok){ let m='Save failed'; try{ m=(await w.json()).message||m; }catch(_){} showToast(m,'error'); return; }
+    showToast('Folder link settings saved. They apply to projects created from now on.');
+  }catch(err){ showToast('Could not save folder link settings.','error'); }
+}
+
 async function recreateFolder(oi){
   const entry = data[oi];
   if(!entry || !entry._serverDbId){ showToast('Cannot re-create folder: no server record.', 'error'); return; }
@@ -4428,6 +4468,8 @@ function serverEntryToLocal(e, existingLocal) {
     notes: e.notes || base.notes || '',
     nbsSelectedScopes: e.nbsSelectedScopes || base.nbsSelectedScopes || '[]',
     bcLink: e.bcLink || base.bcLink || '',
+    shareDriveLink: e.shareDriveLink || '',
+    oneDriveLink: e.oneDriveLink || '',
     finalReviewer: e.finalReviewer || base.finalReviewer || '',
     swinertonProject: e.swinertonProject || base.swinertonProject || '',
     owner: e.owner || '',

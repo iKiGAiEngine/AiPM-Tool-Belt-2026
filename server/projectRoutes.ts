@@ -6,6 +6,7 @@ import JSZip from "jszip";
 import { PDFDocument, PDFDict, PDFString, PDFArray, PDFName, PDFNull, PDFNumber } from "pdf-lib";
 import { insertScopeDictionarySchema, insertRegionSchema, PLAN_PARSER_SCOPES } from "@shared/schema";
 import { requireAdmin } from "./authRoutes";
+import { buildFolderLinks, getFolderLinkSettings, saveFolderLinkSettings } from "./folderLinks";
 import {
   getAllScopeDictionaries,
   getActiveScopeDictionaries,
@@ -845,6 +846,7 @@ export function registerProjectRoutes(app: Express) {
               dueDate,
               owner: ownerName,
               filePath: projectDir,
+              ...(await buildFolderLinks(folderName)),
               screenshotPath: screenshotSavePath,
               screenshotData: screenshotFile?.buffer || null,
               screenshotMimeType: screenshotFile?.mimetype || null,
@@ -1994,6 +1996,8 @@ export function registerProjectRoutes(app: Express) {
         "inviteDate",
         "notes",
         "bcLink",
+        "shareDriveLink",
+        "oneDriveLink",
         "nbsSelectedScopes",
         "scopeList",
         "finalReviewer",
@@ -2566,6 +2570,30 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Failed to unacknowledge entry:", error);
       res.status(500).json({ message: "Failed to unacknowledge" });
+    }
+  });
+
+  app.get("/api/settings/folder-links", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      res.json(await getFolderLinkSettings());
+    } catch (error) {
+      console.error("Failed to get folder link settings:", error);
+      res.status(500).json({ message: "Failed to get folder link settings" });
+    }
+  });
+
+  app.put("/api/settings/folder-links", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const shareDriveRoot = typeof req.body.shareDriveRoot === "string" ? req.body.shareDriveRoot : "";
+      const oneDriveRoot = typeof req.body.oneDriveRoot === "string" ? req.body.oneDriveRoot : "";
+      if (oneDriveRoot.trim() && !/^https:\/\//i.test(oneDriveRoot.trim())) {
+        return res.status(400).json({ message: "The OneDrive link must start with https://" });
+      }
+      await saveFolderLinkSettings({ shareDriveRoot, oneDriveRoot });
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Failed to save folder link settings:", error);
+      res.status(500).json({ message: "Failed to save folder link settings" });
     }
   });
 

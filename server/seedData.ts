@@ -29,6 +29,15 @@ async function ensureUserAuthColumns(): Promise<void> {
   }
 }
 
+async function ensureFolderLinkColumns(): Promise<void> {
+  try {
+    await db.execute(sql`ALTER TABLE proposal_log_entries ADD COLUMN IF NOT EXISTS share_drive_link VARCHAR(1000)`);
+    await db.execute(sql`ALTER TABLE proposal_log_entries ADD COLUMN IF NOT EXISTS one_drive_link VARCHAR(2000)`);
+  } catch (e: any) {
+    console.log("[Migration] folder link columns check:", e.message);
+  }
+}
+
 async function ensureRegionAliasesColumn(): Promise<void> {
   try {
     await db.execute(sql`ALTER TABLE regions ADD COLUMN IF NOT EXISTS aliases text[]`);
@@ -68,6 +77,7 @@ export async function seedDefaultData(): Promise<void> {
   try {
     await ensureUserAuthColumns();
     await ensureRegionAliasesColumn();
+    await ensureFolderLinkColumns();
     await ensureProposalLogExtraColumns();
     await ensureProposalChangeLogTable();
     const [regionCount] = await db.select({ value: count() }).from(regions);

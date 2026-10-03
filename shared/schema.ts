@@ -949,6 +949,8 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   regionNeedsReview: boolean("region_needs_review").default(false),
   notes: text("notes").default(""),
   bcLink: varchar("bc_link", { length: 1000 }),
+  shareDriveLink: varchar("share_drive_link", { length: 1000 }),
+  oneDriveLink: varchar("one_drive_link", { length: 2000 }),
   ndaRequired: boolean("nda_required").default(false),
   bcAccessStatus: varchar("bc_access_status", { length: 30 }),
   isTest: boolean("is_test").default(false),
