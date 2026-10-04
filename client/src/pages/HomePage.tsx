@@ -93,6 +93,7 @@ const tools: ToolTile[] = [
     icon: PackageCheck,
     href: "/buyout-bot",
     available: true,
+    feature: "buyout-bot",
   },
   {
     id: "procurementprocess",
@@ -138,6 +139,7 @@ const tools: ToolTile[] = [
     icon: LifeBuoy,
     href: "/help-center",
     available: true,
+    feature: "help-center",
   },
   {
     id: "planparser",
