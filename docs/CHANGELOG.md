@@ -1,5 +1,29 @@
 # AiPM Tool Belt — Changelog
 
+## [07-09-2026] Quote Parser overhaul — three-gate QC system
+### Added
+- Verdict banner on every parse: VERIFIED or NEEDS REVIEW with an itemized flag list — every number is proven or flagged
+- Gate 1 (math): per-line unit/extended prices + tax extracted; server re-checks qty × unit vs. extension and line sum vs. material total
+- Gate 3 (schedule): new Plan Schedule input (PDF/image/text); fills PLAN CALLOUT and flags missing items, extras, and quantity mismatches vs. the plan
+- Multi-source input: quote file + pasted screenshot + pasted text combine into one parse; spec accepts images
+- Parse run log (`quote_parser_runs`) and vendor price history (`vendor_price_history`) for accuracy tracking and price-trend analysis (run `npm run db:push`)
+- Learning loop: 👍/👎 recorded per run, complaints auto-attach quote text, "Draft Rule with AI" turns feedback into per-vendor parsing rules injected on future parses
+- Accuracy scorecard + vendor rules editor in Central Settings → Quote Parser
+- Click-to-edit result cells (callout, description, model, qty) before copy/export
+- Self-test suite: `npx tsx scripts/quoteparser-test.ts`
+### Fixed
+- Scanned PDFs now parse (pages rendered via pdfjs+canvas to the vision model; old path needed a `pdftoppm` binary absent in production)
+- iPhone HEIC photos converted to PNG before vision (previously crashed)
+- PDF text extraction keeps rows/columns (was collapsing each page to one line)
+- Strict structured outputs + automatic repair retry (was prompt-and-pray JSON)
+- Grand-total fallback now subtracts tax as well as freight
+- Tag/decal lines fold into their parent product again ("- tagged", "decals included")
+### Security
+- Admin lock on the AI Handbook, feedback administration, and vendor-rules endpoints
+- Input size caps on quote/spec/schedule text
+### Removed
+- ~560 lines of dead code (pre-AI regex parser, unwired schedule matcher, tesseract OCR path)
+
 ## [04-06-2026] v0.1.0
 ### Added
 - OTP-based email authentication system with 6-digit codes
