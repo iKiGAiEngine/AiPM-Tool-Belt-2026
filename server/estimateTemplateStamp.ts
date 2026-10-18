@@ -128,7 +128,12 @@ function removeCell(xml: string, ref: string): string {
 // Excel itself produces, which is all the Vendor Directory's column A ever is.
 function readColumn(xml: string, sharedStrings: string[], col: string): Map<number, string> {
   const out = new Map<number, string>();
-  const re = new RegExp(`<c r="${escapeRegExp(col)}(\\d+)"([^>]*)(?:/>|>([\\s\\S]*?)</c>)`, "g");
+  // The attribute group MUST be lazy. Greedy `[^>]*` swallows the "/" of a
+  // self-closing cell, so `<c r="A5" s="239"/>` is then treated as an open tag
+  // and the match runs on to the next `</c>` — silently consuming the following
+  // cell. On this sheet that would drop a scope label and shift every block
+  // boundary after it, filing vendors under the wrong scope.
+  const re = new RegExp(`<c r="${escapeRegExp(col)}(\\d+)"([^>]*?)(?:/>|>([\\s\\S]*?)</c>)`, "g");
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) !== null) {
     const row = parseInt(m[1], 10);
