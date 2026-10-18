@@ -48,7 +48,7 @@ export const VENDOR_DIRECTORY_SCOPES = [
   "Med Equipment",
   "Expansion Joints",
   "Shelving",
-  "Window Shades",
+  "Miscellaneous",
   "Entrance Mats",
   "Mailbox",
   "Flagpole",
@@ -87,11 +87,16 @@ export const SCOPE_TAG_IDS: Record<VendorDirectoryScope, string[]> = {
   "Med Equipment": ["med_equipment", "aed"],
   "Expansion Joints": ["expansion_joints"],
   "Shelving": ["storage_units"],
-  // `window_shades` does not yet exist in CONTACT_SCOPE_OPTIONS, so no vendor
-  // can currently carry it and this block will populate empty until the tag is
-  // added to the Vendor Database UI and vendors are re-tagged. The template
-  // already has a Window Shades block, so the gap is in the tag list, not here.
-  "Window Shades": ["window_shades"],
+  // Catch-all for material vendors with no matching scope. NBS stopped bidding
+  // window shades, so that block became Miscellaneous rather than being deleted
+  // (if the scope ever comes back, rename a tab or quote it out of here).
+  //
+  // The extra ids are deliberate. `photolum` and `signage` previously mapped to
+  // no block at all, so those vendors were silently absent from the directory;
+  // `window_shades` is still on one vendor from a bulk upload. Folding all three
+  // in here means those vendors appear with no re-tagging, and `miscellaneous`
+  // is what the Vendor Database UI writes for anything new.
+  "Miscellaneous": ["miscellaneous", "window_shades", "photolum", "signage"],
   "Entrance Mats": ["entrance_mats"],
   "Mailbox": ["mailboxes", "postal"],
   "Flagpole": ["flagpoles"],
