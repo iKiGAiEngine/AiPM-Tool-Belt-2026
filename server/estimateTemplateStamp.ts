@@ -114,32 +114,147 @@ function patchCell(xml: string, ref: string, value: string | number, type: "stri
   return xml.replace(sdRe, `$1${newBody}$3`);
 }
 
-// Stamp cells into a workbook's worksheet XML without disturbing macros or
-// formulas. Returns the repackaged workbook buffer. Safe for .xlsm and .xlsx.
-export async function stampWorkbookCells(buffer: Buffer, sheetName: string, cells: StampCell[]): Promise<Buffer> {
-  const zip = await JSZip.loadAsync(buffer);
-  const workbookXml = await zip.file("xl/workbook.xml")?.async("string");
-  const relsXml = await zip.file("xl/_rels/workbook.xml.rels")?.async("string");
-  if (!workbookXml || !relsXml) throw new Error("Invalid workbook: missing xl/workbook.xml");
+// Delete a single cell from worksheet XML, leaving the row and every other cell
+// intact. Used to blank a cell rather than write an empty string into it: the
+// Vendor Directory's consumers test cells with <>"" to decide whether a row
+// exists, and a truly absent cell is the only unambiguous "empty".
+function removeCell(xml: string, ref: string): string {
+  const cellRe = new RegExp(`<c r="${escapeRegExp(ref)}"(?:[^>]*?)(?:/>|>[\\s\\S]*?</c>)`);
+  return xml.replace(cellRe, "");
+}
 
+// Read every populated cell of one column as row -> text. Only handles the cell
+// shapes this codebase writes plus the shared-string and inline-string forms
+// Excel itself produces, which is all the Vendor Directory's column A ever is.
+function readColumn(xml: string, sharedStrings: string[], col: string): Map<number, string> {
+  const out = new Map<number, string>();
+  const re = new RegExp(`<c r="${escapeRegExp(col)}(\\d+)"([^>]*)(?:/>|>([\\s\\S]*?)</c>)`, "g");
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    const row = parseInt(m[1], 10);
+    const attrs = m[2] || "";
+    const body = m[3] || "";
+    const type = attrs.match(/\bt="([^"]+)"/)?.[1] ?? "n";
+    let value = "";
+    if (type === "s") {
+      const idx = parseInt(body.match(/<v>([\s\S]*?)<\/v>/)?.[1] ?? "", 10);
+      value = Number.isFinite(idx) ? (sharedStrings[idx] ?? "") : "";
+    } else if (type === "inlineStr") {
+      value = body.match(/<t[^>]*>([\s\S]*?)<\/t>/)?.[1] ?? "";
+    } else {
+      value = body.match(/<v>([\s\S]*?)<\/v>/)?.[1] ?? "";
+    }
+    out.set(row, unescXml(value));
+  }
+  return out;
+}
+
+// Parse xl/sharedStrings.xml into an index-addressable array. Excel stores most
+// text this way, so column A of the Vendor Directory can only be read through it.
+function parseSharedStrings(xml: string | undefined): string[] {
+  if (!xml) return [];
+  const out: string[] = [];
+  const siRe = /<si>([\s\S]*?)<\/si>/g;
+  let m: RegExpExecArray | null;
+  while ((m = siRe.exec(xml)) !== null) {
+    // An <si> may be split across several <t> runs (rich text); concatenate them.
+    const parts = m[1].match(/<t[^>]*>([\s\S]*?)<\/t>/g) ?? [];
+    out.push(unescXml(parts.map((p) => p.replace(/<[^>]*>/g, "")).join("")));
+  }
+  return out;
+}
+
+function unescXml(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+// One sheet's worth of edits. `cells` are written; `clearRefs` are deleted.
+// `resolve` lets a caller compute its edits from the sheet's current contents
+// (the Vendor Directory discovers its scope blocks by reading column A) without
+// opening the workbook zip a second time.
+export interface SheetPatch {
+  sheetName: string;
+  cells?: StampCell[];
+  clearRefs?: string[];
+  resolve?: (ctx: {
+    sheetXml: string;
+    readColumn: (col: string) => Map<number, string>;
+  }) => { cells?: StampCell[]; clearRefs?: string[] };
+  /** Skip silently when the workbook has no such sheet, instead of throwing.
+   *  Set for the Vendor Directory: older templates predate that tab, and a
+   *  template without it must still get its Summary Sheet header stamped. */
+  optional?: boolean;
+}
+
+// Resolve a sheet name to its XML part path inside the zip. Returns null for an
+// absent sheet so an `optional` patch can be skipped.
+function resolveSheetPath(workbookXml: string, relsXml: string, sheetName: string, optional = false): string | null {
   const sheetTag = workbookXml.match(new RegExp(`<sheet[^>]*name="${escapeRegExp(sheetName)}"[^>]*/?>`, "i"))?.[0];
-  if (!sheetTag) throw new Error(`Sheet "${sheetName}" not found in workbook`);
+  if (!sheetTag) {
+    if (optional) return null;
+    throw new Error(`Sheet "${sheetName}" not found in workbook`);
+  }
   const rId = sheetTag.match(/r:id="([^"]+)"/)?.[1];
   if (!rId) throw new Error(`Sheet "${sheetName}" is missing its r:id`);
   const relTag = relsXml.match(new RegExp(`<Relationship[^>]*Id="${rId}"[^>]*/?>`, "i"))?.[0];
   const target = relTag?.match(/Target="([^"]+)"/)?.[1];
   if (!target) throw new Error(`Could not resolve target for sheet "${sheetName}"`);
-  const sheetPath = target.startsWith("/") ? target.slice(1) : "xl/" + target;
+  return target.startsWith("/") ? target.slice(1) : "xl/" + target;
+}
 
-  let sheetXml = await zip.file(sheetPath)?.async("string");
-  if (!sheetXml) throw new Error(`Worksheet XML not found at ${sheetPath}`);
+// Stamp cells into a workbook's worksheet XML without disturbing macros or
+// formulas. Returns the repackaged workbook buffer. Safe for .xlsm and .xlsx.
+export async function stampWorkbookCells(buffer: Buffer, sheetName: string, cells: StampCell[]): Promise<Buffer> {
+  return stampWorkbookSheets(buffer, [{ sheetName, cells }]);
+}
 
-  for (const c of cells) {
-    if (c.value === null || c.value === undefined || c.value === "") continue;
-    sheetXml = patchCell(sheetXml, c.ref, c.value, c.type);
+// Multi-sheet form of stampWorkbookCells: applies every patch in ONE zip
+// open/close. Opening a 2 MB macro workbook once per sheet would both waste work
+// and risk the calcChain/fullCalcOnLoad cleanup below running inconsistently
+// across passes.
+export async function stampWorkbookSheets(buffer: Buffer, patches: SheetPatch[]): Promise<Buffer> {
+  const zip = await JSZip.loadAsync(buffer);
+  const workbookXml = await zip.file("xl/workbook.xml")?.async("string");
+  const relsXml = await zip.file("xl/_rels/workbook.xml.rels")?.async("string");
+  if (!workbookXml || !relsXml) throw new Error("Invalid workbook: missing xl/workbook.xml");
+
+  const sharedStrings = parseSharedStrings(await zip.file("xl/sharedStrings.xml")?.async("string"));
+
+  for (const patch of patches) {
+    const sheetPath = resolveSheetPath(workbookXml, relsXml, patch.sheetName, patch.optional);
+    if (!sheetPath) continue; // optional patch, sheet not in this template
+    let sheetXml = await zip.file(sheetPath)?.async("string");
+    if (!sheetXml) {
+      if (patch.optional) continue;
+      throw new Error(`Worksheet XML not found at ${sheetPath}`);
+    }
+
+    let cells = patch.cells ?? [];
+    let clearRefs = patch.clearRefs ?? [];
+    if (patch.resolve) {
+      const resolved = patch.resolve({
+        sheetXml,
+        readColumn: (col) => readColumn(sheetXml!, sharedStrings, col),
+      });
+      cells = [...cells, ...(resolved.cells ?? [])];
+      clearRefs = [...clearRefs, ...(resolved.clearRefs ?? [])];
+    }
+
+    // Clear first, then write: a ref appearing in both is a rewrite, and the
+    // write must win.
+    for (const ref of clearRefs) sheetXml = removeCell(sheetXml, ref);
+    for (const c of cells) {
+      if (c.value === null || c.value === undefined || c.value === "") continue;
+      sheetXml = patchCell(sheetXml, c.ref, c.value, c.type);
+    }
+
+    zip.file(sheetPath, sheetXml);
   }
-
-  zip.file(sheetPath, sheetXml);
 
   // calcChain.xml caches the formula calculation order. Replacing formula cells
   // (e.g. the name/date cells) with literals leaves that cache inconsistent, so

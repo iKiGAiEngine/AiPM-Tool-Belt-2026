@@ -41,7 +41,7 @@ import type { SpecBoostData } from "./planparser/classificationConfig";
 import { processJob } from "./planparser/pdfProcessor";
 import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "./templateStorage";
-import { stampWorkbookCells, buildSummaryStampCells, SUMMARY_SHEET_NAME } from "./estimateTemplateStamp";
+import { stampEstimateWorkbook } from "./stampEstimateWorkbook";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { matchRegionWithFallback } from "./regionMatcher";
 import { isSwinerton, matchSwinertonOffice, matchExtRegion } from "./swinertonOffices";
@@ -496,15 +496,6 @@ export function registerProjectRoutes(app: Express) {
             // Only an explicitly-assigned value is used; if none is assigned yet,
             // B6 is left blank (we do NOT auto-fill the region's default assignee).
             const spEstimator = req.body.selfPerformEstimator || "";
-            const stampCells = await buildSummaryStampCells({
-              projectName: safeName,
-              dueDate,
-              estimateNumber: projectIdStr,
-              projectAddress: screenshotLocation,
-              spEstimator,
-              anticipatedStart,
-              anticipatedFinish,
-            });
 
             const dueParts = dueDate.split("-");
             const formattedDueDate = `${dueParts[1]}.${dueParts[2]}.${dueParts[0].slice(2)}`;
@@ -512,12 +503,21 @@ export function registerProjectRoutes(app: Express) {
             const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
             const estimatePath = path.join(projectDir, "Estimate Folder", "Estimate", estimateFilename);
 
-            // Patch cells directly in the worksheet XML. This preserves VBA macros
-            // and every formula (unlike an ExcelJS round-trip), so it works for both
+            // Stamps the Summary Sheet header and the Vendor Directory in one
+            // pass, patching worksheet XML directly so VBA macros and every
+            // formula survive (unlike an ExcelJS round-trip) — works for both
             // macro-enabled .xlsm templates and plain .xlsx templates.
-            const stampedBuffer = await stampWorkbookCells(estimateBuffer, SUMMARY_SHEET_NAME, stampCells);
+            const { buffer: stampedBuffer, summaryCellCount } = await stampEstimateWorkbook(estimateBuffer, {
+              projectName: safeName,
+              dueDate,
+              estimateNumber: projectIdStr,
+              projectAddress: screenshotLocation,
+              spEstimator,
+              anticipatedStart,
+              anticipatedFinish,
+            }, { context: "ProjectCreate" });
             fs.writeFileSync(estimatePath, stampedBuffer);
-            console.log(`[ProjectCreate] Estimate file saved: ${estimateFilename} (${stampCells.length} fields stamped, macros preserved)`);
+            console.log(`[ProjectCreate] Estimate file saved: ${estimateFilename} (${summaryCellCount} fields stamped, macros preserved)`);
           } catch (err) {
             console.error("[ProjectCreate] Failed to stamp estimate template:", err);
             // Fall back to an unstamped copy so the project folder still gets a file.
@@ -1739,24 +1739,22 @@ export function registerProjectRoutes(app: Express) {
         ? (await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.projectDbId, project.id)).limit(1))[0]
         : null;
 
-      // Header fields on the Summary Sheet (includes the address-ZIP tax lookup).
+      // Summary Sheet header (includes the address-ZIP tax lookup) plus the
+      // Vendor Directory. Patches worksheet XML so macros/formulas survive
+      // (works for both .xlsm and .xlsx templates). If stamping fails, fall back
+      // to the unstamped template so the user still gets a workbook, not a 500.
       const projectAddress = project.projectAddress || proposalEntry?.projectAddress || "";
-      const stampCells = await buildSummaryStampCells({
-        projectName: project.projectName,
-        dueDate: project.dueDate,
-        estimateNumber: proposalEntry?.estimateNumber || project.projectId,
-        projectAddress,
-        spEstimator: proposalEntry?.selfPerformEstimator,
-        anticipatedStart: proposalEntry?.anticipatedStart,
-        anticipatedFinish: proposalEntry?.anticipatedFinish,
-      });
-
-      // Patch cells in the worksheet XML so macros/formulas survive (works for
-      // both .xlsm and .xlsx templates). If stamping fails, fall back to the
-      // unstamped template so the user still gets a workbook rather than a 500.
       let stampedBuffer: Buffer;
       try {
-        stampedBuffer = await stampWorkbookCells(templateBuffer, SUMMARY_SHEET_NAME, stampCells);
+        ({ buffer: stampedBuffer } = await stampEstimateWorkbook(templateBuffer, {
+          projectName: project.projectName,
+          dueDate: project.dueDate,
+          estimateNumber: proposalEntry?.estimateNumber || project.projectId,
+          projectAddress,
+          spEstimator: proposalEntry?.selfPerformEstimator,
+          anticipatedStart: proposalEntry?.anticipatedStart,
+          anticipatedFinish: proposalEntry?.anticipatedFinish,
+        }, { context: "download-estimate" }));
       } catch (stampErr) {
         console.error("[download-estimate] Stamping failed, serving unstamped template:", stampErr);
         stampedBuffer = templateBuffer;
@@ -2781,23 +2779,22 @@ export function registerProjectRoutes(app: Express) {
           const formattedDueDate = dueParts.length >= 3 ? `${dueParts[1]}.${dueParts[2]}.${dueParts[0].slice(2)}` : "TBD";
           const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
 
-          // Header fields on the Summary Sheet (includes the address-ZIP tax lookup).
-          const stampCells = await buildSummaryStampCells({
-            projectName: safeName,
-            dueDate: entry.dueDate,
-            estimateNumber: entry.estimateNumber,
-            projectAddress: entry.projectAddress,
-            spEstimator: entry.selfPerformEstimator,
-            anticipatedStart: entry.anticipatedStart,
-            anticipatedFinish: entry.anticipatedFinish,
-          });
-
-          // Patch cells in the worksheet XML so macros/formulas survive (works for
-          // both .xlsm and .xlsx templates). If stamping fails, fall back to the
-          // unstamped template so the folder still contains the estimate workbook.
+          // Summary Sheet header (includes the address-ZIP tax lookup) plus the
+          // Vendor Directory. Patches worksheet XML so macros/formulas survive
+          // (works for both .xlsm and .xlsx templates). If stamping fails, fall
+          // back to the unstamped template so the folder still contains the
+          // estimate workbook.
           let outputBuffer: Buffer;
           try {
-            outputBuffer = await stampWorkbookCells(estimateBuffer, SUMMARY_SHEET_NAME, stampCells);
+            ({ buffer: outputBuffer } = await stampEstimateWorkbook(estimateBuffer, {
+              projectName: safeName,
+              dueDate: entry.dueDate,
+              estimateNumber: entry.estimateNumber,
+              projectAddress: entry.projectAddress,
+              spEstimator: entry.selfPerformEstimator,
+              anticipatedStart: entry.anticipatedStart,
+              anticipatedFinish: entry.anticipatedFinish,
+            }, { context: "RecreateFolder" }));
           } catch (stampErr) {
             console.error("[RecreateFolder] Stamping failed, including unstamped estimate:", stampErr);
             outputBuffer = estimateBuffer;
