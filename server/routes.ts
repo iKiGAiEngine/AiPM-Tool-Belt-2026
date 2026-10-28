@@ -31,6 +31,7 @@ import { registerEstimateRoutes } from "./estimateRoutes";
 import { registerEstimateAnalyticsRoutes } from "./estimateAnalyticsRoutes";
 import { registerBuyoutRoutes } from "./buyout/routes";
 import { registerEstimateMigrationRoutes } from "./estimateMigrationRoutes";
+import { registerEstimateWorkbookSyncRoutes } from "./estimateWorkbookSyncRoutes";
 import { registerScopeManufacturerRoutes } from "./scopeManufacturerRoutes";
 import { registerErrorRoutes } from "./errorRoutes";
 import { registerChatRoutes } from "./chatRoutes";
@@ -124,7 +125,7 @@ export async function registerRoutes(
     res.sendFile(path.resolve(process.cwd(), "public", "tools", "proposal-log.html"));
   });
 
-  const publicPaths = ["/api/auth/", "/api/version", "/health", "/api/mfr/export-excel", "/api/mfr/contacts-report"];
+  const publicPaths = ["/api/auth/", "/api/version", "/health", "/api/mfr/export-excel", "/api/mfr/contacts-report", "/api/estimate-sync/ingest"];
   app.use("/api", (req, res, next) => {
     const fullPath = req.originalUrl || req.path;
     if (publicPaths.some(p => fullPath.startsWith(p))) return next();
@@ -328,6 +329,7 @@ export async function registerRoutes(
   registerEstimateAnalyticsRoutes(app);
   registerBuyoutRoutes(app);
   registerEstimateMigrationRoutes(app);
+  registerEstimateWorkbookSyncRoutes(app);
 
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {

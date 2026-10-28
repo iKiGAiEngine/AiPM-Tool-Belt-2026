@@ -42,6 +42,7 @@ const toolRoutes: ToolRoute[] = [
   { path: "/spec-extractor", label: "Spec Extractor", icon: ClipboardList },
   { path: "/estimates", label: "Estimator", icon: Calculator },
   { path: "/estimate-migrator", label: "Estimate Migrator", icon: FileSpreadsheet },
+  { path: "/estimate-sync", label: "Synced Estimates", icon: FileSpreadsheet },
   { path: "/settings", label: "Settings", icon: Settings },
   { path: "/admin", label: "Admin", icon: Shield },
 ];

@@ -1784,3 +1784,31 @@ export const insertBuyoutProjectSchema = createInsertSchema(buyoutProjects).omit
   updatedAt: true,
 });
 export type InsertBuyoutProjectInput = z.infer<typeof insertBuyoutProjectSchema>;
+
+// =====================================================
+// ESTIMATE WORKBOOK SYNC
+// Read-only snapshots of the Excel estimate workbooks. The workbook stays the
+// source of truth; AiPM only displays what was last synced from it.
+// =====================================================
+
+export const estimateWorkbookSnapshots = pgTable("estimate_workbook_snapshots", {
+  id: serial("id").primaryKey(),
+  // Identifies the workbook across saves, e.g. its folder path in the shared drive.
+  sourceKey: varchar("source_key", { length: 1000 }).notNull(),
+  fileName: varchar("file_name", { length: 500 }).notNull(),
+  fileHash: varchar("file_hash", { length: 64 }).notNull(),
+  fileModifiedAt: timestamp("file_modified_at"),
+  proposalLogEntryId: integer("proposal_log_entry_id"),
+  projectName: varchar("project_name", { length: 500 }).notNull(),
+  estimateNumber: varchar("estimate_number", { length: 50 }),
+  proposalTotal: numeric("proposal_total", { precision: 14, scale: 2 }).default("0").notNull(),
+  project: jsonb("project").$type<Record<string, unknown>>().notNull(),
+  summaryRows: jsonb("summary_rows").$type<Record<string, unknown>[]>().notNull(),
+  scopes: jsonb("scopes").$type<Record<string, unknown>[]>().notNull(),
+  warnings: jsonb("warnings").$type<string[]>().default([]),
+  syncedAt: timestamp("synced_at").notNull().defaultNow(),
+}, (table) => ({
+  sourceIdx: index("estimate_workbook_snapshots_source_idx").on(table.sourceKey, table.syncedAt),
+}));
+
+export type EstimateWorkbookSnapshotRow = typeof estimateWorkbookSnapshots.$inferSelect;
