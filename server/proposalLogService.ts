@@ -85,6 +85,7 @@ export async function createProposalLogEntry(data: {
   anticipatedFinish?: string;
   nbsEstimator?: string;
   gcEstimateLead?: string;
+  projectAddress?: string;
   bcLink?: string;
   sourceType?: string;
   sourceEmail?: string;
@@ -117,6 +118,7 @@ export async function createProposalLogEntry(data: {
     nbsEstimator: data.nbsEstimator || null,
     gcEstimateLead: data.gcEstimateLead || null,
     selfPerformEstimator: spEstimator || null,
+    projectAddress: data.projectAddress || null,
     bcLink: data.bcLink || null,
     sourceType: data.sourceType || null,
     sourceEmail: data.sourceEmail || null,

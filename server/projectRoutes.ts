@@ -856,6 +856,7 @@ export function registerProjectRoutes(app: Express) {
               anticipatedFinish: frontendAnticipatedFinish || undefined,
               nbsEstimator: undefined,
               gcEstimateLead: gcEstimator || undefined,
+              projectAddress: screenshotLocation || undefined,
               bcLink: frontendBcLink || undefined,
               duplicateOverrideNote: duplicateOverrideNote || undefined,
             });
