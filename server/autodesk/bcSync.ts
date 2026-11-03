@@ -10,7 +10,7 @@ import { guessMarket } from "../proposalLogService";
 import { generateProjectId, createProject, getActiveRegions } from "../scopeDictionaryStorage";
 import { sendDraftNotificationEmail } from "../emailService";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "../templateStorage";
-import { stampWorkbookCells, buildSummaryStampCells, SUMMARY_SHEET_NAME } from "../estimateTemplateStamp";
+import { stampEstimateWorkbook, buildSummaryStampCells } from "../estimateTemplateStamp";
 import { matchRegionWithFallback } from "../regionMatcher";
 import { isSwinerton, matchSwinertonOffice, matchExtRegion, resolveSwinertonSoCalSubregion } from "../swinertonOffices";
 import { findFuzzyDuplicates } from "../fuzzyDuplicates";
@@ -1631,7 +1631,7 @@ export function registerBcSyncRoutes(app: Express) {
           // unstamped template so the folder still contains the estimate workbook.
           let outputBuffer: Buffer;
           try {
-            outputBuffer = await stampWorkbookCells(estimateBuffer, SUMMARY_SHEET_NAME, stampCells);
+            outputBuffer = await stampEstimateWorkbook(estimateBuffer, stampCells);
           } catch (stampErr) {
             console.error("[BC ApproveCreate] Stamping failed, writing unstamped estimate:", stampErr);
             outputBuffer = estimateBuffer;

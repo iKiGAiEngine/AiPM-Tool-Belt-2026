@@ -17,6 +17,7 @@ import { db } from "./db";
 import { taxRates } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { normalizeZip } from "./taxRates/parser";
+import { stampVendorDirectoryFromDatabase } from "./vendorDirectoryStamp";
 
 export const SUMMARY_SHEET_NAME = "Summary Sheet";
 
@@ -327,4 +328,13 @@ export async function buildSummaryStampCells(info: SummaryStampInfo): Promise<St
   if (endDate) cells.push({ ref: SUMMARY_CELLS.projectEndDate, value: endDate, type: "string" });
 
   return cells;
+}
+
+// Stamp everything a new estimate needs: the Summary Sheet header cells, then
+// the Vendor Directory tab (current AiPM vendors). Summary errors propagate so
+// callers keep their existing "fall back to the unstamped template" handling;
+// the Vendor Directory step is best-effort and never throws.
+export async function stampEstimateWorkbook(buffer: Buffer, summaryCells: StampCell[]): Promise<Buffer> {
+  const withSummary = await stampWorkbookCells(buffer, SUMMARY_SHEET_NAME, summaryCells);
+  return stampVendorDirectoryFromDatabase(withSummary);
 }

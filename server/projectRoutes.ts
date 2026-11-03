@@ -41,7 +41,7 @@ import type { SpecBoostData } from "./planparser/classificationConfig";
 import { processJob } from "./planparser/pdfProcessor";
 import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "./templateStorage";
-import { stampWorkbookCells, buildSummaryStampCells, SUMMARY_SHEET_NAME } from "./estimateTemplateStamp";
+import { stampEstimateWorkbook, buildSummaryStampCells } from "./estimateTemplateStamp";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { matchRegionWithFallback } from "./regionMatcher";
 import { isSwinerton, matchSwinertonOffice, matchExtRegion } from "./swinertonOffices";
@@ -515,7 +515,7 @@ export function registerProjectRoutes(app: Express) {
             // Patch cells directly in the worksheet XML. This preserves VBA macros
             // and every formula (unlike an ExcelJS round-trip), so it works for both
             // macro-enabled .xlsm templates and plain .xlsx templates.
-            const stampedBuffer = await stampWorkbookCells(estimateBuffer, SUMMARY_SHEET_NAME, stampCells);
+            const stampedBuffer = await stampEstimateWorkbook(estimateBuffer, stampCells);
             fs.writeFileSync(estimatePath, stampedBuffer);
             console.log(`[ProjectCreate] Estimate file saved: ${estimateFilename} (${stampCells.length} fields stamped, macros preserved)`);
           } catch (err) {
@@ -1756,7 +1756,7 @@ export function registerProjectRoutes(app: Express) {
       // unstamped template so the user still gets a workbook rather than a 500.
       let stampedBuffer: Buffer;
       try {
-        stampedBuffer = await stampWorkbookCells(templateBuffer, SUMMARY_SHEET_NAME, stampCells);
+        stampedBuffer = await stampEstimateWorkbook(templateBuffer, stampCells);
       } catch (stampErr) {
         console.error("[download-estimate] Stamping failed, serving unstamped template:", stampErr);
         stampedBuffer = templateBuffer;
@@ -2797,7 +2797,7 @@ export function registerProjectRoutes(app: Express) {
           // unstamped template so the folder still contains the estimate workbook.
           let outputBuffer: Buffer;
           try {
-            outputBuffer = await stampWorkbookCells(estimateBuffer, SUMMARY_SHEET_NAME, stampCells);
+            outputBuffer = await stampEstimateWorkbook(estimateBuffer, stampCells);
           } catch (stampErr) {
             console.error("[RecreateFolder] Stamping failed, including unstamped estimate:", stampErr);
             outputBuffer = estimateBuffer;
