@@ -6,6 +6,7 @@ import {
   extractFieldsFromOCRText,
   stripCountrySuffix,
 } from "../screenshotExtractor";
+import { resolveProjectAddress } from "../projectAddress";
 import type { ParsedEmail } from "./emailParser";
 
 export type ExtractionTier = "llm" | "regex" | "floor";
@@ -29,7 +30,7 @@ Parse the email and extract the following fields. Return ONLY valid JSON, no pro
 BUILDINGCONNECTED INVITE EMAILS typically say "<Contact Name> with <GC Company> has invited you to bid on <Project Name>" (newer templates say "<Contact Name> from <GC Company> has invited you...") and list labeled rows such as:
 - "Project" → projectName
 - "Client" → the GC company, often "Company - Office" (e.g. "Swinerton Builders - Dallas")
-- "Location" or "Project location" → location (the PROJECT address, not the GC office)
+- "Location" or "Project location" → location (the PROJECT address, not the GC office). If the Location line is cut off or missing the city/ZIP, use the complete street address (with city, state, 5-digit ZIP) from the project description text instead
 - "Trade" or "Trade Name" → tradeName
 - "Bid due" / "Date Due" / "Due Date" → dueDate (the bid submission deadline)
 - "Date Invite" / "Invited" → inviteDate (when the invitation was sent)
@@ -127,7 +128,7 @@ export function extractLabeledEmailFields(text: string): Partial<ExtractedProjec
     if (out.location === undefined) {
       const v = labelValue(line, /^(?:Project\s*)?(?:Location|Address)\s*[:\-–—]\s*(.+)$/i);
       const stripped = stripCountrySuffix(v);
-      if (stripped) out.location = stripped;
+      if (stripped) out.location = resolveProjectAddress(stripped, text);
     }
     if (out.tradeName === undefined) {
       const v = labelValue(line, /^Trade(?:\s*Name)?(?:\s*\(s\))?\s*[:\-–—]\s*(.+)$/i);
@@ -258,7 +259,7 @@ async function extractWithLLM(emailText: string, subject: string, apiKey: string
   return {
     projectName: parsed.projectName || null,
     dueDate: normalizeDate(parsed.dueDate),
-    location: stripCountrySuffix(parsed.location),
+    location: resolveProjectAddress(parsed.location, emailText),
     tradeName: parsed.tradeName || null,
     inviteDate: normalizeDate(parsed.inviteDate),
     expectedStart: normalizeDate(parsed.expectedStart),

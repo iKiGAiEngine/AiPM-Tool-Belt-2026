@@ -932,6 +932,11 @@ export default function ProjectStartPage() {
                         {extractionResult.location || "Not found"}
                       </span>
                     </div>
+                    {extractionResult.location && !/\b[A-Za-z]{2}\.?\s+\d{5}\b/.test(extractionResult.location) && (
+                      <p className="text-xs text-amber-600 px-2" data-testid="text-location-missing-zip">
+                        This address has no ZIP code, so the estimate's Ship To and Tax Rate may stay blank. Check the screenshot's location.
+                      </p>
+                    )}
                     {extractionResult.inviteDate && (
                       <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
                         <span className="text-muted-foreground whitespace-nowrap">Invited:</span>

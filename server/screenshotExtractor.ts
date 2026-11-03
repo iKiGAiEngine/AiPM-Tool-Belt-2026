@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { resolveProjectAddress } from "./projectAddress";
 
 export interface ExtractedProjectDetails {
   projectName: string | null;
@@ -45,7 +46,7 @@ CRITICAL RULES:
 - "squareFeet" is the project's size/square footage. Look for "Project Size", "Square Feet", "Sq. Ft.", "Building Size". Extract exactly as shown (e.g. "7,191 sq. ft." or "125,000").
 - "clientName" is the general contractor or client company name. Look for "Client", "Builder", "GC", "General Contractor". On BuildingConnected, this often appears near the top with a company icon. Extract ONLY the company name (e.g., "Swinerton Builders", "Turner Construction").
 - "clientLocation" is the COMPLETE office/division designation shown after the company name. On BuildingConnected, the client field often shows "Company - Office" or "Company - Region - Division" (e.g., "Swinerton Builders - Portland", "Swinerton Builders - SoCal - Parking Structures", "Hensel Phelps - Dallas"). Extract EVERYTHING after the company name dash, preserving all parts including division names like "Parking Structures", "Special Projects", "Target Markets", "Facility Solutions". Do NOT strip division names — keep the full string (e.g., "SoCal - Parking Structures" not just "SoCal"). If the client shows as "Swinerton Builders - Parking Structures", extract "Parking Structures" as the clientLocation.
-- "location" is the PROJECT location/address where the work will be done. Look for "Location", "Address", "Project Location", "City".
+- "location" is the PROJECT location/address where the work will be done. Look for "Location", "Address", "Project Location", "City". If the Location row is cut off (ends in "..."), repeats the street, or is missing the city or 5-digit ZIP, put the best partial in "location" and ALSO return the complete street address (street, city, state, 5-digit ZIP) found in the project description text (e.g. "located at 1345 Main St, Fresno, CA 93727") in "fullAddressFromDescription". Never copy the GC office address.
 - "gcContactName" is the name of the contact person from the GC/client. On BuildingConnected, look in the "Team Summary" or contact section.
 - "gcContactEmail" is their email address.
 - "tradeName" is the trade/scope being bid. Look for "Trade Name", "Trade", "Scope", "CSI Division".
@@ -69,6 +70,7 @@ Response schema:
   "projectName": string | null,
   "dueDate": string | null,
   "location": string | null,
+  "fullAddressFromDescription": string | null,
   "tradeName": string | null,
   "inviteDate": string | null,
   "expectedStart": string | null,
@@ -170,7 +172,7 @@ RULES:
 - Strip time/timezone from dates (e.g., "Mar 16, 2026 at 2:00 PM PST" → "2026-03-16").
 - "clientName" is the general contractor (GC) company name only (e.g., "Swinerton Builders", "Turner Construction"). Look near labels like "Client", "GC", "General Contractor".
 - "clientLocation" is the COMPLETE office/division designation shown LITERALLY after the company name dash in the client field. Extract EVERYTHING after the first dash — preserve all parts including division names like "Parking Structures", "Special Projects", "Target Markets", "Facility Solutions". Do NOT strip any part and do NOT infer from the project location/address. Examples: if client shows "Swinerton Builders - Parking Structures", return "Parking Structures"; if it shows "Swinerton Builders - SoCal - Parking Structures", return "SoCal - Parking Structures". NEVER use the project city or state as clientLocation.
-- "location" is the project address/location where work is done (this is NOT the GC office).
+- "location" is the project address/location where work is done (this is NOT the GC office). If the Location row is cut off (ends in "..."), repeats the street, or is missing the city or 5-digit ZIP, put the best partial in "location" and ALSO return the complete street address (street, city, state, 5-digit ZIP) found in the project description text (e.g. "located at 1345 Main St, Fresno, CA 93727") in "fullAddressFromDescription". Never copy the GC office address.
 - "gcContactName" and "gcContactEmail" are the GC contact person's name and email.
 - "tradeName" is the trade/scope being bid.
 - "projectName" is the project title, usually appearing near the top.
@@ -181,6 +183,7 @@ Response schema:
   "projectName": string | null,
   "dueDate": string | null,
   "location": string | null,
+  "fullAddressFromDescription": string | null,
   "tradeName": string | null,
   "inviteDate": string | null,
   "expectedStart": string | null,
@@ -215,7 +218,7 @@ async function extractWithAIFromText(ocrText: string, apiKey: string): Promise<E
   return {
     projectName: parsed.projectName || null,
     dueDate: normalizeDate(parsed.dueDate),
-    location: stripCountrySuffix(parsed.location),
+    location: resolveProjectAddress(parsed.location, `${parsed.fullAddressFromDescription || ""}\n${ocrText}`),
     tradeName: parsed.tradeName || null,
     inviteDate: normalizeDate(parsed.inviteDate),
     expectedStart: normalizeDate(parsed.expectedStart),
@@ -264,7 +267,7 @@ async function extractWithAIFromImage(imageBuffer: Buffer, apiKey: string): Prom
   return {
     projectName: parsed.projectName || null,
     dueDate: normalizeDate(parsed.dueDate),
-    location: stripCountrySuffix(parsed.location),
+    location: resolveProjectAddress(parsed.location, parsed.fullAddressFromDescription),
     tradeName: parsed.tradeName || null,
     inviteDate: normalizeDate(parsed.inviteDate),
     expectedStart: normalizeDate(parsed.expectedStart),
@@ -357,7 +360,7 @@ export function normalizeDate(dateStr: string | null | undefined): string | null
 export function extractFieldsFromOCRText(text: string): ExtractedProjectDetails {
   const projectName = extractProjectName(text);
   const dueDate = extractDueDate(text);
-  const location = extractLocation(text);
+  const location = resolveProjectAddress(extractLocation(text), text);
   const tradeName = extractTradeName(text);
   const inviteDate = extractLabeledDate(text, ["Date\\s*Invite", "Invite\\s*Date", "Invited"]);
   const expectedStart = extractLabeledDate(text, ["Expected\\s*Start", "Est\\.?\\s*Start", "Anticipated\\s*Start", "Start\\s*Date"]);
