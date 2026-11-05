@@ -1,5 +1,17 @@
 # AiPM Tool Belt — Changelog
 
+## [11-05-2026] Disaster-recovery backup to Swinerton SharePoint / OneDrive
+### Added
+- Full, self-contained backups uploaded automatically to a Swinerton-owned SharePoint site (or OneDrive) through Microsoft Graph: every database table (found automatically), stored files, server-disk files, application source code, deployment settings, and restore guides
+- Consistent point-in-time database snapshot, plus a second standard `pg_dump` copy and a readable Excel copy
+- SHA-256 checksum manifest; uploads go to a holding folder and only move into `Backups/` once every file is confirmed
+- Retention: everything from the last 48 h, 1 per day for 30 days, 1 per month for 12 months (configurable)
+- `scripts/dr-restore.ts`: verifies a backup, then rebuilds the database in one all-or-nothing step and compares row counts; also unpacks server files
+- `scripts/dr-backup.ts`: command-line backup (for Replit Scheduled Deployments)
+- Admin → Data Backup & Recovery: status card, Back up now, Test connection, run history
+- Power Automate trigger (`POST /api/dr-backup/trigger`, start-and-poll pattern); failure email to the admin
+- Runbook and IT setup guide: `docs/DISASTER_RECOVERY.md`
+
 ## [04-06-2026] v0.1.0
 ### Added
 - OTP-based email authentication system with 6-digit codes

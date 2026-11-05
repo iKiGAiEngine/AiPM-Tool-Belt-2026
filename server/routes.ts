@@ -26,6 +26,7 @@ import { registerBcSyncRoutes } from "./autodesk/bcSync";
 import { registerEmailIntakeRoutes } from "./emailIntake/routes";
 import { registerNotificationRoutes } from "./notificationRoutes";
 import { registerBackupRoutes } from "./backupRestore";
+import { registerDisasterRecoveryRoutes } from "./disasterRecovery/routes";
 import { registerVendorDatabaseRoutes } from "./vendorDatabaseRoutes";
 import { registerEstimateRoutes } from "./estimateRoutes";
 import { registerEstimateAnalyticsRoutes } from "./estimateAnalyticsRoutes";
@@ -86,6 +87,7 @@ export async function registerRoutes(
     "/api/auth/change-password",
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
+    "/api/dr-backup/trigger", // authenticated by its own secret token, not a login session
   ];
   app.use("/api", async (req, res, next) => {
     const isWrite = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
@@ -124,7 +126,8 @@ export async function registerRoutes(
     res.sendFile(path.resolve(process.cwd(), "public", "tools", "proposal-log.html"));
   });
 
-  const publicPaths = ["/api/auth/", "/api/version", "/health", "/api/mfr/export-excel", "/api/mfr/contacts-report"];
+  // "/api/dr-backup/trigger" checks its own secret token (DR_BACKUP_TRIGGER_TOKEN) instead of a login session.
+  const publicPaths = ["/api/auth/", "/api/version", "/health", "/api/mfr/export-excel", "/api/mfr/contacts-report", "/api/dr-backup/trigger"];
   app.use("/api", (req, res, next) => {
     const fullPath = req.originalUrl || req.path;
     if (publicPaths.some(p => fullPath.startsWith(p))) return next();
@@ -324,6 +327,7 @@ export async function registerRoutes(
   registerBcSyncRoutes(app);
   registerEmailIntakeRoutes(app);
   registerBackupRoutes(app);
+  registerDisasterRecoveryRoutes(app);
   registerEstimateRoutes(app);
   registerEstimateAnalyticsRoutes(app);
   registerBuyoutRoutes(app);

@@ -52,6 +52,7 @@ import {
   Link2,
 } from "lucide-react";
 import { Link } from "wouter";
+import { DisasterRecoveryCard } from "@/components/DisasterRecoveryCard";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { User } from "@shared/schema";
@@ -737,6 +738,8 @@ export function BackupRestoreSection() {
         </div>
 
         <div className="p-4 space-y-6">
+          <DisasterRecoveryCard />
+
           <div className="rounded-lg border border-border bg-card p-4">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div>

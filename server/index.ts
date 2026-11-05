@@ -109,6 +109,10 @@ app.use((req, res, next) => {
   const { startNightlyBackup } = await import("./nightlyBackup");
   startNightlyBackup();
 
+  // Full disaster-recovery backup to Swinerton SharePoint/OneDrive (see docs/DISASTER_RECOVERY.md)
+  const { startDisasterRecoveryScheduler } = await import("./disasterRecovery/routes");
+  startDisasterRecoveryScheduler();
+
   const { isGoogleSheetConfigured, syncProposalLogToSheet } = await import("./googleSheetSync");
   if (isGoogleSheetConfigured()) {
     syncProposalLogToSheet().then(() => {
