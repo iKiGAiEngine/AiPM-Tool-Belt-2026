@@ -7,6 +7,7 @@
  *   POST /api/dr-backup/trigger                external scheduler (Power Automate) with
  *                                              header "Authorization: Bearer <DR_BACKUP_TRIGGER_TOKEN>"
  *   GET  /api/dr-backup/trigger/status/:jobId  poll until the triggered backup finishes
+ *   GET  /api/dr-backup/download?token=…[&file=guide]  Power Automate pulls the backup into OneDrive (see pickup.ts)
  */
 import type { Express, Request, Response } from "express";
 import crypto from "crypto";
@@ -14,7 +15,9 @@ import { pool } from "../db";
 import { requireAdmin } from "../authRoutes";
 import { auditLog } from "../auditService";
 import { getDrConfig, isMicrosoftConfigured, describeDestination } from "./config";
-import { runDisasterRecoveryBackup, readStatus, currentRun, isBackupDue, type BackupRunRecord } from "./runBackup";
+import fs from "fs";
+import { runDisasterRecoveryBackup, readStatus, writeStatus, currentRun, isBackupDue, type BackupRunRecord } from "./runBackup";
+import { getPickupPackage, pickupGuide } from "./pickup";
 import { SharePointClient } from "./sharepointClient";
 
 function startBackup(trigger: string) {
@@ -40,6 +43,7 @@ export function registerDisasterRecoveryRoutes(app: Express) {
       retainDaily: cfg.retainDaily,
       retainMonthly: cfg.retainMonthly,
       externalTriggerEnabled: !!cfg.triggerToken,
+      pickupEnabled: !!cfg.triggerToken,
       running: currentRun(),
       lastSuccess: status.lastSuccess ?? null,
       lastAttempt: status.lastAttempt ?? null,
@@ -103,6 +107,42 @@ export function registerDisasterRecoveryRoutes(app: Express) {
     const rec = job.rec;
     if (!rec || rec.result === "failed") return res.status(500).json({ status: "failed", error: job.error || rec?.error });
     res.status(200).json({ status: rec.result, backupId: rec.backupId, totalRows: rec.totalRows, totalBytes: rec.totalBytes, webUrl: rec.webUrl, note: rec.result === "local_only" ? rec.error : undefined });
+  });
+  // Power Automate "Upload file from URL" pulls the backup into the owner's OneDrive.
+  // That action cannot send headers, so the secret token travels in the link itself.
+  app.get("/api/dr-backup/download", async (req: Request, res: Response) => {
+    const cfg = getDrConfig();
+    const given = typeof req.query.token === "string" ? req.query.token : "";
+    if (!cfg.triggerToken || !given || !tokenMatches(given, cfg.triggerToken)) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const started = Date.now();
+    try {
+      const pkg = await getPickupPackage(pool, process.env.DATABASE_URL!);
+      if (req.query.file === "guide") {
+        res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="00 READ ME FIRST - How to Restore AiPM.md"`);
+        return res.send(pickupGuide(pkg));
+      }
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Length", String(pkg.zipBytes));
+      res.setHeader("Content-Disposition", `attachment; filename="AiPM-Backup-${pkg.backupId}.zip"`);
+      const stream = fs.createReadStream(pkg.zipPath);
+      let completed = false;
+      stream.on("end", () => { completed = true; });
+      res.on("finish", () => {
+        if (!completed) return;
+        const m = JSON.parse(fs.readFileSync(`${pkg.folder}/manifest.json`, "utf8"));
+        void writeStatus(pool, {
+          backupId: pkg.backupId, startedAt: new Date(started).toISOString(), finishedAt: new Date().toISOString(),
+          result: "success", trigger: "Power Automate → OneDrive", durationSec: Math.round((Date.now() - started) / 1000),
+          totalBytes: pkg.zipBytes, totalRows: m.database?.totalRows, tableCount: m.database?.tables?.length, fileCount: m.files?.length,
+        }).catch(() => {});
+      });
+      stream.pipe(res);
+    } catch (err: any) {
+      res.status(500).json({ message: err?.message || "Backup failed" });
+    }
   });
 }
 

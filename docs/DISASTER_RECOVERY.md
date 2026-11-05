@@ -86,7 +86,20 @@ To guarantee a backup every night whether or not anyone is using AiPM, also set 
 
 ---
 
-## 4. Setup (Swinerton IT, about 30 minutes, one time)
+## 4. Setup
+
+There are two ways to connect AiPM to Swinerton Microsoft 365. Pick one.
+
+| | **Option 1 — Power Automate → your OneDrive (no IT)** | **Option 2 — SharePoint site via app registration (IT)** |
+|---|---|---|
+| Who sets it up | The AiPM owner, alone | Swinerton IT |
+| Needs | Power Automate (standard actions only) + OneDrive | Entra ID app registration + SharePoint admin |
+| Where backups go | Owner's OneDrive: 7 daily + 12 monthly .zip files | A SharePoint site: 48 h + 30 daily + 12 monthly folders |
+| Guide | **[`DR_SETUP_POWER_AUTOMATE.md`](DR_SETUP_POWER_AUTOMATE.md)** | Steps below |
+
+Option 1 is the default plan. Option 2 can be added later, and both can run together.
+
+### Option 2 steps (Swinerton IT, about 30 minutes, one time)
 
 ### Step 1: Create the SharePoint site
 
@@ -217,7 +230,8 @@ Safety features of the restore tool:
 | `server/disasterRecovery/guides.ts` | The documents written into each backup |
 | `server/disasterRecovery/sharepointClient.ts` | Microsoft Graph upload, move, list and delete, with retry on throttling |
 | `server/disasterRecovery/runBackup.ts` | Orchestration, locking, status, retention, alerts and schedule rules |
-| `server/disasterRecovery/routes.ts` | Admin API, Power Automate trigger, and the scheduler |
+| `server/disasterRecovery/routes.ts` | Admin API, Power Automate trigger and download link, and the scheduler |
+| `server/disasterRecovery/pickup.ts` | Power Automate pickup: one-zip download and the READ ME guide |
 | `client/src/components/DisasterRecoveryCard.tsx` | Admin UI card |
 | `scripts/dr-backup.ts` / `scripts/dr-restore.ts` | Command-line backup and restore |
 | `server/disasterRecovery/schedule.test.ts` | Tests for schedule and retention (`npx tsx server/disasterRecovery/schedule.test.ts`) |

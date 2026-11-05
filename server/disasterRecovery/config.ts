@@ -23,6 +23,10 @@
  *   DR_BACKUP_TRIGGER_TOKEN  shared secret allowing an external scheduler (e.g. Power Automate)
  *                            to start a backup via POST /api/dr-backup/trigger
  *   DR_BACKUP_DISABLED       "true" to switch the automatic schedule off
+ *   DR_INCLUDE_SOURCE_CODE   "false" to leave application source code out of backups (smaller files)
+ *
+ * No-IT option: with only DR_BACKUP_TRIGGER_TOKEN set, the owner's own Power Automate flow pulls
+ * the backup into their OneDrive (see pickup.ts and docs/DR_SETUP_POWER_AUTOMATE.md).
  */
 
 export interface DrConfig {
@@ -119,5 +123,6 @@ export const REQUIRED_SECRETS: { name: string; required: boolean; purpose: strin
   { name: "DR_MS_CLIENT_ID", required: false, purpose: "Disaster-recovery backup: app registration client ID.", source: "Swinerton IT." },
   { name: "DR_MS_CLIENT_SECRET", required: false, purpose: "Disaster-recovery backup: app registration secret.", source: "Swinerton IT." },
   { name: "DR_SHAREPOINT_SITE_URL", required: false, purpose: "Disaster-recovery backup: destination SharePoint site.", source: "Swinerton IT." },
-  { name: "DR_BACKUP_TRIGGER_TOKEN", required: false, purpose: "Lets a Swinerton Power Automate flow start the nightly backup.", source: "Any long random string; must match the Power Automate flow." },
+  { name: "DR_BACKUP_TRIGGER_TOKEN", required: false, purpose: "Password for the backup link that your Power Automate flow uses to copy backups to OneDrive.", source: "Any long letters-and-numbers password; must match the links in the Power Automate flow (docs/DR_SETUP_POWER_AUTOMATE.md)." },
+  { name: "DR_INCLUDE_SOURCE_CODE", required: false, purpose: "Set to false to leave the app code out of backups (smaller files).", source: "Only if OneDrive rejects the file size." },
 ];

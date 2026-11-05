@@ -29,6 +29,7 @@ interface DrStatus {
   retainDaily: number;
   retainMonthly: number;
   externalTriggerEnabled: boolean;
+  pickupEnabled: boolean;
   running: { startedAt: string; trigger: string; step: string } | null;
   lastSuccess: RunRecord | null;
   lastAttempt: RunRecord | null;
@@ -39,8 +40,8 @@ const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleString() : "—")
 const fmtMb = (n?: number) => (n ? `${(n / 1024 / 1024).toFixed(1)} MB` : "—");
 
 function ResultBadge({ r }: { r: RunRecord["result"] }) {
-  if (r === "success") return <Badge className="bg-emerald-600/15 text-emerald-600 border-emerald-600/30">Uploaded</Badge>;
-  if (r === "local_only") return <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30">Server only</Badge>;
+  if (r === "success") return <Badge className="bg-emerald-600/15 text-emerald-600 border-emerald-600/30">Saved to Microsoft 365</Badge>;
+  if (r === "local_only") return <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30">Built on server</Badge>;
   return <Badge className="bg-red-600/15 text-red-600 border-red-600/30">Failed</Badge>;
 }
 
@@ -70,7 +71,8 @@ export function DisasterRecoveryCard() {
   const last = data?.lastSuccess;
   const lastAttempt = data?.lastAttempt;
   const ageHours = last ? (Date.now() - new Date(last.startedAt).getTime()) / 3_600_000 : Infinity;
-  const healthy = !!data?.configured && ageHours < (data?.everyHours ?? 24) + 6 && lastAttempt?.result !== "failed";
+  const connected = !!data?.configured || !!data?.pickupEnabled;
+  const healthy = connected && ageHours < (data?.everyHours ?? 24) + 6 && lastAttempt?.result !== "failed";
 
   return (
     <div className="rounded-lg border border-border bg-card p-4" data-testid="card-dr-backup">
@@ -108,15 +110,15 @@ export function DisasterRecoveryCard() {
         <div className="mt-4 space-y-4">
           <div
             className={`flex items-start gap-2 rounded-md border px-3 py-2 text-sm ${
-              healthy ? "border-emerald-600/30 bg-emerald-600/10" : data.configured ? "border-red-600/30 bg-red-600/10" : "border-amber-500/30 bg-amber-500/10"
+              healthy ? "border-emerald-600/30 bg-emerald-600/10" : connected ? "border-red-600/30 bg-red-600/10" : "border-amber-500/30 bg-amber-500/10"
             }`}
             data-testid="text-dr-health"
           >
-            {healthy ? <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-600 shrink-0" /> : data.configured ? <XCircle className="w-4 h-4 mt-0.5 text-red-600 shrink-0" /> : <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-600 shrink-0" />}
+            {healthy ? <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-600 shrink-0" /> : connected ? <XCircle className="w-4 h-4 mt-0.5 text-red-600 shrink-0" /> : <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-600 shrink-0" />}
             <div className="min-w-0">
-              {!data.configured && <>Not connected to SharePoint/OneDrive yet. Backups are being kept on the AiPM server only. Swinerton IT setup steps are in <code>docs/DISASTER_RECOVERY.md</code>.</>}
-              {data.configured && healthy && <>Protected. Last complete backup {fmtTime(last?.startedAt)} ({last?.totalRows?.toLocaleString()} rows, {fmtMb(last?.totalBytes)}).</>}
-              {data.configured && !healthy && (
+              {!connected && <>Not connected to OneDrive/SharePoint yet. Backups are being kept on the AiPM server only. Setup steps (no IT needed) are in <code>docs/DR_SETUP_POWER_AUTOMATE.md</code>.</>}
+              {connected && healthy && <>Protected. Last complete backup {fmtTime(last?.startedAt)} ({last?.totalRows?.toLocaleString()} rows, {fmtMb(last?.totalBytes)}).</>}
+              {connected && !healthy && (
                 <>
                   Attention needed. {lastAttempt?.result === "failed" ? `Last attempt failed: ${lastAttempt.error}` : `No successful backup since ${fmtTime(last?.startedAt)}.`}
                 </>
@@ -126,13 +128,13 @@ export function DisasterRecoveryCard() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted-foreground">
-            <div><span className="text-foreground font-medium">Destination:</span> <span className="break-all">{data.destination}</span></div>
+            <div><span className="text-foreground font-medium">Destination:</span> <span className="break-all">{data.configured ? data.destination : data.pickupEnabled ? "Your OneDrive, via your nightly Power Automate flow" : data.destination}</span></div>
             <div>
               <span className="text-foreground font-medium">Schedule:</span>{" "}
-              {data.scheduleDisabled ? "Automatic schedule off" : data.everyHours === 24 ? `Daily at ${String(data.scheduleHourUtc).padStart(2, "0")}:00 UTC` : `Every ${data.everyHours} hours (from ${String(data.scheduleHourUtc).padStart(2, "0")}:00 UTC)`}
-              {data.externalTriggerEnabled ? " · plus Swinerton scheduler" : ""}
+              {!data.configured && data.pickupEnabled ? "Nightly, by your Power Automate flow" : data.scheduleDisabled ? "Automatic schedule off" : data.everyHours === 24 ? `Daily at ${String(data.scheduleHourUtc).padStart(2, "0")}:00 UTC` : `Every ${data.everyHours} hours (from ${String(data.scheduleHourUtc).padStart(2, "0")}:00 UTC)`}
+              {data.configured && data.externalTriggerEnabled ? " · plus Power Automate" : ""}
             </div>
-            <div><span className="text-foreground font-medium">Kept:</span> all from last 48 h · 1 per day for {data.retainDaily} days · 1 per month for {data.retainMonthly} months</div>
+            <div><span className="text-foreground font-medium">Kept:</span> {!data.configured && data.pickupEnabled ? "7 daily + 12 monthly backups in OneDrive" : `all from last 48 h · 1 per day for ${data.retainDaily} days · 1 per month for ${data.retainMonthly} months`}</div>
             {last?.webUrl && (
               <div>
                 <a href={last.webUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline" style={{ color: "var(--gold)" }}>

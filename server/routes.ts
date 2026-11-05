@@ -126,8 +126,8 @@ export async function registerRoutes(
     res.sendFile(path.resolve(process.cwd(), "public", "tools", "proposal-log.html"));
   });
 
-  // "/api/dr-backup/trigger" checks its own secret token (DR_BACKUP_TRIGGER_TOKEN) instead of a login session.
-  const publicPaths = ["/api/auth/", "/api/version", "/health", "/api/mfr/export-excel", "/api/mfr/contacts-report", "/api/dr-backup/trigger"];
+  // "/api/dr-backup/trigger" and "/api/dr-backup/download" check their own secret token (DR_BACKUP_TRIGGER_TOKEN) instead of a login session.
+  const publicPaths = ["/api/auth/", "/api/version", "/health", "/api/mfr/export-excel", "/api/mfr/contacts-report", "/api/dr-backup/trigger", "/api/dr-backup/download"];
   app.use("/api", (req, res, next) => {
     const fullPath = req.originalUrl || req.path;
     if (publicPaths.some(p => fullPath.startsWith(p))) return next();

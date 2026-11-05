@@ -10,6 +10,7 @@
 - `scripts/dr-backup.ts`: command-line backup (for Replit Scheduled Deployments)
 - Admin → Data Backup & Recovery: status card, Back up now, Test connection, run history
 - Power Automate trigger (`POST /api/dr-backup/trigger`, start-and-poll pattern); failure email to the admin
+- No-IT option: the owner's own Power Automate flow pulls each backup into their OneDrive (`GET /api/dr-backup/download`, standard OneDrive actions only); guide in `docs/DR_SETUP_POWER_AUTOMATE.md`
 - Runbook and IT setup guide: `docs/DISASTER_RECOVERY.md`
 
 ## [04-06-2026] v0.1.0

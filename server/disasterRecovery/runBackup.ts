@@ -53,7 +53,7 @@ export async function readStatus(pool: pg.Pool): Promise<BackupStatus> {
   return { history: [] };
 }
 
-async function writeStatus(pool: pg.Pool, rec: BackupRunRecord) {
+export async function writeStatus(pool: pg.Pool, rec: BackupRunRecord) {
   const status = await readStatus(pool);
   status.lastAttempt = rec;
   if (rec.result === "success") status.lastSuccess = rec;
@@ -208,8 +208,9 @@ export async function runDisasterRecoveryBackup(opts: RunOptions): Promise<Backu
         const { webUrl, pruned } = await uploadAndPublish(cfg, folder, m.backupId, log);
         rec = { ...base, result: "success", webUrl, pruned, finishedAt: new Date().toISOString(), durationSec: Math.round((Date.now() - started.getTime()) / 1000) };
       } else {
-        log("SharePoint/OneDrive is not configured yet — backup kept on this server only.");
-        rec = { ...base, result: "local_only", error: "SharePoint/OneDrive not configured; backup saved on the server only.", finishedAt: new Date().toISOString(), durationSec: Math.round((Date.now() - started.getTime()) / 1000) };
+        const pickup = !!cfg.triggerToken;
+        log(pickup ? "Backup ready for the Power Automate flow to pick up." : "SharePoint/OneDrive is not configured yet — backup kept on this server only.");
+        rec = { ...base, result: "local_only", error: pickup ? "Built and waiting for the Power Automate flow to copy it to OneDrive." : "SharePoint/OneDrive not configured; backup saved on the server only.", finishedAt: new Date().toISOString(), durationSec: Math.round((Date.now() - started.getTime()) / 1000) };
       }
     } catch (err: any) {
       rec = {

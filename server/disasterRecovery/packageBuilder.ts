@@ -145,9 +145,13 @@ export async function buildBackupPackage(opts: BuildOptions): Promise<BuildResul
 
   // 4. Application source code.
   log("Packing application source code...");
-  const sourceFiles = listSourceFiles(opts.appRoot);
+  const includeSource = (process.env.DR_INCLUDE_SOURCE_CODE || "").toLowerCase() !== "false";
+  const sourceFiles = includeSource ? listSourceFiles(opts.appRoot) : [];
   let sourceInfo: BackupManifest["sourceCode"];
-  if (sourceFiles.length > 0) {
+  if (!includeSource) {
+    sourceInfo = { included: false, fileCount: 0, note: "Left out on purpose (DR_INCLUDE_SOURCE_CODE=false); use GitHub at the commit listed" };
+    warnings.push("Application source code was left out of this backup (DR_INCLUDE_SOURCE_CODE=false). Recover the code from GitHub at the commit listed above.");
+  } else if (sourceFiles.length > 0) {
     await zipFiles(opts.appRoot, sourceFiles, path.join(folder, SOURCE_FOLDER, "aipm-source-code.zip"));
     sourceInfo = { included: true, file: `${SOURCE_FOLDER}/aipm-source-code.zip`, fileCount: sourceFiles.length };
   } else {
