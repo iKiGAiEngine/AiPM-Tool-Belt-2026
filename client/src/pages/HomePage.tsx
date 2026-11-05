@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { ReadOnlyBanner } from "@/components/ReadOnlyBanner";
 import { guardViewer } from "@/lib/viewerGuard";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
+import { BidIntakePanel } from "@/components/BidIntakePanel";
 
 interface ToolTile {
   id: string;
@@ -634,6 +635,7 @@ export default function HomePage() {
         </div>
 
         <div className="hud-col">
+          <BidIntakePanel />
           <div
             className="pl-card"
             onClick={() => { window.location.href = "/tools/proposal-log"; }}
