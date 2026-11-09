@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { Mail, Loader2, CheckCircle2, AlertTriangle, XCircle, Copy, ExternalLink, Layers } from "lucide-react";
+import { Mail, Loader2, CheckCircle2, AlertTriangle, XCircle, Copy, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +50,6 @@ export function EmailIntakeDropzone() {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [results, setResults] = useState<IntakeFileResult[]>([]);
-  const [mergedRounds, setMergedRounds] = useState<Record<number, number>>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
   const invalidateLog = () => {
@@ -126,33 +125,6 @@ export function EmailIntakeDropzone() {
     }
   }, [toast]);
 
-  const addAsRound = async (result: IntakeFileResult, target: DuplicateMatch) => {
-    // TEMPORARILY DISABLED: invitation merging is unavailable (the server also rejects it).
-    toast({
-      title: "Merging is temporarily unavailable",
-      description: "Keep it as its own draft; the duplicate warning stays on it for the reviewer.",
-      variant: "destructive",
-    });
-    return;
-    // eslint-disable-next-line no-unreachable
-    if (!result.entryId) return;
-    try {
-      await apiRequest("POST", `/api/bc/drafts/${result.entryId}/approve`, { mergeIntoId: target.id });
-      setMergedRounds(prev => ({ ...prev, [result.entryId!]: target.id }));
-      invalidateLog();
-      toast({
-        title: "Bid round added",
-        description: `Added as a new bid round on "${target.projectName}"${target.estimateNumber ? ` (#${target.estimateNumber})` : ""}.`,
-      });
-    } catch (err: any) {
-      toast({
-        title: "Could not add bid round",
-        description: err?.message || "You may need Draft Review access — an admin can merge it from the Drafts tab instead.",
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <div className="space-y-3">
       <div
@@ -209,7 +181,6 @@ export function EmailIntakeDropzone() {
       {results.length > 0 && (
         <div className="space-y-2" data-testid="email-intake-results">
           {results.map((r, idx) => {
-            const merged = r.entryId != null ? mergedRounds[r.entryId] : undefined;
             return (
               <div
                 key={`${r.fileName}-${idx}`}
@@ -228,10 +199,10 @@ export function EmailIntakeDropzone() {
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-foreground truncate">{r.fileName}</p>
                     <p className="text-muted-foreground">
-                      {merged ? `Added as a bid round on entry #${merged}.` : r.message}
+                      {r.message}
                     </p>
 
-                    {r.status === "draft_created" && r.fields && !merged && (
+                    {r.status === "draft_created" && r.fields && (
                       <>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {DISPLAY_FIELDS.map(({ key, label }) => {
@@ -296,22 +267,14 @@ export function EmailIntakeDropzone() {
                                     {d.projectName}
                                     {d.estimateNumber ? ` (#${d.estimateNumber})` : ""} — {Math.round(d.score * 100)}% match
                                   </span>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 px-2 text-[11px]"
-                                    disabled
-                                    title="Merging is temporarily unavailable while it is being made safe"
-                                    onClick={() => addAsRound(r, d)}
-                                    data-testid={`button-add-round-${idx}-${d.id}`}
-                                  >
-                                    <Layers className="w-3 h-3 mr-1" /> Add as bid round
-                                  </Button>
+                                  <span className="text-[11px] text-muted-foreground" data-testid={`text-combine-hint-${idx}-${d.id}`}>
+                                    Combine it in the BC Invites tab
+                                  </span>
                                 </div>
                               ))}
                             </div>
                             <p className="mt-1 text-[11px] text-muted-foreground">
-                              Or keep it as its own draft — the duplicate warning stays on the draft for the reviewer.
+                              It now waits in the BC Invites tab, where same-project invites are shown together and combined into one bid.
                             </p>
                           </div>
                         )}

@@ -1,7 +1,8 @@
 import type { Express, Request, Response } from "express";
+import { groupSameProject, planBundle, validateBundle, parseJsonArray, GROUPING_COLUMNS, type EntryLike } from "./bcBundle";
 import { db } from "../db";
 import { proposalLogEntries, bcSyncLog, bcSyncState, users } from "@shared/schema";
-import { eq, and, ne, isNull } from "drizzle-orm";
+import { eq, and, ne, isNull, inArray } from "drizzle-orm";
 import { resolveChangedByName, recordFieldChanges } from "../changeLogger";
 import { auditLog } from "../auditService";
 import { getValidToken, hasValidConnection } from "./tokenManager";
@@ -59,7 +60,14 @@ async function resolveEstimateNumber(entry: { id: number; estimateNumber: string
   return generateProjectId();
 }
 
-export const MERGE_DISABLED_MESSAGE = "Merging invitations is temporarily unavailable while it is being made safe. Please use \"Create as Separate Project\" or contact an admin.";
+// Only the columns same-project grouping needs (skips large screenshot/email blobs).
+function groupingSelect() {
+  const cols: Record<string, any> = {};
+  for (const c of GROUPING_COLUMNS) cols[c] = (proposalLogEntries as any)[c];
+  return cols as { [K in (typeof GROUPING_COLUMNS)[number]]: any };
+}
+
+export const MERGE_DISABLED_MESSAGE = "The old Merge / Add as Bid Round action has been retired because it could hide an invite without keeping its scope. Use \"Combine into one bid\" on the BC Invites tab instead.";
 
 export function deriveBidDueDate(raw: string | undefined, timeZone: string = BC_DISPLAY_TIMEZONE): string {
   if (!raw) return "";
@@ -1738,6 +1746,114 @@ export function registerBcSyncRoutes(app: Express) {
     }
   });
 
+
+  // ── Same-project invites ──────────────────────────────────────────────────
+  // Groups live drafts (and live approved entries) that are about the same project so the
+  // BC Invites tab can show them as ONE bid instead of separate, easy-to-lose cards.
+  app.get("/api/bc/draft-groups", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!(await isAdminOrDraftReviewer(user))) return res.status(403).json({ message: "Admin or Draft Review access required" });
+
+      const all = (await db.select(groupingSelect()).from(proposalLogEntries)) as EntryLike[];
+      res.json({ groups: groupSameProject(all) });
+    } catch (err) {
+      console.error("[BC Sync] draft-groups error:", err);
+      res.status(500).json({ message: "Failed to load same-project groups" });
+    }
+  });
+
+  // Combine invites for the same project into ONE record. Union of scopes and BC invite IDs:
+  // nothing is dropped, and the absorbed invites point at the surviving record.
+  app.post("/api/bc/drafts/bundle", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!(await isAdminOrDraftReviewer(user))) return res.status(403).json({ message: "Admin or Draft Review access required" });
+
+      const { primaryId, otherIds } = (req.body || {}) as { primaryId?: number; otherIds?: number[] };
+      const pid = Number(primaryId);
+      const oids = Array.isArray(otherIds) ? otherIds.map(Number) : [];
+
+      const actor = user!.displayName || user!.email;
+
+      const outcome = await db.transaction(async (tx) => {
+        // Lock the rows involved so two people cannot combine the same invites at once.
+        const involved = [pid, ...oids].filter((n) => Number.isInteger(n));
+        if (involved.length) {
+          await tx.select({ id: proposalLogEntries.id }).from(proposalLogEntries)
+            .where(inArray(proposalLogEntries.id, involved)).for("update");
+        }
+        const all = (await tx.select(groupingSelect()).from(proposalLogEntries)) as EntryLike[];
+        const check = validateBundle(pid, oids, all);
+        if (!check.ok) return { error: check } as const;
+
+        // Full rows only for the few entries being combined (change log, flags).
+        const fullRows = await tx.select().from(proposalLogEntries).where(inArray(proposalLogEntries.id, [pid, ...oids]));
+        const byId = new Map(fullRows.map((e) => [e.id, e as any]));
+        const primary = byId.get(pid)!;
+        const others = oids.map((id) => byId.get(id)!);
+        const plan = planBundle(primary, others);
+        const now = new Date().toISOString();
+
+        const absorbedLabel = others
+          .map((o) => `#${o.id} (${parseJsonArray(o.scopeList).join(", ") || "no scope listed"})`)
+          .join("; ");
+        const primaryLog: string[] = (primary as any).bcChangeLog ? JSON.parse((primary as any).bcChangeLog) : [];
+        primaryLog.push(
+          `${now}: Combined by ${actor}: ${absorbedLabel} now part of this bid. ` +
+          (plan.addedScopes.length ? `Scopes added: ${plan.addedScopes.join(", ")}. ` : "No new scope (repeat invite). ") +
+          plan.notes.join(" "),
+        );
+
+        await tx.update(proposalLogEntries).set({
+          scopeList: JSON.stringify(plan.scopes),
+          bcOpportunityIds: JSON.stringify(plan.bcOpportunityIds),
+          dueDate: plan.dueDate ?? primary.dueDate ?? null,
+          ...plan.fillFields,
+          bcUpdateFlag: plan.addedScopes.length > 0 ? true : (primary as any).bcUpdateFlag ?? false,
+          bcChangeLog: JSON.stringify(primaryLog),
+        }).where(eq(proposalLogEntries.id, pid));
+
+        // Future BC updates for the absorbed invites now flow into the surviving record.
+        await tx.update(bcSyncLog).set({ entryId: pid }).where(inArray(bcSyncLog.entryId, oids));
+
+        for (const o of others) {
+          const oLog: string[] = (o as any).bcChangeLog ? JSON.parse((o as any).bcChangeLog) : [];
+          oLog.push(`${now}: Combined into entry #${pid} by ${actor}. Scopes and BC invite IDs were moved to #${pid}.`);
+          await tx.update(proposalLogEntries).set({
+            isDraft: false,
+            deletedAt: new Date(),
+            duplicateOverrideNote: `Combined into entry #${pid} by ${actor}`,
+            bcChangeLog: JSON.stringify(oLog),
+          }).where(eq(proposalLogEntries.id, o.id));
+        }
+
+        const [updatedPrimary] = await tx.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, pid));
+        return { ok: true, plan, others: others.map((o) => o.id), updatedPrimary } as const;
+      });
+
+      if ("error" in outcome && outcome.error) {
+        const failure = outcome.error as { status: number; message: string };
+        return res.status(failure.status).json({ message: failure.message });
+      }
+      if (!("ok" in outcome) || !outcome.ok) return res.status(500).json({ message: "Combine did not complete. Nothing was changed." });
+
+      await bcAudit(req, user, "bc_drafts_bundled", pid,
+        `Combined ${outcome.others.length} invite(s) into entry #${pid}: scopes now ${outcome.plan.scopes.join(", ")}`,
+        { primaryId: pid, absorbedIds: outcome.others, scopes: outcome.plan.scopes, addedScopes: outcome.plan.addedScopes,
+          bcOpportunityIds: outcome.plan.bcOpportunityIds, notes: outcome.plan.notes });
+
+      res.json({ combined: true, primaryId: pid, absorbedIds: outcome.others, scopes: outcome.plan.scopes, notes: outcome.plan.notes, entry: outcome.updatedPrimary });
+    } catch (err) {
+      console.error("[BC Sync] Bundle error:", err);
+      res.status(500).json({ message: "Failed to combine invites. Nothing was changed." });
+    }
+  });
+
   app.post("/api/bc/drafts/:id/reject", async (req: Request, res: Response) => {
     try {
       const userId = (req.session as any)?.userId;
@@ -1749,11 +1865,29 @@ export function registerBcSyncRoutes(app: Express) {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
 
-      const { reason } = req.body as { reason?: string };
+      const { reason, confirmLoseBundle } = req.body as { reason?: string; confirmLoseBundle?: boolean };
 
       const [entry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
       if (!entry) return res.status(404).json({ message: "Entry not found" });
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
+
+      // Rejecting "as a duplicate" is how the Pico bids vanished. A repeat invite is now removed by
+      // COMBINING it into the surviving entry (which keeps its scope and BC IDs), never by rejecting it.
+      if ((reason || "").trim().toLowerCase() === "duplicate") {
+        return res.status(400).json({
+          message: "Duplicates are no longer rejected. Use \"Combine into one bid\" so the scope and BC invite are kept on a live entry.",
+          code: "use_combine",
+        });
+      }
+
+      // A record that already holds several combined invites must not be rejected by accident.
+      const heldInvites = parseJsonArray(entry.bcOpportunityIds);
+      if (heldInvites.length > 1 && !confirmLoseBundle) {
+        return res.status(409).json({
+          message: `This bid holds ${heldInvites.length} combined invites (${parseJsonArray(entry.scopeList).join(", ")}). Rejecting it removes ALL of them.`,
+          code: "bundle_holder",
+        });
+      }
 
       const rejectorName = user!.displayName || user!.email;
 

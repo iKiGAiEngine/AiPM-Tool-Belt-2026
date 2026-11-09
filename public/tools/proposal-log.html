@@ -2291,6 +2291,8 @@ function connectToBc(){
 }
 
 let bcInvites=[];
+let bcGroups=[];
+let bcKeepSeparate=new Set();
 let bcSyncPreview=null;
 let bcSyncPreviewSelected=new Set();
 
@@ -2302,6 +2304,11 @@ async function loadBcInvites(){
     if(!res.ok) return;
     const all=await res.json();
     bcInvites=all.filter(e=>e.isDraft && !e.deletedAt).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    // Invites about the same project are shown together as ONE bid (see renderBcGroupCard).
+    try{
+      const gr=await fetch('/api/bc/draft-groups',{credentials:'include'});
+      bcGroups=gr.ok?((await gr.json()).groups||[]):[];
+    }catch(e){bcGroups=[];}
     renderBcInvites();
   }catch(e){console.warn('Failed to load BC invites:',e);}
 }
@@ -2390,8 +2397,12 @@ function renderBcInvites(){
   const countBadge=document.getElementById('newbids-tab-count');
   if(!list) return;
   list.innerHTML='';
+  const activeGroups=bcGroups.filter(g=>!bcKeepSeparate.has(g.draftIds.join('-')));
+  const groupedIds=new Set(activeGroups.flatMap(g=>g.draftIds));
+  const keptSeparateIds=new Set(bcGroups.filter(g=>bcKeepSeparate.has(g.draftIds.join('-'))).flatMap(g=>g.draftIds));
+  const reviewCount=activeGroups.length+bcInvites.filter(e=>!groupedIds.has(e.id)).length;
   if(countBadge){
-    if(bcInvites.length>0){countBadge.textContent='('+bcInvites.length+')';countBadge.style.display='';}
+    if(reviewCount>0){countBadge.textContent='('+reviewCount+')';countBadge.style.display='';}
     else countBadge.style.display='none';
   }
   if(bcInvites.length===0){
@@ -2400,7 +2411,10 @@ function renderBcInvites(){
   }
   if(empty) empty.style.display='none';
 
+  activeGroups.forEach(g=>list.appendChild(renderBcGroupCard(g)));
+
   bcInvites.forEach(entry=>{
+    if(groupedIds.has(entry.id)) return;
     const isNda=entry.ndaRequired||entry.bcAccessStatus==='nda_required';
     let dupMatches=[];
     if(entry.duplicateOverrideNote&&entry.duplicateOverrideNote.startsWith('__dup:')){
@@ -2429,6 +2443,9 @@ function renderBcInvites(){
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">${flags.join(' ')}</div>
       </div>
+
+      ${keptSeparateIds.has(entry.id)?'<div style="font-size:11px;color:#fb923c;margin-bottom:8px;">&#9888; You chose to keep this as a SEPARATE bid from the other invites for this project.</div>':''}
+      ${bcScopeStrip(entry)}
 
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px;">
         <div>
@@ -2461,9 +2478,8 @@ function renderBcInvites(){
 
       ${canReviewBcInvites?`
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
-        <button class="btn-secondary" style="padding:5px 12px;font-size:11px;color:#fb923c;border-color:rgba(249,115,22,.4);${dupMatches.length>0?'background:rgba(249,115,22,.15);':''}" onclick="rejectBcInviteAsDuplicate(${entry.id})" title="${dupMatches.length>0?'Likely duplicate — reject and remove from the list':'Reject this invite as a duplicate'}">&#9888; Duplicate</button>
-        <button class="btn-danger" style="padding:5px 12px;font-size:11px;" onclick="rejectBcInvite(${entry.id})">Reject</button>
-        <button class="btn-primary" style="padding:5px 14px;font-size:11px;" onclick="acceptBcInvite(${entry.id})">Accept</button>
+        <button class="btn-danger" style="padding:5px 12px;font-size:11px;" onclick="rejectBcInvite(${entry.id})" title="Remove this invite (not a bid we want)">Reject</button>
+        <button class="btn-primary" style="padding:5px 14px;font-size:11px;" onclick="acceptBcInvite(${entry.id}${keptSeparateIds.has(entry.id)?',{force:true}':''})">Accept</button>
       </div>`:''}
     `;
     list.appendChild(card);
@@ -2509,51 +2525,122 @@ async function acceptBcInvite(id,extra){
   }catch(e){console.warn('Accept failed:',e);alert('Failed to accept bid.');}
 }
 
-function openBcMergePicker(id){
-  const entry=bcInvites.find(e=>e.id===id);
-  let dupMatches=[];
-  if(entry && entry.duplicateOverrideNote && entry.duplicateOverrideNote.startsWith('__dup:')){
-    try{dupMatches=JSON.parse(entry.duplicateOverrideNote.slice(6));}catch(e){}
-  }
-  if(dupMatches.length===0){
-    acceptBcInvite(id);
-    return;
-  }
-  showBcMergePicker(id,dupMatches);
-}
-
 function showBcMergePicker(id,matches){
   const row=document.getElementById('bc-merge-'+id);
   const list=document.getElementById('bc-merge-list-'+id);
   if(!row||!list) return;
-  list.innerHTML=matches.map(m=>`
-    <label style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:4px;cursor:pointer;" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">
-      <input type="radio" name="bc-dup-${id}" value="${m.id}">
-      <span style="flex:1;font-size:12px;">${m.projectName} ${m.estimateNumber?'#'+m.estimateNumber:''} ${m.region||''} <span style="color:#fb923c;font-weight:700;">${Math.round(m.score*100)}% match</span></span>
-    </label>`).join('')+`
+  list.innerHTML=`<div style="font-size:12px;margin-bottom:6px;">Similar projects are already in the log (not an exact match). Check they are not the same project before continuing.</div>`+matches.map(m=>`
+    <div style="padding:4px 6px;font-size:12px;">${m.projectName} ${m.estimateNumber?'#'+m.estimateNumber:''} ${m.region||''} <span style="color:#fb923c;font-weight:700;">${Math.round(m.score*100)}% similar</span></div>`).join('')+`
     <div style="margin-top:8px;display:flex;gap:6px;">
-      <button class="btn-primary" style="padding:4px 10px;font-size:10px;" onclick="acceptBcInvite(${id},{force:true})">Create as Separate Project</button>
+      <button class="btn-primary" style="padding:4px 10px;font-size:10px;" onclick="acceptBcInvite(${id},{force:true})">It is a different project &mdash; Accept</button>
       <button class="btn-secondary" style="padding:4px 10px;font-size:10px;" onclick="document.getElementById('bc-merge-${id}').style.display='none'">Cancel</button>
     </div>`;
   row.style.display='';
 }
 
-async function mergeBcInviteAsBidRound(id){
-  // TEMPORARILY DISABLED: invitation merging is unavailable (server also rejects it).
-  alert('Merging invitations is temporarily unavailable while it is being made safe. Use "Create as Separate Project" instead.');
-  return;
-  const selected=document.querySelector(`input[name="bc-dup-${id}"]:checked`);
-  if(!selected){alert('Select an entry to merge into.');return;}
-  const entry=bcInvites.find(e=>e.id===id);
+// ─── SAME-PROJECT INVITES ────────────────────────────────────────────────────
+// Rule: invites for the same project, different scope = ONE bid (we bundle scopes).
+// A group is shown as a single card. "Combine" keeps every scope and every BC invite on
+// one entry; nothing is deleted. Rules live on the server (server/autodesk/bcBundle.ts).
+function bcEsc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function bcParseArr(v){try{const a=JSON.parse(v||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}}
+function bcScopeChip(txt){return `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:rgba(96,165,250,.15);border:1px solid rgba(96,165,250,.4);color:#93c5fd;font-size:11px;font-weight:600;margin:2px 4px 2px 0;">${bcEsc(txt)}</span>`;}
+function bcOppLink(id){return `https://app.buildingconnected.com/opportunities/${encodeURIComponent(id)}`;}
+
+// Scope chips on a normal card, plus a note when several invites were already combined into it.
+function bcScopeStrip(entry){
+  const scopes=bcParseArr(entry.scopeList);
+  const opps=bcParseArr(entry.bcOpportunityIds);
+  if(scopes.length===0&&opps.length<2) return '';
+  return `<div style="margin-bottom:10px;"><span style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.3px;margin-right:6px;">Scopes</span>${scopes.map(bcScopeChip).join('')||'<span style="font-size:11px;color:var(--text-dim);">none listed</span>'}${opps.length>1?`<span style="font-size:11px;color:#4ade80;margin-left:6px;">&#10003; ${opps.length} BuildingConnected invites combined into this one bid</span>`:''}</div>`;
+}
+
+function renderBcGroupCard(g){
+  const gkey=g.draftIds.join('-');
+  const same=g.strength==='same';
+  const approved=g.members.find(m=>!m.isDraft);
+  const accent=same?'#60a5fa':'#fb923c';
+  const bg=same?'rgba(96,165,250,.07)':'rgba(249,115,22,.07)';
+  const primary=g.members.find(m=>m.id===g.suggestedPrimaryId)||g.members[0];
+  const allScopes=[];
+  g.members.forEach(m=>m.scopes.forEach(sc=>{if(!allScopes.some(x=>x.toLowerCase().trim()===sc.toLowerCase().trim())) allScopes.push(sc);}));
+  const nInvites=g.draftIds.length;
+
+  let headline,explain,yes;
+  if(approved){
+    headline=`${nInvites} new invite${nInvites>1?'s':''} for a project already in your log`;
+    explain=`Adds the new scope${nInvites>1?'s':''} to existing bid <b>#${bcEsc(approved.estimateNumber||approved.id)}</b>. Nothing is deleted &mdash; the scope and its BuildingConnected invite are kept on that bid.`;
+    yes=`Add to #${bcEsc(approved.estimateNumber||approved.id)}`;
+  }else if(same){
+    headline=`${g.members.length} invites &rarr; 1 bid`;
+    explain=`Same project, different scopes. We bundle scopes, so these become <b>ONE bid</b>. Nothing is deleted &mdash; every scope and BuildingConnected invite is kept on one entry.`;
+    yes='Combine into one bid';
+  }else{
+    headline='These might be the same project';
+    explain=`Names or addresses are similar but <b>not identical</b>. Compare them below. If it is the same project, combine them. If not, keep them separate.`;
+    yes='Yes, same project: combine';
+  }
+  const no=same?'Not the same project: keep separate':'No: keep separate';
+
+  const rows=g.members.map(m=>{
+    const repeat=g.repeatDraftIds.includes(m.id);
+    const status=m.isDraft?'<span style="color:#fbbf24;">Pending invite</span>':`<span style="color:#4ade80;">In your log &middot; #${bcEsc(m.estimateNumber||m.id)}</span>`;
+    const link=m.bcOpportunityIds.length?`<a href="${bcOppLink(m.bcOpportunityIds[0])}" target="_blank" rel="noopener noreferrer" style="color:#60a5fa;font-size:11px;text-decoration:none;">View on BC</a>`:'';
+    return `<div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.4fr) auto;gap:10px;align-items:start;padding:8px 0;border-top:1px solid var(--border);">
+      <div>${m.scopes.map(bcScopeChip).join('')||'<span style="font-size:11px;color:var(--text-dim);">no scope listed</span>'}${repeat?'<div style="font-size:10px;color:#fb923c;">same scope already covered by another invite</div>':''}</div>
+      <div style="font-size:11px;color:var(--text-dim);">${same?'':`<div style="color:var(--text);">${bcEsc(m.projectName)}</div>${bcEsc(m.projectAddress||'No address')} &middot; `}Region: ${bcEsc(m.region||'not set')} &middot; Due: ${bcEsc(m.dueDate||'not set')}</div>
+      <div style="font-size:11px;text-align:right;">${status}<br>${link}</div>
+    </div>`;
+  }).join('');
+
+  const card=document.createElement('div');
+  card.className='bc-invite-card bc-group-card';
+  card.dataset.group=gkey;
+  card.style.cssText=`border:2px solid ${accent};border-radius:8px;background:${bg};padding:14px;margin-bottom:12px;`;
+  card.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px;">
+      <span class="badge" style="background:${accent};color:#0b1220;font-weight:700;">${same||approved?'SAME PROJECT':'CHECK: SAME PROJECT?'}</span>
+      <span style="font-size:13px;font-weight:700;color:var(--text);">${headline}</span>
+    </div>
+    <div style="font-size:15px;font-weight:600;margin:6px 0 4px;">${bcEsc(primary.projectName)}${same||approved?`<span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:10px;">${bcEsc(primary.projectAddress||'')}</span>`:''}</div>
+    <div style="margin-bottom:6px;"><span style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.3px;margin-right:6px;">${approved?'Scopes after adding':'Scopes in the one bid'}</span>${allScopes.map(bcScopeChip).join('')}</div>
+    <div style="font-size:12px;color:var(--text);margin-bottom:8px;">${explain}</div>
+    ${rows}
+    ${canReviewBcInvites?`<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button class="${same||approved?'btn-secondary':'btn-primary'}" style="padding:${same||approved?'5px 12px;font-size:11px':'6px 16px;font-size:12px;font-weight:700'};" onclick="keepBcGroupSeparate('${gkey}')">${no}</button>
+      <button class="btn-primary" style="padding:6px 16px;font-size:12px;font-weight:700;" onclick="combineBcGroup('${gkey}')">${yes}</button>
+    </div>`:''}`;
+  return card;
+}
+
+async function combineBcGroup(gkey){
+  const g=bcGroups.find(x=>x.draftIds.join('-')===gkey);
+  if(!g) return;
+  const approved=g.members.find(m=>!m.isDraft);
+  const primaryId=g.suggestedPrimaryId;
+  const otherIds=g.draftIds.filter(id=>id!==primaryId);
+  const primary=g.members.find(m=>m.id===primaryId);
+  const allScopes=[];
+  g.members.forEach(m=>m.scopes.forEach(sc=>{if(!allScopes.some(x=>x.toLowerCase().trim()===sc.toLowerCase().trim())) allScopes.push(sc);}));
+  const msg=approved
+    ?`Add ${otherIds.length} invite${otherIds.length>1?'s':''} to existing bid #${approved.estimateNumber||approved.id}?\n\n${primary.projectName}\nScopes after adding: ${allScopes.join(', ')}\n\nNothing is deleted.`
+    :`Combine into ONE bid?\n\n${primary.projectName}\nScopes: ${allScopes.join(', ')}\n\nNothing is deleted. Every scope and BuildingConnected invite is kept on one entry.`;
+  if(!confirm(msg)) return;
   try{
-    const res=await fetch(`/api/bc/drafts/${id}/approve-and-create`,{
-      method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
-      body:JSON.stringify({projectName:entry.projectName,region:entry.region,dueDate:entry.dueDate,gcEstimateLead:entry.gcEstimateLead,mergeIntoId:parseInt(selected.value)})
-    });
-    if(!res.ok){alert('Failed to merge bid.');return;}
-    loadBcInvites();
+    const res=await fetch('/api/bc/drafts/bundle',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({primaryId,otherIds})});
+    const body=await res.json().catch(()=>({}));
+    if(!res.ok){alert((body.message||'Could not combine these invites.')+'\n\nNothing was changed.');loadBcInvites();return;}
+    if(typeof showToast==='function') showToast(`Combined into one bid: ${body.scopes.join(', ')}`);
+    if(body.notes&&body.notes.length) alert('Please check:\n\n'+body.notes.join('\n'));
+    await loadBcInvites();
     loadFromServer().then(render);
-  }catch(e){console.warn('Merge failed:',e);alert('Failed to merge bid.');}
+  }catch(e){console.warn('Combine failed:',e);alert('Could not combine these invites. Nothing was changed.');}
+}
+
+function keepBcGroupSeparate(gkey){
+  if(!confirm('Keep these as SEPARATE bids?\n\nOnly choose this if they are truly different projects, or the team bids them separately.')) return;
+  bcKeepSeparate.add(gkey);
+  renderBcInvites();
 }
 
 function rejectBcInvite(id){
@@ -2561,29 +2648,23 @@ function rejectBcInvite(id){
   if(row) row.style.display='';
 }
 
-async function confirmRejectBcInvite(id){
+async function confirmRejectBcInvite(id,confirmLoseBundle){
   const reasonEl=document.getElementById('bc-reject-reason-'+id);
   const reason=reasonEl?reasonEl.value:'';
   try{
-    await fetch(`/api/bc/drafts/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({reason})});
+    const res=await fetch(`/api/bc/drafts/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({reason,confirmLoseBundle:!!confirmLoseBundle})});
+    if(res.status===409&&!confirmLoseBundle){
+      const body=await res.json().catch(()=>({}));
+      if(body.code==='bundle_holder'&&confirm(body.message+'\n\nReject all of them?')) return confirmRejectBcInvite(id,true);
+      return;
+    }
+    if(!res.ok){const body=await res.json().catch(()=>({}));alert(body.message||'Failed to reject draft.');return;}
     loadBcInvites();
   }catch(e){console.warn('Reject failed:',e);alert('Failed to reject draft.');}
 }
 
 // Quick-reject an invite as a duplicate — one click + confirm, reason preset to
 // "Duplicate". Reuses the standard reject endpoint (soft-delete, No Bid, logged).
-async function rejectBcInviteAsDuplicate(id){
-  const entry=bcInvites.find(e=>e.id===id);
-  const name=entry&&entry.projectName?entry.projectName:'this invite';
-  if(!confirm(`Reject "${name}" as a duplicate? It will be removed from the invites list.`)) return;
-  try{
-    const res=await fetch(`/api/bc/drafts/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({reason:'Duplicate'})});
-    if(!res.ok){alert('Failed to reject duplicate.');return;}
-    if(typeof showToast==='function') showToast('Rejected as duplicate');
-    loadBcInvites();
-  }catch(e){console.warn('Duplicate reject failed:',e);alert('Failed to reject duplicate.');}
-}
-
 // ─── BC SYNC DEMO MODE ───────────────────────────────────────────────────────
 // Frontend-only preview of the sync flow for when there's no live BC connection.
 // Injects a representative preview payload (new bids + a merge + updates) plus a
