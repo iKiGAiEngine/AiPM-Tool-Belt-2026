@@ -127,6 +127,14 @@ export function EmailIntakeDropzone() {
   }, [toast]);
 
   const addAsRound = async (result: IntakeFileResult, target: DuplicateMatch) => {
+    // TEMPORARILY DISABLED: invitation merging is unavailable (the server also rejects it).
+    toast({
+      title: "Merging is temporarily unavailable",
+      description: "Keep it as its own draft; the duplicate warning stays on it for the reviewer.",
+      variant: "destructive",
+    });
+    return;
+    // eslint-disable-next-line no-unreachable
     if (!result.entryId) return;
     try {
       await apiRequest("POST", `/api/bc/drafts/${result.entryId}/approve`, { mergeIntoId: target.id });
@@ -292,6 +300,8 @@ export function EmailIntakeDropzone() {
                                     size="sm"
                                     variant="outline"
                                     className="h-6 px-2 text-[11px]"
+                                    disabled
+                                    title="Merging is temporarily unavailable while it is being made safe"
                                     onClick={() => addAsRound(r, d)}
                                     data-testid={`button-add-round-${idx}-${d.id}`}
                                   >

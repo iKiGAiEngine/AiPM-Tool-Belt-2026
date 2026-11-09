@@ -2463,7 +2463,6 @@ function renderBcInvites(){
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
         <button class="btn-secondary" style="padding:5px 12px;font-size:11px;color:#fb923c;border-color:rgba(249,115,22,.4);${dupMatches.length>0?'background:rgba(249,115,22,.15);':''}" onclick="rejectBcInviteAsDuplicate(${entry.id})" title="${dupMatches.length>0?'Likely duplicate — reject and remove from the list':'Reject this invite as a duplicate'}">&#9888; Duplicate</button>
         <button class="btn-danger" style="padding:5px 12px;font-size:11px;" onclick="rejectBcInvite(${entry.id})">Reject</button>
-        <button class="btn-secondary" style="padding:5px 12px;font-size:11px;" onclick="openBcMergePicker(${entry.id})">Merge</button>
         <button class="btn-primary" style="padding:5px 14px;font-size:11px;" onclick="acceptBcInvite(${entry.id})">Accept</button>
       </div>`:''}
     `;
@@ -2533,14 +2532,16 @@ function showBcMergePicker(id,matches){
       <span style="flex:1;font-size:12px;">${m.projectName} ${m.estimateNumber?'#'+m.estimateNumber:''} ${m.region||''} <span style="color:#fb923c;font-weight:700;">${Math.round(m.score*100)}% match</span></span>
     </label>`).join('')+`
     <div style="margin-top:8px;display:flex;gap:6px;">
-      <button class="btn-primary" style="padding:4px 10px;font-size:10px;" onclick="mergeBcInviteAsBidRound(${id})">Add as Bid Round</button>
-      <button class="btn-secondary" style="padding:4px 10px;font-size:10px;" onclick="acceptBcInvite(${id},{force:true})">Create as Separate Project</button>
+      <button class="btn-primary" style="padding:4px 10px;font-size:10px;" onclick="acceptBcInvite(${id},{force:true})">Create as Separate Project</button>
       <button class="btn-secondary" style="padding:4px 10px;font-size:10px;" onclick="document.getElementById('bc-merge-${id}').style.display='none'">Cancel</button>
     </div>`;
   row.style.display='';
 }
 
 async function mergeBcInviteAsBidRound(id){
+  // TEMPORARILY DISABLED: invitation merging is unavailable (server also rejects it).
+  alert('Merging invitations is temporarily unavailable while it is being made safe. Use "Create as Separate Project" instead.');
+  return;
   const selected=document.querySelector(`input[name="bc-dup-${id}"]:checked`);
   if(!selected){alert('Select an entry to merge into.');return;}
   const entry=bcInvites.find(e=>e.id===id);

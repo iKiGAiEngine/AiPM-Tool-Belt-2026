@@ -16,3 +16,4 @@ playwright-report/
 backups/
 =======
 >>>>>>> 291a914 (Task #47: Add e2e test for vendor scope/manufacturer tag → RFQ picker flow)
+.local/

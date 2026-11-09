@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { proposalLogEntries, bcSyncLog, bcSyncState, users } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, ne, isNull } from "drizzle-orm";
 import { resolveChangedByName, recordFieldChanges } from "../changeLogger";
 import { auditLog } from "../auditService";
 import { getValidToken, hasValidConnection } from "./tokenManager";
@@ -46,6 +46,21 @@ const BC_DISPLAY_TIMEZONE = "America/Los_Angeles";
  * We instead convert the instant to BC_DISPLAY_TIMEZONE and take that calendar
  * date. Pure date-only strings (no time component) are passed through unchanged.
  */
+// Manual "merge invitation into another entry" is temporarily disabled. See incident report for bids 26-1870 / 26-1871.
+// Reuse an estimate number the draft already carries (e.g. a restored bid) instead of issuing a new one,
+// unless another live entry already uses it. New drafts without a number still get the next sequence number.
+async function resolveEstimateNumber(entry: { id: number; estimateNumber: string | null }): Promise<string> {
+  const existing = (entry.estimateNumber || "").trim();
+  if (existing) {
+    const clash = await db.select({ id: proposalLogEntries.id }).from(proposalLogEntries)
+      .where(and(eq(proposalLogEntries.estimateNumber, existing), ne(proposalLogEntries.id, entry.id), isNull(proposalLogEntries.deletedAt)));
+    if (clash.length === 0) return existing;
+  }
+  return generateProjectId();
+}
+
+export const MERGE_DISABLED_MESSAGE = "Merging invitations is temporarily unavailable while it is being made safe. Please use \"Create as Separate Project\" or contact an admin.";
+
 export function deriveBidDueDate(raw: string | undefined, timeZone: string = BC_DISPLAY_TIMEZONE): string {
   if (!raw) return "";
   const s = String(raw).trim();
@@ -1370,6 +1385,12 @@ export function registerBcSyncRoutes(app: Express) {
 
       const approverName = user!.displayName || user!.email;
 
+      // TEMPORARY HALT (incident 26-1870/26-1871): manual invitation merging is disabled.
+      // Rejected BEFORE any database write so nothing is hidden or changed.
+      if (mergeIntoId) {
+        return res.status(403).json({ message: MERGE_DISABLED_MESSAGE, code: "merge_disabled" });
+      }
+
       // Handle "add as bid round to existing entry" resolution
       if (mergeIntoId) {
         const targetId = typeof mergeIntoId === "number" ? mergeIntoId : parseInt(String(mergeIntoId));
@@ -1406,7 +1427,7 @@ export function registerBcSyncRoutes(app: Express) {
         }
       }
 
-      const estimateNumber = await generateProjectId();
+      const estimateNumber = await resolveEstimateNumber(entry);
 
       const [updated] = await db.update(proposalLogEntries).set({
         isDraft: false,
@@ -1454,6 +1475,12 @@ export function registerBcSyncRoutes(app: Express) {
       const includeVendorFolder = createVendorFolder !== false;
 
       const approverNameAC = user!.displayName || user!.email;
+
+      // TEMPORARY HALT (incident 26-1870/26-1871): manual invitation merging is disabled.
+      // Rejected BEFORE any database write so nothing is hidden or changed.
+      if (mergeIntoId) {
+        return res.status(403).json({ message: MERGE_DISABLED_MESSAGE, code: "merge_disabled" });
+      }
 
       // Handle "add as bid round to existing entry" resolution
       if (mergeIntoId) {
@@ -1557,7 +1584,7 @@ export function registerBcSyncRoutes(app: Express) {
         return res.status(409).json({ message: "Draft was already processed" });
       }
 
-      const estimateNumber = await generateProjectId();
+      const estimateNumber = await resolveEstimateNumber(entry);
       const safeName = finalProjectName.replace(/[\/\\?%*:|"<>]/g, "-").replace(/\s+/g, " ").trim();
       const regionCode = finalRegion.toUpperCase();
       const folderName = `${regionCode} - ${safeName}`;
