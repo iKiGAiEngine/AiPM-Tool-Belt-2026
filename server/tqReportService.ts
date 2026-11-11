@@ -6,6 +6,7 @@
 
 import {
   tqLeadBusinessDays,
+  tqLeadCalendarDays,
   leadBucket,
   parseIsoDate,
   businessDaysBetween,
@@ -59,6 +60,8 @@ export interface TqRow {
 export interface TqDetailRow extends TqRow {
   received: boolean;
   leadBusinessDays: number | null;
+  /** Calendar days (weekends included) from T&Q receipt to bid due date. */
+  leadCalendarDays: number | null;
   bucket: TqBucket;
   bucketLabel: string;
 }
@@ -71,6 +74,8 @@ export interface TqMetrics {
   measurableCount: number;
   medianLeadBd: number | null;
   avgLeadBd: number | null;
+  medianLeadCd: number | null;
+  avgLeadCd: number | null;
   p90LeadBd: number | null;
   minLeadBd: number | null;
   crunchCount: number;
@@ -117,11 +122,13 @@ export interface BuildTqReportOptions {
 export function toDetailRow(row: TqRow): TqDetailRow {
   const received = !!(row.tqReceivedDate && String(row.tqReceivedDate).trim());
   const leadBusinessDays = received ? tqLeadBusinessDays(row.tqReceivedDate, row.dueDate) : null;
+  const leadCalendarDays = received ? tqLeadCalendarDays(row.tqReceivedDate, row.dueDate) : null;
   const bucket = leadBucket(leadBusinessDays, received);
   return {
     ...row,
     received,
     leadBusinessDays,
+    leadCalendarDays,
     bucket,
     bucketLabel: TQ_BUCKET_LABELS[bucket],
   };
@@ -154,6 +161,11 @@ export function computeMetrics(rows: TqDetailRow[]): TqMetrics {
     .sort((a, b) => a - b);
 
   const sum = leads.reduce((s, d) => s + d, 0);
+  const calLeads = receivedRows
+    .map((r) => r.leadCalendarDays)
+    .filter((d): d is number => d !== null)
+    .sort((a, b) => a - b);
+  const calSum = calLeads.reduce((s, d) => s + d, 0);
 
   return {
     bidCount,
@@ -163,6 +175,8 @@ export function computeMetrics(rows: TqDetailRow[]): TqMetrics {
     measurableCount: leads.length,
     medianLeadBd: median(leads),
     avgLeadBd: leads.length === 0 ? null : Math.round((sum / leads.length) * 10) / 10,
+    medianLeadCd: median(calLeads),
+    avgLeadCd: calLeads.length === 0 ? null : Math.round((calSum / calLeads.length) * 10) / 10,
     p90LeadBd: percentile(leads, 90),
     minLeadBd: leads.length === 0 ? null : leads[0],
     crunchCount: leads.filter((d) => d >= 0 && d <= 3).length,
@@ -445,6 +459,7 @@ export function reportToCsv(report: TqReport): string {
         "T&Q Received",
         "Received By",
         "Lead (business days)",
+        "Lead (calendar days)",
         "Bucket",
       ],
       ...report.rows.map((r) => [
@@ -459,6 +474,7 @@ export function reportToCsv(report: TqReport): string {
         r.tqReceivedDate,
         r.tqReceivedBy,
         r.leadBusinessDays,
+        r.leadCalendarDays,
         r.bucketLabel,
       ]),
     ]);
@@ -473,6 +489,8 @@ export function reportToCsv(report: TqReport): string {
         "Coverage %",
         "Median Lead (BD)",
         "Avg Lead (BD)",
+        "Median Lead (Cal Days)",
+        "Avg Lead (Cal Days)",
         "P90 Lead (BD)",
         "Crunch (≤3 BD)",
         "Late",
@@ -485,6 +503,8 @@ export function reportToCsv(report: TqReport): string {
         g.coveragePct,
         g.medianLeadBd,
         g.avgLeadBd,
+        g.medianLeadCd,
+        g.avgLeadCd,
         g.p90LeadBd,
         g.crunchCount,
         g.lateCount,
@@ -508,6 +528,8 @@ export function reportToCsv(report: TqReport): string {
     ["Coverage %", m.coveragePct],
     ["Median lead (BD)", m.medianLeadBd],
     ["Average lead (BD)", m.avgLeadBd],
+    ["Median lead (calendar days)", m.medianLeadCd],
+    ["Average lead (calendar days)", m.avgLeadCd],
     ["P90 lead (BD)", m.p90LeadBd],
     ["Crunch (≤3 BD)", m.crunchCount],
     ["Received after bid day", m.lateCount],

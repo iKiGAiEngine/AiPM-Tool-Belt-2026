@@ -16,6 +16,8 @@ interface TqMetrics {
   measurableCount: number;
   medianLeadBd: number | null;
   avgLeadBd: number | null;
+  medianLeadCd: number | null;
+  avgLeadCd: number | null;
   p90LeadBd: number | null;
   minLeadBd: number | null;
   crunchCount: number;
@@ -41,6 +43,7 @@ interface TqDetailRow {
   tqReceivedBy: string | null;
   received: boolean;
   leadBusinessDays: number | null;
+  leadCalendarDays: number | null;
   bucket: string;
   bucketLabel: string;
 }
@@ -389,13 +392,18 @@ export default function TypesQuantitiesReportPage() {
 
           {/* KPI tiles */}
           {m && (
-            <div className="grid gap-3 grid-cols-2 md:grid-cols-5 mb-5">
+            <div className="grid gap-3 grid-cols-2 md:grid-cols-6 mb-5">
               <StatTile
                 label="Coverage"
                 value={`${m.coveragePct}%`}
                 sub={`${m.receivedCount} of ${m.bidCount} bids`}
               />
               <StatTile label="Median Lead" value={fmtNum(m.medianLeadBd, " BD")} sub="business days before bid day" />
+              <StatTile
+                label="Avg Calendar Days"
+                value={fmtNum(m.avgLeadCd, " days")}
+                sub={`median ${fmtNum(m.medianLeadCd)} calendar days`}
+              />
               <StatTile
                 label="Crunch"
                 value={m.bidCount ? `${Math.round((m.crunchCount / m.bidCount) * 100)}%` : "—"}
@@ -457,6 +465,7 @@ export default function TypesQuantitiesReportPage() {
                       <th className="px-4 py-2 font-semibold text-right">Coverage</th>
                       <th className="px-4 py-2 font-semibold text-right">Median BD</th>
                       <th className="px-4 py-2 font-semibold text-right">Avg BD</th>
+                      <th className="px-4 py-2 font-semibold text-right">Avg Cal Days</th>
                       <th className="px-4 py-2 font-semibold text-right">Crunch</th>
                       <th className="px-4 py-2 font-semibold text-right">Late</th>
                       <th className="px-4 py-2 font-semibold text-right">Never</th>
@@ -465,7 +474,7 @@ export default function TypesQuantitiesReportPage() {
                   <tbody>
                     {report.groups.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                        <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                           No bids match these filters.
                         </td>
                       </tr>
@@ -484,6 +493,7 @@ export default function TypesQuantitiesReportPage() {
                           </td>
                           <td className="px-4 py-2 text-right">{fmtNum(g.medianLeadBd)}</td>
                           <td className="px-4 py-2 text-right">{fmtNum(g.avgLeadBd)}</td>
+                          <td className="px-4 py-2 text-right">{fmtNum(g.avgLeadCd)}</td>
                           <td className="px-4 py-2 text-right">{g.crunchCount}</td>
                           <td className="px-4 py-2 text-right">{g.lateCount}</td>
                           <td className="px-4 py-2 text-right">{g.notReceivedCount}</td>
@@ -511,13 +521,14 @@ export default function TypesQuantitiesReportPage() {
                       <th className="px-4 py-2 font-semibold">Due</th>
                       <th className="px-4 py-2 font-semibold">T&amp;Q Received</th>
                       <th className="px-4 py-2 font-semibold text-right">Lead (BD)</th>
+                      <th className="px-4 py-2 font-semibold text-right">Lead (Cal Days)</th>
                       <th className="px-4 py-2 font-semibold">Runway</th>
                     </tr>
                   </thead>
                   <tbody>
                     {report.rows.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                        <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                           {report.type === "exceptions"
                             ? "No exceptions — every bid had types & quantities in hand with room to spare."
                             : "No bids match these filters."}
@@ -543,6 +554,7 @@ export default function TypesQuantitiesReportPage() {
                             ) : null}
                           </td>
                           <td className="px-4 py-2 text-right font-medium">{fmtNum(r.leadBusinessDays)}</td>
+                          <td className="px-4 py-2 text-right">{fmtNum(r.leadCalendarDays)}</td>
                           <td className="px-4 py-2">
                             <Badge variant="outline" className={BUCKET_BADGES[r.bucket] || ""}>
                               {r.bucketLabel}
@@ -558,8 +570,8 @@ export default function TypesQuantitiesReportPage() {
           )}
 
           <p className="text-xs text-muted-foreground mt-4">
-            Lead time is counted in business days (weekends excluded, holidays not modeled) between the T&amp;Q
-            received date and the bid due date. Negative values mean the types &amp; quantities arrived after bid day.
+            Lead time is shown two ways between the T&amp;Q received date and the bid due date: business days
+            (BD — weekends excluded, holidays not modeled) and calendar days (every day counted). Negative values mean the types &amp; quantities arrived after bid day.
           </p>
         </>
       )}

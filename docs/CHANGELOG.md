@@ -1,5 +1,12 @@
 # AiPM Tool Belt — Changelog
 
+## [11-11-2026]
+### Added
+- T&Q Lead Time Report now shows **calendar days** (every day counted) alongside
+  business days: an "Avg Calendar Days" tile, an "Avg Cal Days" column on the
+  By Region / Market / GC / Estimator / Month tables, a "Lead (Cal Days)" column
+  on Bid Detail and Exceptions, and matching columns in every CSV export.
+
 ## [07-30-2026]
 ### Added
 - Types & Quantities (T&Q) receipt tracking on the Proposal Log: a one-click

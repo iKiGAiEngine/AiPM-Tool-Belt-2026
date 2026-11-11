@@ -3,6 +3,8 @@ import {
   parseIsoDate,
   toIsoDate,
   businessDaysBetween,
+  calendarDaysBetween,
+  tqLeadCalendarDays,
   tqLeadBusinessDays,
   leadBucket,
   isCrunch,
@@ -191,6 +193,27 @@ test("isCrunch covers 0–3 business days only", () => {
   assert.strictEqual(isCrunch(4), false);
   assert.strictEqual(isCrunch(-1), false);
   assert.strictEqual(isCrunch(null), false);
+});
+
+// ── calendar days ─────────────────────────────────────────────────────────────
+
+test("calendar days count every day, weekends included", () => {
+  assert.strictEqual(calendarDaysBetween(d("2026-06-05"), d("2026-06-08")), 3); // Fri → Mon
+  assert.strictEqual(calendarDaysBetween(d("2026-06-03"), d("2026-06-03")), 0);
+  assert.strictEqual(calendarDaysBetween(d("2026-06-10"), d("2026-06-08")), -2);
+});
+
+test("calendar days are not thrown off by a daylight-saving change", () => {
+  // US clocks spring forward on 2026-03-08.
+  assert.strictEqual(calendarDaysBetween(d("2026-03-07"), d("2026-03-09")), 2);
+  assert.strictEqual(calendarDaysBetween(d("2026-10-31"), d("2026-11-02")), 2);
+});
+
+test("tqLeadCalendarDays is null when either date is missing or bad", () => {
+  assert.strictEqual(tqLeadCalendarDays("2026-06-01", "2026-06-15"), 14);
+  assert.strictEqual(tqLeadCalendarDays(null, "2026-06-15"), null);
+  assert.strictEqual(tqLeadCalendarDays("2026-06-01", ""), null);
+  assert.strictEqual(tqLeadCalendarDays("2026-02-30", "2026-03-15"), null);
 });
 
 // ── todayInBusinessTz ─────────────────────────────────────────────────────────

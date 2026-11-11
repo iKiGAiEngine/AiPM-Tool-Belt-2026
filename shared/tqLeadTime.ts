@@ -127,6 +127,31 @@ export function tqLeadBusinessDays(
 }
 
 /**
+ * Signed count of calendar days between two dates (weekends included).
+ * Same-day is 0; negative when `to` is before `from`. Uses Date.UTC on the
+ * local components so a daylight-saving shift can never make it off by one.
+ */
+export function calendarDaysBetween(from: Date, to: Date): number {
+  const a = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
+  const b = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate());
+  return Math.round((b - a) / 86_400_000);
+}
+
+/**
+ * Calendar days between receiving the types & quantities and the bid due date.
+ * Same sign convention as tqLeadBusinessDays(); null when not measurable.
+ */
+export function tqLeadCalendarDays(
+  receivedDate: string | null | undefined,
+  dueDate: string | null | undefined,
+): number | null {
+  const received = parseIsoDate(receivedDate);
+  const due = parseIsoDate(dueDate);
+  if (!received || !due) return null;
+  return calendarDaysBetween(received, due);
+}
+
+/**
  * Classify a bid by how much runway the estimator had.
  *
  * Thresholds mirror the existing due-date buckets on the Proposal Log dashboard
