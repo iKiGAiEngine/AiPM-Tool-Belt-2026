@@ -1,5 +1,28 @@
 # AiPM Tool Belt — Changelog
 
+## [07-30-2026]
+### Added
+- Types & Quantities (T&Q) receipt tracking on the Proposal Log: a one-click
+  "T&Q Rec'd" checkbox column beside Due Date. Checking it stamps the business
+  date, who checked it, and the exact time — server-side, so a wrong workstation
+  clock can't corrupt the record. The date can be back-dated from the edit modal.
+- T&Q Lead Time Report at `/reports/types-quantities` — how many **business days**
+  before bid day the types & quantities actually arrived. Eight report types
+  (Executive Summary, By Region / Market / GC / Estimator, Monthly Trend, Bid
+  Detail, Exceptions), each CSV-exportable, with an auto-generated plain-English
+  TL;DR and rule-picked watch items.
+- New `tq-report` feature flag: admins have it by default; leadership can be
+  granted it individually from Admin → Feature Access without an admin role.
+- `npm run test:unit` — dependency-free unit suite for the lead-time math and the
+  report aggregator.
+
+### Notes
+- Lead time is never displayed in the Proposal Log grid — it lives only in the
+  report. The grid shows the checkbox, and a hover tooltip with the date and who.
+- Ticks and unticks flow through the existing Proposal Change Log automatically.
+- Requires `npm run db:push` (or a restart — the columns are added idempotently
+  on boot by `server/seedData.ts`).
+
 ## [04-06-2026] v0.1.0
 ### Added
 - OTP-based email authentication system with 6-digit codes
