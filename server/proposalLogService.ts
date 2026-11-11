@@ -155,6 +155,7 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
   sourceEmail?: string;
   sourceEmailSubject?: string;
   sourceAttachmentUrl?: string;
+  tqReceivedDate?: string;
 }>) {
   if (!entries.length) return [];
 
@@ -220,6 +221,7 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
       sourceEmail: data.sourceEmail || null,
       sourceEmailSubject: data.sourceEmailSubject || null,
       sourceAttachmentUrl: data.sourceAttachmentUrl || null,
+      tqReceivedDate: data.tqReceivedDate || null,
       isTest: data.isTest || false,
       syncedToLocal: true,
     };

@@ -163,6 +163,18 @@ app.use((req, res, next) => {
     res.redirect(301, "/portfolio");
   });
 
+  // Any /api request that reached this point matched no route. Answer it with
+  // JSON instead of letting it fall through to the SPA catch-all below, which
+  // would return index.html with a 200 and surface in the browser as
+  // "Unexpected token '<', "<!DOCTYPE "... is not valid JSON" — an error that
+  // says nothing about the real cause (usually a server running older code than
+  // the client, i.e. a process that needs restarting after a deploy).
+  app.use("/api", (req: Request, res: Response) => {
+    res.status(404).json({
+      message: `No such API endpoint: ${req.method} ${req.baseUrl}${req.path}`,
+    });
+  });
+
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes

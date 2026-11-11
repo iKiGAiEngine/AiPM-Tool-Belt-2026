@@ -49,6 +49,7 @@ const FIELD_LABELS: Record<string, string> = {
   projectName: "Project Name",
   owner: "Owner",
   scopeList: "Scope List",
+  tqReceivedDate: "T&Q Received",
 };
 
 const FIELD_OPTIONS = Object.entries(FIELD_LABELS).map(([value, label]) => ({ value, label }));
