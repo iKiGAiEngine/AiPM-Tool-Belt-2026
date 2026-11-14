@@ -94,3 +94,8 @@
 **What:** Application checks for duplicate user emails on startup, keeps oldest account, deletes newer duplicates.
 **Why:** Prevents session/permission conflicts; ensures single source of truth per email; automatic recovery from data entry mistakes.
 **Alternatives rejected:** No cleanup (stale sessions accumulate); manual cleanup (burden on admin); deduplication in queries (slower, incomplete).
+
+## [11-14-2026] — Human-in-the-Loop: "The Customer Is Always Right in Matters of Taste"
+**What:** All AI output is sorted into Facts (AI extracts, human verifies), Judgment (AI suggests, human approves), and Taste & Preference (human only — AI never auto-picks). Full requirements in `docs/HITL-REQUIREMENTS.md` (HITL-01 to HITL-31).
+**Why:** AI is reliable at copying what's on a page but not at calls driven by customer preference, relationships, or business strategy. Keeping humans in charge of those protects accuracy and customer trust.
+**Alternatives rejected:** Full auto-commit of AI results (silent errors reach estimates/customers); AI-ranked preferences (pushes one model's "taste" onto every estimator and customer).
