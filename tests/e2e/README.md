@@ -26,3 +26,24 @@ The dev server (`npm run dev`) must be running on `E2E_BASE_URL`.
   manufacturer tags edited in the Vendor Database UI persist to the
   database and correctly include/exclude vendors in the RFQ recipient
   picker on the Estimating Module.
+- `types-quantities.spec.ts` — verifies the "T&Q Rec'd" checkbox on the
+  Proposal Log persists server-side, that the lead-time day count never
+  leaks into the log grid, that ticks land in the Proposal Change Log,
+  and that the T&Q Lead Time Report renders every report type and
+  exports CSV.
+
+## Unit tests
+
+Pure logic is covered by plain `node:assert` scripts run under `tsx`
+(no test runner, no database):
+
+```bash
+npm run test:unit
+```
+
+`server/swinertonOffices.test.ts` transitively imports `server/db.ts`, so
+it needs a `DATABASE_URL` in the environment and is run separately:
+
+```bash
+DATABASE_URL=postgres://... npm run test:unit:db
+```

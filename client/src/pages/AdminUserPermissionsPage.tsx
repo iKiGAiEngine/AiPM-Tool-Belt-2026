@@ -20,6 +20,7 @@ interface UserWithPermissions {
 }
 
 const FEATURE_LABELS: Record<string, string> = {
+  "tq-report": "T&Q Lead Time Report",
   "proposal-log": "Proposal Log",
   "vendor-database": "Vendor / Manufacturer Database",
   "submittal-builder": "Submittal Builder",
