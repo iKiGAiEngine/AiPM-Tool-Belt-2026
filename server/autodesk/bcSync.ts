@@ -10,7 +10,7 @@ import { guessMarket } from "../proposalLogService";
 import { generateProjectId, createProject, getActiveRegions } from "../scopeDictionaryStorage";
 import { sendDraftNotificationEmail } from "../emailService";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "../templateStorage";
-import { stampWorkbookCells, buildSummaryStampCells, SUMMARY_SHEET_NAME } from "../estimateTemplateStamp";
+import { stampEstimateWorkbook } from "../stampEstimateWorkbook";
 import { matchRegionWithFallback } from "../regionMatcher";
 import { isSwinerton, matchSwinertonOffice, matchExtRegion, resolveSwinertonSoCalSubregion } from "../swinertonOffices";
 import { findFuzzyDuplicates } from "../fuzzyDuplicates";
@@ -1615,29 +1615,31 @@ export function registerBcSyncRoutes(app: Express) {
           const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
           const estimatePath = path.join(projectDir, "Estimate Folder", "Estimate", estimateFilename);
 
-          // Header fields on the Summary Sheet (includes the address-ZIP tax lookup).
-          const stampCells = await buildSummaryStampCells({
-            projectName: safeName,
-            dueDate: finalDueDate,
-            estimateNumber,
-            projectAddress: finalProjectAddress,
-            spEstimator: finalSelfPerformEstimator,
-            anticipatedStart: finalAnticipatedStart,
-            anticipatedFinish: finalAnticipatedFinish,
-          });
-
-          // Patch cells in the worksheet XML so macros/formulas survive (works for
-          // both .xlsm and .xlsx templates). If stamping fails, fall back to the
-          // unstamped template so the folder still contains the estimate workbook.
+          // Summary Sheet header (includes the address-ZIP tax lookup) plus the
+          // Vendor Directory. Patches worksheet XML so macros/formulas survive
+          // (works for both .xlsm and .xlsx templates). If stamping fails, fall
+          // back to the unstamped template so the folder still contains the
+          // estimate workbook.
           let outputBuffer: Buffer;
+          let stampedFieldCount = 0;
           try {
-            outputBuffer = await stampWorkbookCells(estimateBuffer, SUMMARY_SHEET_NAME, stampCells);
+            const stamped = await stampEstimateWorkbook(estimateBuffer, {
+              projectName: safeName,
+              dueDate: finalDueDate,
+              estimateNumber,
+              projectAddress: finalProjectAddress,
+              spEstimator: finalSelfPerformEstimator,
+              anticipatedStart: finalAnticipatedStart,
+              anticipatedFinish: finalAnticipatedFinish,
+            }, { context: "BC ApproveCreate" });
+            outputBuffer = stamped.buffer;
+            stampedFieldCount = stamped.summaryCellCount;
           } catch (stampErr) {
             console.error("[BC ApproveCreate] Stamping failed, writing unstamped estimate:", stampErr);
             outputBuffer = estimateBuffer;
           }
           fs.writeFileSync(estimatePath, outputBuffer);
-          console.log(`[BC ApproveCreate] Estimate stamped: ${estimateFilename} (${stampCells.length} fields)`);
+          console.log(`[BC ApproveCreate] Estimate stamped: ${estimateFilename} (${stampedFieldCount} fields)`);
         } catch (err) {
           console.error("[BC ApproveCreate] Failed to stamp estimate:", err);
         }

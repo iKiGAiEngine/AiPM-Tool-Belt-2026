@@ -47,6 +47,11 @@ const CONTACT_SCOPE_OPTIONS: Array<{ id: string; label: string }> = [
   { id: "flagpoles",        label: "Flagpole" },
   { id: "knox_box",         label: "Knox Box" },
   { id: "site_furnishing",  label: "Site Furnishing" },
+  // Catch-all for material vendors that fit none of the above. Kept last so it
+  // reads as the fallback it is. The Vendor Directory's Miscellaneous block also
+  // accepts the older photolum / signage / window_shades tags, so vendors
+  // already carrying those need no re-tagging.
+  { id: "miscellaneous",    label: "Miscellaneous" },
 ];
 const CSI_CODES = ["10 21 00 - Compartments & Cubicles", "10 28 00 - Toilet Accessories", "10 44 00 - Fire Extinguisher Cabinets", "10 51 00 - Lockers", "10 55 00 - Postal Specialties", "10 56 00 - Storage Assemblies", "10 11 00 - Visual Display Units", "10 71 00 - Exterior Protection", "10 73 00 - Protective Covers", "10 75 00 - Flagpoles", "22 40 00 - Plumbing Fixtures", "08 10 00 - Doors & Frames", "Custom"];
 const FILE_TYPES = ["W-9", "Resale Cert", "Exemption Cert", "Price Sheet", "Credit App", "Other"];

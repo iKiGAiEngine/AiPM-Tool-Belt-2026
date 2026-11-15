@@ -1,0 +1,918 @@
+{
+ "_comment": "Snapshot of the hand-built 'Vendor Directory' tab from NBS_Material_ONLY_Estimate_v60b_RFQ_Log_TEST.xlsm, captured 2026-10-18. Reference data for scripts/vendorDirectoryReconcile.ts only - NOT used at runtime. Lets the reconcile report run without the .xlsm present.",
+ "capturedFrom": "NBS_Material_ONLY_Estimate_v60b_RFQ_Log_TEST.xlsm",
+ "capturedAt": "2026-10-18",
+ "rowCount": 130,
+ "rows": [
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Pacific Building Specialties",
+   "manufacturer": "Bobrick",
+   "contact": "Mike Clark",
+   "email": "mike@pbspecialties.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Build.com",
+   "manufacturer": "Ferguson",
+   "contact": "Ian Blair",
+   "email": "Ian.Blair@ferguson.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Renco Sales",
+   "manufacturer": "Bradley",
+   "contact": "Mark Catacutan",
+   "email": "markc@rencosales.com; cathyk@rencosales.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Pacific Building Specialties",
+   "manufacturer": "ASI / Global",
+   "contact": "Mike Clark",
+   "email": "mike@pbspecialties.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Fastenal",
+   "manufacturer": "Fastenal",
+   "contact": "Anthony Bazzell",
+   "email": "abazzell@fastenal.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Mainline Sales, Inc.",
+   "manufacturer": "World Dryers",
+   "contact": "Julio Ornelas",
+   "email": "JOrnelas@mlsalesinc.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Multiple",
+   "manufacturer": "Ferguson / Build",
+   "contact": "Marco Sanchez",
+   "email": "marco.sanchez@ferguson.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Multiple",
+   "manufacturer": "Ferguson (Hawaii)",
+   "contact": "Daniel Shaw",
+   "email": "Daniel.Shaw2@Ferguson.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Multiple",
+   "manufacturer": "Hajoca",
+   "contact": "HajocaTeam",
+   "email": "Corona@hajoca.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Gatco",
+   "manufacturer": "Gatco",
+   "contact": "Maria Velasco",
+   "email": "maria@gatco-inc.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Delaney Hardware",
+   "manufacturer": "Delaney Hardware",
+   "contact": "Krista Dyer",
+   "email": "kristad@delaneyhardware.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Specification Sales",
+   "manufacturer": "Seachrome",
+   "contact": "General Email",
+   "email": "order@specsales.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Wingits",
+   "manufacturer": "Wingits",
+   "contact": "C.J. Krause / Kyle White",
+   "email": "cj@wingits.com; kwhite@wingits.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Waterworks",
+   "manufacturer": "Waterworks",
+   "contact": "Denise Geller",
+   "email": "dgeller@waterworks.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Linked Reps",
+   "manufacturer": "Peter Pepper",
+   "contact": "Cam Keller",
+   "email": "design@linkedreps.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Multiple",
+   "manufacturer": "Ferguson",
+   "contact": "Casey Grosslight",
+   "email": "casey.grosslight@ferguson.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "C&L Supply Company",
+   "manufacturer": "Xlerator/Dyson",
+   "contact": "Carmela Bass",
+   "email": "carmela.b@candlsupply.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Laguna Greenworks",
+   "manufacturer": "Dyson/ Xlerator",
+   "contact": "Mallory McCamant",
+   "email": "mallory@lagunagreenworks.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "MF Huseby",
+   "manufacturer": "World Hand Dryers",
+   "contact": "Cherie Lowery",
+   "email": "cherie@mfhuseby.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "CB2",
+   "contact": "Team",
+   "email": "tradeconcierge@cb2.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Rejuvenation",
+   "contact": "Amy Kruger",
+   "email": "AKruger@wsgc.com"
+  },
+  {
+   "scope": "Toilet Accessories",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Interior Moderna",
+   "contact": "Team",
+   "email": "info@interiormoderna.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Pacific Building Specialties",
+   "manufacturer": "Bobrick",
+   "contact": "Mike Clark",
+   "email": "mike@pbspecialties.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Renco Sales",
+   "manufacturer": "Bradley - No longer-Powder Metal/HDPE",
+   "contact": "Mark Catacutan",
+   "email": "markc@rencosales.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Pacific Building Specialties",
+   "manufacturer": "ASI",
+   "contact": "Mike Clark",
+   "email": "mike@pbspecialties.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Pacific Building Specialties",
+   "manufacturer": "Metpar",
+   "contact": "Mike Clark",
+   "email": "mike@pbspecialties.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "General Partitions",
+   "contact": "Team",
+   "email": "quotes@generalpartitions.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Mainline Sales, Inc.",
+   "manufacturer": "Hadrian",
+   "contact": "Julio Ornelas",
+   "email": "jornelas@mlsalesinc.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Lam Tech",
+   "contact": "Christina Garcia",
+   "email": "lamtechreception@gmail.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Sanymetal",
+   "contact": "Team",
+   "email": "help@sanymetal.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Accutec",
+   "manufacturer": "HDPE",
+   "contact": "Team",
+   "email": "info@accutecmfg.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Privada - Hawaii",
+   "manufacturer": "J&B Marketing",
+   "contact": "Team",
+   "email": "info@j-bmarketing.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Accutec",
+   "manufacturer": "Accutec - P-Lam/Phenolic/HDPE",
+   "contact": "Team",
+   "email": "info@accutecmfg.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Corian Partitions",
+   "manufacturer": "ShowerShapes",
+   "contact": "Eric Beck",
+   "email": "ericb@gwsurfaces.com"
+  },
+  {
+   "scope": "Toilet Compartments",
+   "vendor": "Corian Partitions",
+   "manufacturer": "Privacy Plus Partitions",
+   "contact": "Dave Gerali",
+   "email": "dgerali@PRIVACYPLUSPARTITIONS.COM"
+  },
+  {
+   "scope": "FEC",
+   "vendor": "Activar",
+   "manufacturer": "JL Industries",
+   "contact": "Erik Huntington",
+   "email": "ejhuntington@activarcpg.com"
+  },
+  {
+   "scope": "FEC",
+   "vendor": "Potter Roemer",
+   "manufacturer": "Potter Roemer",
+   "contact": "Sandra Juarez",
+   "email": "custserv@potterroemer.com"
+  },
+  {
+   "scope": "FEC",
+   "vendor": "Excab Inc.",
+   "manufacturer": "Larsen's Manufacturing",
+   "contact": "Susan Eisloeffel",
+   "email": "sales@excab.com"
+  },
+  {
+   "scope": "FEC",
+   "vendor": "Croker",
+   "manufacturer": "Larsen's Manufacturing",
+   "contact": "Team",
+   "email": "info@croker.com"
+  },
+  {
+   "scope": "FEC",
+   "vendor": "Cardio Partners, Inc.",
+   "manufacturer": "AED",
+   "contact": "Jenny Vega",
+   "email": "jenny.vega@cardiopartners.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "CS - Foster Engineering",
+   "manufacturer": "CS - Foster Engineering",
+   "contact": "Brilda Gray",
+   "email": "brilda@fosterengineered.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Inpro Corporation",
+   "contact": "General Email",
+   "email": "invitationtobid@inprocorp.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "California Region",
+   "manufacturer": "Inpro Corporation",
+   "contact": "Shari Wundrock",
+   "email": "swundrock@inprocorp.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "Oregon, Nevada, Hawaii",
+   "manufacturer": "Inpro Corporation",
+   "contact": "Zach Schulz",
+   "email": "zschulz@inprocorp.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "Alaska, Montana, Idaho, Washington",
+   "manufacturer": "Inpro Corporation",
+   "contact": "Amanda Young",
+   "email": "ayoung@inprocorp.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "Texas, Louisiana, Arkansas and Mississippi",
+   "manufacturer": "Inpro Corporation",
+   "contact": "Austin Stanek",
+   "email": "astanek@inprocorp.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "Colorado, Utah, Wyoming",
+   "manufacturer": "Inpro Corporation",
+   "contact": "Andrew Ellis",
+   "email": "aellis@inprocorp.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "The Corner Guard Store",
+   "manufacturer": "The Corner Guard Store",
+   "contact": "Keith Hodges",
+   "email": "keith@cornerguards.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "M&M Materials",
+   "manufacturer": "Marlite FRP",
+   "contact": "Heidi Gehrig",
+   "email": "heidi@uniplastics.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Koroseal",
+   "contact": "General Email",
+   "email": "quoting@koroseal.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "North Texas",
+   "manufacturer": "L&W Supply - North Texas - Marlite",
+   "contact": "Tyler Hall",
+   "email": "tyler.hall@lwsupply.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "L&W Supply - IE - Marlite",
+   "contact": "Larry Alverson",
+   "email": "lalverson@lwsupply.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "L&W Supply - LA - Marlite",
+   "contact": "Luis Enriquez",
+   "email": "Luis.enriquez@lwsupply.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "L&W Supply - Colorado - Marlite",
+   "contact": "Chance Perekslis",
+   "email": "Chance.Perekslis@lwsupply.com"
+  },
+  {
+   "scope": "Wall Protection",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "L&W Supply - San Jose - Marlite",
+   "contact": "Andres Martinez; Kevin Lucero",
+   "email": "andres.martinez@lwsupply.com; kevin.lucero@lwsupply.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Lyon Lockers (Metal)",
+   "contact": "Pete Seamon",
+   "email": "pseamon@lyonworkspace.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Salsbury (Metal)",
+   "contact": "General Email",
+   "email": "quotes@lockers.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Hallowell / List Industries (Metal)",
+   "contact": "Rick Mazza",
+   "email": "rickmazza@hallowell-list.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Penco (Metal)",
+   "contact": "Tom Concialdi",
+   "email": "tom.concialdi@pencoproducts.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Summit Lockers",
+   "contact": "Bennett Saunders",
+   "email": "estimating@summitlockers.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "PSISC Lockers",
+   "contact": "Hampton Watts",
+   "email": "hampton@psisc.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Mainline Sales, Inc.",
+   "manufacturer": "Hadrian",
+   "contact": "Julio Ornelas",
+   "email": "JOrnelas@mlsalesinc.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Hollman (Wood)",
+   "contact": "Hollman",
+   "email": "estimating@hollman.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Legacy Lockers (Wood/PLAM)",
+   "contact": "James Esely",
+   "email": "james@legacylockers.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "DeBourgh",
+   "contact": "Mike \"Shooter\" Weitz",
+   "email": "mweitz@debourgh.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Tiffin / Steele Solutions Lockers",
+   "contact": "Chad Cooper",
+   "email": "chad.cooper@steelesolutions.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Pacific Building Specialties",
+   "manufacturer": "ASI",
+   "contact": "Mike Clark",
+   "email": "mike@pbspecialties.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Renco Sales",
+   "manufacturer": "Bradley",
+   "contact": "Mark Catacutan",
+   "email": "markc@rencosales.com"
+  },
+  {
+   "scope": "Lockers",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Geargrid",
+   "contact": "Renee",
+   "email": "ReneeA@GearGrid.com"
+  },
+  {
+   "scope": "Appliances",
+   "vendor": "Katom Restaurant Supply",
+   "manufacturer": "Katom Restaurant Supply",
+   "contact": "Phillip Henderson",
+   "email": "PHenderson@katom.com"
+  },
+  {
+   "scope": "Appliances",
+   "vendor": "AJ Madison PRO",
+   "manufacturer": "AJ Madison PRO",
+   "contact": "Jonathan Gold",
+   "email": "Jon@ajmadison.com"
+  },
+  {
+   "scope": "Appliances",
+   "vendor": "Chefs' Toys",
+   "manufacturer": "Chefs' Toys",
+   "contact": "Adrianna Ter Veen",
+   "email": "Adrianna.Terveen@chefstoys.com"
+  },
+  {
+   "scope": "Appliances",
+   "vendor": "Ferguson",
+   "manufacturer": "Ferguson",
+   "contact": "Marco Sanchez",
+   "email": "marco.sanchez@ferguson.com"
+  },
+  {
+   "scope": "Appliances",
+   "vendor": "Singer / M Tucker",
+   "manufacturer": "Singer / M Tucker",
+   "contact": "Katie Johnson",
+   "email": "kjohnson@singerequipment.com"
+  },
+  {
+   "scope": "Appliances",
+   "vendor": "Pinnacle Appliances",
+   "manufacturer": "Pinnacle Appliances",
+   "contact": "Mark Stanford",
+   "email": "mark@pinnacleappliances.com"
+  },
+  {
+   "scope": "Appliances",
+   "vendor": "MD Appliances",
+   "manufacturer": "MD Appliances",
+   "contact": "Darrell Craig",
+   "email": "darrell@mdappliances.com"
+  },
+  {
+   "scope": "Appliances",
+   "vendor": "R & B Wholesale Distributors",
+   "manufacturer": "R & B Wholesale Distributors",
+   "contact": "Kevin Kuske",
+   "email": "kevin@rbdist.com"
+  },
+  {
+   "scope": "Appliances",
+   "vendor": "ABT",
+   "manufacturer": "ABT",
+   "contact": "Allison",
+   "email": "acarmody@abt.com"
+  },
+  {
+   "scope": "Visual Displays",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Claridge",
+   "contact": "Dane Manne",
+   "email": "dmanne@claridgeproducts.com"
+  },
+  {
+   "scope": "Visual Displays",
+   "vendor": "ABC School Equipment",
+   "manufacturer": "Platinum Visual Systems",
+   "contact": "Veroncia Valenzuela",
+   "email": "vvalenzuela@pvsusa.com"
+  },
+  {
+   "scope": "Visual Displays",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Nelson Adams",
+   "contact": "General Email",
+   "email": "architecturalspecialties@nelsonadamsnaco.com"
+  },
+  {
+   "scope": "Visual Displays",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Egan",
+   "contact": "Chris Tugbang",
+   "email": "saleswest@egan.com; cbenavides@egan.com; egan@miracontract.com"
+  },
+  {
+   "scope": "Visual Displays",
+   "vendor": "Clarus",
+   "manufacturer": "Clarus",
+   "contact": "Jouselyn Patino",
+   "email": "jpatino@clarus.com"
+  },
+  {
+   "scope": "Equipment",
+   "vendor": "Legrand",
+   "manufacturer": "Da-Lite",
+   "contact": "Valentina Mindevska",
+   "email": "valentina.mindevska@legrand.com"
+  },
+  {
+   "scope": "Equipment",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Da-Lite",
+   "contact": "Tony Hersey",
+   "email": "sales@da-litescreenstore.com"
+  },
+  {
+   "scope": "Equipment",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Draper",
+   "contact": "Kathy Greenway",
+   "email": "kgreenway@draperinc.com"
+  },
+  {
+   "scope": "Equipment",
+   "vendor": "Triple T Solutions",
+   "manufacturer": "Safe-t-Nose",
+   "contact": "Jason Sparks",
+   "email": "sparks@tripletlogistics.org"
+  },
+  {
+   "scope": "Equipment",
+   "vendor": "Architectural Material Solutions",
+   "manufacturer": "Balco",
+   "contact": "Jennifer Hoelscher",
+   "email": "jennifer@ams-ca.com"
+  },
+  {
+   "scope": "Equipment",
+   "vendor": "Fastenal",
+   "manufacturer": "Georgia Pacific +",
+   "contact": "Anthony Bazzell",
+   "email": "abazzell@fastenal.com"
+  },
+  {
+   "scope": "Equipment",
+   "vendor": "Grainger",
+   "manufacturer": "Grainger",
+   "contact": "Grainger",
+   "email": "customersupport@grainger.com"
+  },
+  {
+   "scope": "Equipment",
+   "vendor": "Global Industrial",
+   "manufacturer": "Global Industrial",
+   "contact": "Global Industrial",
+   "email": "resale@globalindustrial.com"
+  },
+  {
+   "scope": "Equipment",
+   "vendor": "Uline",
+   "manufacturer": "Uline",
+   "contact": "Uline",
+   "email": "customer.service@uline.com"
+  },
+  {
+   "scope": "Bike Racks",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Saris",
+   "contact": "Meg Doll",
+   "email": "mdoll@saris.com"
+  },
+  {
+   "scope": "Bike Racks",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Dero",
+   "contact": "Peter Lemieux",
+   "email": "peter.lemieux@dero.com"
+  },
+  {
+   "scope": "Bike Racks",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Dero (Hawaii)",
+   "contact": "Daniel D\u2019Arco",
+   "email": "daniel.darco@dero.com"
+  },
+  {
+   "scope": "Bike Racks",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "American Bicycle Security Company",
+   "contact": "Brittany Chavez",
+   "email": "turtle@ameribike.com"
+  },
+  {
+   "scope": "Bike Racks",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Dura Bike Lockers",
+   "contact": "Chris Luyet",
+   "email": "Chris@duracore.com"
+  },
+  {
+   "scope": "Bike Racks",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Belson",
+   "contact": "Rebecca Pierce / Vickie Nitto",
+   "email": "Rebecca.Pierce@belson.com; Vickie.Nitto@belson.com"
+  },
+  {
+   "scope": "Bike Racks",
+   "vendor": "Barco Products",
+   "manufacturer": "Barco Products",
+   "contact": "Team",
+   "email": "info@comm.barcoproducts.com"
+  },
+  {
+   "scope": "Bike Racks",
+   "vendor": "Landscape Forms - West",
+   "manufacturer": "Landscape Forms - West",
+   "contact": "Team",
+   "email": "west@landscapeforms.com"
+  },
+  {
+   "scope": "Bike Racks",
+   "vendor": "Tournesol",
+   "manufacturer": "Tournesol",
+   "contact": "Efrain Zafra",
+   "email": "ezafra@tournesol.com; estimating@tournesol.com"
+  },
+  {
+   "scope": "Bike Racks",
+   "vendor": "Urban Accessories",
+   "manufacturer": "Urban Accessories",
+   "contact": "Jeni Severson",
+   "email": "Jeni@urbanaccessories.com"
+  },
+  {
+   "scope": "Bike Racks",
+   "vendor": "Anova",
+   "manufacturer": "Anova",
+   "contact": "Jaren Walker / Janaun Spiller",
+   "email": "jwalker@anovafurnishings.com; Jspiller@anovafurnishings.com"
+  },
+  {
+   "scope": "Bike Racks",
+   "vendor": "The Park Catalog",
+   "manufacturer": "The Park Catalog",
+   "contact": "Noelle Lahey",
+   "email": "Noelle.Lahey@theparkcatalog.com; sales@theparkcatalog.com"
+  },
+  {
+   "scope": "Wire Mesh Partitions",
+   "vendor": "Pape Engineering",
+   "manufacturer": "Wirecrafters",
+   "contact": "John Raban",
+   "email": "JRaban@eppape.com"
+  },
+  {
+   "scope": "Wire Mesh Partitions",
+   "vendor": "Acorn Wire and Iron Works",
+   "manufacturer": "Acorn Wire",
+   "contact": "Charu Banjara",
+   "email": "cbanjara@acornwire.com"
+  },
+  {
+   "scope": "Cubicle Curtains",
+   "vendor": "CS",
+   "manufacturer": "CS - Foster Engineering",
+   "contact": "Brilda Gray",
+   "email": "brilda@fosterengineered.com"
+  },
+  {
+   "scope": "Cubicle Curtains",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Inpro Corporation",
+   "contact": "General Email",
+   "email": "invitationtobid@inprocorp.com"
+  },
+  {
+   "scope": "Expansion Joints",
+   "vendor": "CS",
+   "manufacturer": "CS - Foster Engineering",
+   "contact": "Brilda Gray",
+   "email": "brilda@fosterengineered.com"
+  },
+  {
+   "scope": "Expansion Joints",
+   "vendor": "Nystrom",
+   "manufacturer": "Nystorm",
+   "contact": "Brian Carrillo / Matt Spah",
+   "email": "bcarrillo@nystrom.com; mspah@nystrom.com"
+  },
+  {
+   "scope": "Expansion Joints",
+   "vendor": "Architectural Material Solutions",
+   "manufacturer": "Balco",
+   "contact": "Jennifer Hoelscher",
+   "email": "jennifer@ams-ca.com"
+  },
+  {
+   "scope": "Expansion Joints",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Watson Bowman",
+   "contact": "Han Ling",
+   "email": "han@emseal.com"
+  },
+  {
+   "scope": "Expansion Joints",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Inpro Corporation",
+   "contact": "Jake Radovich",
+   "email": "jradovich@inprocorp.com"
+  },
+  {
+   "scope": "Shelving",
+   "vendor": "Rubbermaid",
+   "manufacturer": "Rubbermaid",
+   "contact": "Wayne SEAMAN",
+   "email": "sssseaman@aol.com"
+  },
+  {
+   "scope": "Window Shades",
+   "vendor": "Interior Services",
+   "manufacturer": "Interior Services",
+   "contact": "Daniel Dominguez",
+   "email": "ddominguez@interiorservices.us"
+  },
+  {
+   "scope": "Entrance Mats",
+   "vendor": "CS",
+   "manufacturer": "CS - Foster Engineering",
+   "contact": "Brilda Gray",
+   "email": "brilda@fosterengineered.com"
+  },
+  {
+   "scope": "Entrance Mats",
+   "vendor": "Architectural Material Solutions",
+   "manufacturer": "Balco",
+   "contact": "Jennifer Hoelscher",
+   "email": "jennifer@ams-ca.com"
+  },
+  {
+   "scope": "Entrance Mats",
+   "vendor": "Nystrom",
+   "manufacturer": "Nystorm",
+   "contact": "Brian Carrillo / Matt Spah",
+   "email": "bcarrillo@nystrom.com; mspah@nystrom.com"
+  },
+  {
+   "scope": "Mailbox",
+   "vendor": "Manufacturer Direct",
+   "manufacturer": "Salsbury",
+   "contact": "Cat Aerllano",
+   "email": "carellano@mailboxes.com"
+  },
+  {
+   "scope": "Mailbox",
+   "vendor": "Orange County Mailboxes",
+   "manufacturer": "Florence",
+   "contact": "Jody Adams",
+   "email": "jody@orangecountymailboxes.com"
+  },
+  {
+   "scope": "Mailbox",
+   "vendor": "Postal Supply",
+   "manufacturer": "Florence - Postal Supply",
+   "contact": "Dana Drew",
+   "email": "dana@postalsupply.net"
+  },
+  {
+   "scope": "Mailbox",
+   "vendor": "Eagle Mailboxes",
+   "manufacturer": "Florence - Eagle Mailboxes",
+   "contact": "Rob Lemons",
+   "email": "eglmailman1@aol.com"
+  },
+  {
+   "scope": "Flagpole",
+   "vendor": "Specialty Building Compnents",
+   "manufacturer": "Flagpoles",
+   "contact": "Kailey Hale",
+   "email": "kailey@specialtybuilding.com"
+  },
+  {
+   "scope": "Flagpole",
+   "vendor": "American Flagpole",
+   "manufacturer": "Flagpoles",
+   "contact": "Matt Knowlan",
+   "email": "mknowlan@aflag.com"
+  },
+  {
+   "scope": "Site Furnishing",
+   "vendor": "Barco Products",
+   "manufacturer": "Barco Products",
+   "contact": "Team",
+   "email": "info@comm.barcoproducts.com"
+  },
+  {
+   "scope": "Site Furnishing",
+   "vendor": "Landscape Forms - West",
+   "manufacturer": "Landscape Forms - West",
+   "contact": "Team",
+   "email": "west@landscapeforms.com"
+  },
+  {
+   "scope": "Site Furnishing",
+   "vendor": "Tournesol",
+   "manufacturer": "Tournesol",
+   "contact": "Efrain Zafra",
+   "email": "ezafra@tournesol.com; estimating@tournesol.com"
+  },
+  {
+   "scope": "Site Furnishing",
+   "vendor": "Urban Accessories",
+   "manufacturer": "Urban Accessories",
+   "contact": "Jeni Severson",
+   "email": "Jeni@urbanaccessories.com"
+  },
+  {
+   "scope": "Site Furnishing",
+   "vendor": "Anova",
+   "manufacturer": "Anova",
+   "contact": "Jaren Walker / Janaun Spiller",
+   "email": "jwalker@anovafurnishings.com; Jspiller@anovafurnishings.com"
+  },
+  {
+   "scope": "Site Furnishing",
+   "vendor": "The Park Catalog",
+   "manufacturer": "The Park Catalog",
+   "contact": "Noelle Lahey",
+   "email": "Noelle.Lahey@theparkcatalog.com; sales@theparkcatalog.com"
+  }
+ ]
+}
