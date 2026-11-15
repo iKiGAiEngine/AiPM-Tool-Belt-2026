@@ -229,6 +229,37 @@ export async function initializePermissions() {
       console.log(`[Permissions] Granted procurement-process to ${grantedProcurementCount} Admin user(s)`);
     }
 
+    // Top-up: backfill newly introduced features (tax-rate-lookup, help-center) for
+    // existing users whose role defaults now include them, so users who already had
+    // some feature rows (and thus skipped PASS 1) aren't left without tiles they
+    // should have by default.
+    const newlyAddedFeatures: Array<typeof FEATURES[keyof typeof FEATURES]> = [
+      FEATURES.TAX_RATE_LOOKUP,
+      FEATURES.HELP_CENTER,
+    ];
+    for (const feature of newlyAddedFeatures) {
+      let grantedCount = 0;
+      for (const user of allUsersForDefaults) {
+        const roleDefaults = DEFAULT_ROLE_FEATURES[user.role] || DEFAULT_ROLE_FEATURES.user;
+        if (!roleDefaults.includes(feature)) continue;
+        const existing = await db.execute(sql`
+          SELECT id FROM user_feature_access
+          WHERE user_id = ${user.id} AND feature = ${feature}
+          LIMIT 1
+        `);
+        if (existing.rows.length === 0) {
+          await db.execute(sql`
+            INSERT INTO user_feature_access (user_id, feature)
+            VALUES (${user.id}, ${feature})
+          `);
+          grantedCount++;
+        }
+      }
+      if (grantedCount > 0) {
+        console.log(`[Permissions] Backfilled ${feature} to ${grantedCount} existing user(s)`);
+      }
+    }
+
     // One-time migration: revoke estimating-module from non-admin users who may have
     // received it via old catch-all defaults. Tracked by a flag in system_settings so
     // subsequent startups do not disturb Permissions UI grants.

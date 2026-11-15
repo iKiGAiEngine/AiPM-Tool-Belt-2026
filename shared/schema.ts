@@ -1296,6 +1296,8 @@ export const FEATURES = {
   PROCUREMENT_PROCESS: "procurement-process",
   SETTINGS_REGIONS: "settings-regions",
   BUYOUT_BOT: "buyout-bot",
+  TAX_RATE_LOOKUP: "tax-rate-lookup",
+  HELP_CENTER: "help-center",
 } as const;
 
 export type Feature = typeof FEATURES[keyof typeof FEATURES];
@@ -1307,6 +1309,8 @@ export const DEFAULT_ROLE_FEATURES: Record<string, Feature[]> = {
     FEATURES.PROPOSAL_LOG,
     FEATURES.VENDOR_DATABASE,
     FEATURES.CENTRAL_SETTINGS,
+    FEATURES.TAX_RATE_LOOKUP,
+    FEATURES.HELP_CENTER,
   ],
   project_manager: [
     FEATURES.PROPOSAL_LOG,
@@ -1316,8 +1320,10 @@ export const DEFAULT_ROLE_FEATURES: Record<string, Feature[]> = {
     FEATURES.QUOTE_PARSER,
     FEATURES.PROJECT_START,
     FEATURES.BUYOUT_BOT,
+    FEATURES.TAX_RATE_LOOKUP,
+    FEATURES.HELP_CENTER,
   ],
-  user: [FEATURES.PROPOSAL_LOG],
+  user: [FEATURES.PROPOSAL_LOG, FEATURES.TAX_RATE_LOOKUP, FEATURES.HELP_CENTER],
 };
 
 export const ROLE_LABELS: Record<string, string> = {
