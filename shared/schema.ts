@@ -1720,6 +1720,7 @@ export type PortfolioVisit = typeof portfolioVisits.$inferSelect;
 
 export const quoteParserFeedback = pgTable("quote_parser_feedback", {
   id: serial("id").primaryKey(),
+  runId: integer("run_id"), // links feedback to the logged parse run
   vendorName: text("vendor_name"),
   quoteNumber: text("quote_number"),
   issueDescription: text("issue_description").notNull(),
@@ -1730,6 +1731,50 @@ export const quoteParserFeedback = pgTable("quote_parser_feedback", {
   appliedNote: text("applied_note"),
 });
 export type QuoteParserFeedback = typeof quoteParserFeedback.$inferSelect;
+
+// Every parse is logged here: the accuracy scorecard, regression golden set,
+// and vendor memory are all derived from these rows.
+export const quoteParserRuns = pgTable("quote_parser_runs", {
+  id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  vendorId: integer("vendor_id"),
+  vendorName: text("vendor_name"),
+  quoteNumber: text("quote_number"),
+  inputTypes: jsonb("input_types").$type<string[]>().default([]), // e.g. ["pdf-text","image","text"]
+  model: varchar("model", { length: 60 }),
+  durationMs: integer("duration_ms"),
+  extractedTextSnippet: text("extracted_text_snippet"), // bounded (~4k chars) so the table never bloats
+  resultJson: jsonb("result_json"),
+  gateResults: jsonb("gate_results"), // { math, spec, schedule } summaries
+  verdict: varchar("verdict", { length: 20 }), // verified | needs_review
+  reconciliationStatus: varchar("reconciliation_status", { length: 20 }), // pass | mismatch | no_prices
+  lineItemCount: integer("line_item_count"),
+  feedback: varchar("feedback", { length: 10 }), // up | down | null
+}, (table) => ({
+  vendorIdx: index("idx_qpr_vendor").on(table.vendorName),
+  createdIdx: index("idx_qpr_created").on(table.createdAt),
+}));
+export type QuoteParserRun = typeof quoteParserRuns.$inferSelect;
+
+// Background data gathering: one row per priced product line on every parsed
+// quote. Powers later analysis (price trends per model, vendor comparisons).
+export const vendorPriceHistory = pgTable("vendor_price_history", {
+  id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  vendorId: integer("vendor_id"),
+  vendorName: text("vendor_name"),
+  modelNumber: text("model_number").notNull(),
+  description: text("description"),
+  unitPrice: numeric("unit_price", { precision: 12, scale: 2 }),
+  extendedPrice: numeric("extended_price", { precision: 12, scale: 2 }),
+  qty: integer("qty"),
+  quoteNumber: text("quote_number"),
+  sourceRunId: integer("source_run_id"),
+}, (table) => ({
+  modelIdx: index("idx_vph_model").on(table.modelNumber),
+  vendorIdx: index("idx_vph_vendor").on(table.vendorName),
+}));
+export type VendorPriceHistoryRow = typeof vendorPriceHistory.$inferSelect;
 
 export const taxRates = pgTable("tax_rates", {
   id: serial("id").primaryKey(),
