@@ -32,6 +32,7 @@ import {
   deleteProject,
 } from "./scopeDictionaryStorage";
 import { storage } from "./storage";
+import { attachmentHeader } from "./contentDisposition";
 import { runExtraction, extractPages, findAccessorySections, isSignageSection } from "./specExtractorEngine";
 import type { AccessoryScope } from "./specExtractorEngine";
 import { getActiveConfiguration } from "./configService";
@@ -1381,7 +1382,7 @@ export function registerProjectRoutes(app: Express) {
       const sanitizedName = sanitizeForWindows(`${project.regionCode}_${project.projectName}`).replace(/\s+/g, "_");
 
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="${sanitizedName}_Plans_Bookmarked.pdf"`);
+      res.setHeader("Content-Disposition", attachmentHeader(`${sanitizedName}_Plans_Bookmarked.pdf`));
       res.send(Buffer.from(pdfBytes));
     } catch (error) {
       console.error("Bookmarked PDF export error:", error);
@@ -1448,7 +1449,7 @@ export function registerProjectRoutes(app: Express) {
       const sanitizedProject = sanitizeForWindows(`${project.regionCode}_${project.projectName}`).replace(/\s+/g, "_");
 
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="${sanitizedProject}_${safeScope}.pdf"`);
+      res.setHeader("Content-Disposition", attachmentHeader(`${sanitizedProject}_${safeScope}.pdf`));
       res.send(Buffer.from(pdfBytes));
     } catch (error) {
       console.error("Scope PDF export error:", error);
@@ -1653,7 +1654,7 @@ export function registerProjectRoutes(app: Express) {
 
       const sanitizedName = sanitizeForWindows(`${project.regionCode}_${project.projectName}`).replace(/\s+/g, "_");
       res.setHeader("Content-Type", "application/zip");
-      res.setHeader("Content-Disposition", `attachment; filename="${sanitizedName}_Export.zip"`);
+      res.setHeader("Content-Disposition", attachmentHeader(`${sanitizedName}_Export.zip`));
       res.send(zipBuffer);
     } catch (error) {
       console.error("Project export error:", error);
@@ -1698,7 +1699,7 @@ export function registerProjectRoutes(app: Express) {
 
       const sanitizedZipName = sanitizeForWindows(`${project.regionCode}_${safeName}`).replace(/\s+/g, "_");
       res.setHeader("Content-Type", "application/zip");
-      res.setHeader("Content-Disposition", `attachment; filename="${sanitizedZipName}_Folder.zip"`);
+      res.setHeader("Content-Disposition", attachmentHeader(`${sanitizedZipName}_Folder.zip`));
       res.send(zipBuffer);
     } catch (error) {
       console.error("Project folder download error:", error);
@@ -1768,7 +1769,7 @@ export function registerProjectRoutes(app: Express) {
         : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
       res.setHeader("Content-Type", contentType);
-      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Disposition", attachmentHeader(`${filename}`));
       res.send(stampedBuffer);
     } catch (error) {
       console.error("Project estimate download error:", error);
@@ -2812,7 +2813,7 @@ export function registerProjectRoutes(app: Express) {
       console.log(`[RecreateFolder] Streamed bid folder zip for proposal log #${id} → ${folderName}.zip (estimate=${estimateStamped}, bytes=${zipBuffer.length})`);
 
       res.setHeader("Content-Type", "application/zip");
-      res.setHeader("Content-Disposition", `attachment; filename="${folderName}.zip"`);
+      res.setHeader("Content-Disposition", attachmentHeader(`${folderName}.zip`));
       res.setHeader("Content-Length", String(zipBuffer.length));
       res.end(zipBuffer);
     } catch (error) {
